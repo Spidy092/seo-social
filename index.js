@@ -18,6 +18,8 @@ const competitorRoutes = require('./src/routes/competitors');
 const analysisRoutes = require('./src/routes/analysis');
 const alertRoutes = require('./src/routes/alerts');
 const onpageRoutes = require('./src/routes/onpage');
+const technicalRoutes = require('./src/routes/technical');
+const contentRoutes = require('./src/routes/content');
 
 
 const log = createLogger('server');
@@ -102,6 +104,8 @@ async function main() {
     await fastify.register(analysisRoutes, { db });
     await fastify.register(alertRoutes, { db });
     await fastify.register(onpageRoutes, { db });
+    await fastify.register(technicalRoutes, { db });
+    await fastify.register(contentRoutes, { db });
     
     // Social Routes
     await fastify.register(require('./src/routes/social/platforms'), { db });

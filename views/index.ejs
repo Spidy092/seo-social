@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/public/css/onpage.css">
+    <link rel="stylesheet" href="/public/css/technical.css">
 
 </head>
 <body>
@@ -50,6 +51,14 @@
             <li class="nav-item" data-page="onpage">
                 <i class="fas fa-file-invoice"></i>
                 <span>On-Page SEO</span>
+            </li>
+            <li class="nav-item" data-page="technical">
+                <i class="fas fa-spider"></i>
+                <span>Technical SEO</span>
+            </li>
+            <li class="nav-item" data-page="humanizer">
+                <i class="fas fa-pen-nib"></i>
+                <span>Content Humanizer</span>
             </li>
             <!-- Social Tools -->
             <li class="nav-item-header" style="padding: 15px 20px 5px; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; letter-spacing: 0.5px; opacity: 0.7;">
@@ -667,6 +676,265 @@
                 </div>
             </div>
 
+            <div class="page" id="page-technical">
+                <div class="technical-container">
+                    <div class="card onpage-form-card">
+                        <div class="card-header">
+                            <h3>🕸️ Technical SEO Audit</h3>
+                            <span class="header-hint">Crawl your site · Find crawl/index issues · Flag sitemap and architecture gaps</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="technical-input-row">
+                                <input type="text" id="technical-site-input" placeholder="https://example.com">
+                                <select id="technical-max-pages">
+                                    <option value="10">Crawl 10 pages</option>
+                                    <option value="20" selected>Crawl 20 pages</option>
+                                    <option value="30">Crawl 30 pages</option>
+                                    <option value="50">Crawl 50 pages</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary" id="technical-audit-btn">
+                                <i class="fas fa-spider"></i> Run Technical Audit
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="technical-results" style="display:none">
+                        <div class="technical-top-grid">
+                            <div class="card">
+                                <div class="card-header"><h3>Audit Score</h3></div>
+                                <div class="onpage-score-wrap">
+                                    <div class="onpage-score-ring">
+                                        <svg width="120" height="120" viewBox="0 0 120 120">
+                                            <circle class="track" cx="60" cy="60" r="45"></circle>
+                                            <circle class="fill" id="technical-score-circle" cx="60" cy="60" r="45" stroke-dasharray="283" stroke-dashoffset="283"></circle>
+                                        </svg>
+                                        <div class="onpage-score-num">
+                                            <div class="onpage-score-big" id="technical-overall-score">—</div>
+                                            <div class="onpage-score-slash">/100</div>
+                                        </div>
+                                    </div>
+                                    <div class="onpage-score-info">
+                                        <div class="score-label" id="technical-overall-label">—</div>
+                                        <div class="score-sublabel" id="technical-overall-info">Run a crawl to see your score</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card">
+                                <div class="card-header"><h3>Audit Summary</h3></div>
+                                <div class="card-body">
+                                    <div class="technical-summary-grid" id="technical-summary-grid"></div>
+                                    <div class="technical-infra-summary" id="technical-infra-summary" style="margin-top:16px"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-bottom:20px">
+                            <div class="card-header">
+                                <h3>Score by Category</h3>
+                                <span class="header-hint">Click a category card to filter issues below</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="technical-categories" id="technical-category-scores"></div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-bottom:20px">
+                            <div class="onpage-issues-header">
+                                <h3>Technical Issues</h3>
+                                <div class="technical-issues-controls">
+                                    <button class="onpage-filter-btn active" data-category="all" onclick="technicalFilterByCategory('all')">All</button>
+                                    <button class="onpage-filter-btn" data-category="crawlability" onclick="technicalFilterByCategory('crawlability')">Crawlability</button>
+                                    <button class="onpage-filter-btn" data-category="indexability" onclick="technicalFilterByCategory('indexability')">Indexability</button>
+                                    <button class="onpage-filter-btn" data-category="sitemaps" onclick="technicalFilterByCategory('sitemaps')">Sitemaps</button>
+                                    <button class="onpage-filter-btn" data-category="architecture" onclick="technicalFilterByCategory('architecture')">Architecture</button>
+                                </div>
+                            </div>
+                            <div id="technical-issues-list"></div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Crawled Pages</h3>
+                                <span class="header-hint">Status, depth, canonical health, and per-page findings</span>
+                            </div>
+                            <div class="card-body" style="padding:0;overflow:auto">
+                                <table class="technical-pages-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Status</th>
+                                            <th>URL</th>
+                                            <th>Title</th>
+                                            <th>Depth</th>
+                                            <th>Canonical</th>
+                                            <th>Issues</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="technical-pages-body">
+                                        <tr><td colspan="6" class="technical-table-empty">Run an audit to inspect crawled pages.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content Humanizer Page -->
+            <div class="page" id="page-humanizer">
+                <div class="research-container">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>✍️ Content Humanizer</h3>
+                            <span class="header-hint">Refine stiff draft copy into clearer, more natural writing while preserving facts and SEO keywords</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>Paste your content</label>
+                                <textarea id="humanizerInput" placeholder="Paste the draft you want to refine..." style="min-height:220px;width:100%;padding:16px;border:1px solid #e5e7eb;border-radius:12px;resize:vertical;font-family:inherit;"></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Mode</label>
+                                    <select id="humanizerMode">
+                                        <option value="standard" selected>Standard</option>
+                                        <option value="seo-blog">SEO Blog</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Tone</label>
+                                    <select id="humanizerTone">
+                                        <option value="natural">Natural</option>
+                                        <option value="conversational">Conversational</option>
+                                        <option value="professional">Professional</option>
+                                        <option value="confident">Confident</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Audience</label>
+                                    <input type="text" id="humanizerAudience" placeholder="e.g. startup founders, local SEO clients">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Brand voice</label>
+                                    <input type="text" id="humanizerVoice" placeholder="e.g. practical, trustworthy, expert but friendly">
+                                </div>
+                                <div class="form-group">
+                                    <label>Change level</label>
+                                    <select id="humanizerMaxChange">
+                                        <option value="light">Light</option>
+                                        <option value="balanced" selected>Balanced</option>
+                                        <option value="strong">Strong</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Preserve keywords / phrases</label>
+                                <input type="text" id="humanizerKeywords" placeholder="Comma-separated phrases to keep, e.g. web design company, Bangalore, 24/7 support">
+                            </div>
+                            <div id="seoBlogFields" style="display:none;">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Primary keyword</label>
+                                        <input type="text" id="humanizerPrimaryKeyword" placeholder="e.g. Node.js backend development">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Related keywords</label>
+                                        <input type="text" id="humanizerRelatedKeywords" placeholder="Comma-separated related terms for SEO Blog mode">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-top:-4px;">
+                                <label class="checkbox-label" style="display:flex;align-items:flex-start;gap:10px;">
+                                    <input type="checkbox" id="humanizerPreserveHtml">
+                                    <span>Preserve HTML formatting and links if the input contains markup</span>
+                                </label>
+                            </div>
+                            <button class="btn btn-primary" id="humanizeBtn" style="width: 220px; justify-content: center; height: 50px; font-weight: 600;">
+                                <i class="fas fa-wand-magic-sparkles"></i> Humanize Content
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top:20px;">
+                        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                            <h3>Recent Rewrite History</h3>
+                            <button class="btn btn-sm btn-outline" id="refreshHumanizerHistoryBtn">
+                                <i class="fas fa-rotate-right"></i> Refresh
+                            </button>
+                        </div>
+                        <div class="card-body" id="humanizerHistoryList">
+                            <p class="text-muted">No saved rewrites yet.</p>
+                        </div>
+                    </div>
+
+                    <div id="humanizerResults" style="display:none;margin-top:20px;">
+                        <div class="metrics-grid" style="margin-bottom:20px;">
+                            <div class="metric-card">
+                                <div class="metric-header">
+                                    <span class="metric-label">Original Naturalness</span>
+                                    <span class="metric-icon"><i class="fas fa-file-alt"></i></span>
+                                </div>
+                                <div class="metric-value" id="humanizerOriginalScore">-</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-header">
+                                    <span class="metric-label">Refined Naturalness</span>
+                                    <span class="metric-icon"><i class="fas fa-feather"></i></span>
+                                </div>
+                                <div class="metric-value" id="humanizerRefinedScore">-</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-header">
+                                    <span class="metric-label">Readability</span>
+                                    <span class="metric-icon"><i class="fas fa-book-open"></i></span>
+                                </div>
+                                <div class="metric-value" id="humanizerReadability">-</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-header">
+                                    <span class="metric-label">Warnings</span>
+                                    <span class="metric-icon"><i class="fas fa-shield-alt"></i></span>
+                                </div>
+                                <div class="metric-value" id="humanizerWarningsCount">0</div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-bottom:20px;">
+                            <div class="card-header">
+                                <h3>Rewrite Summary</h3>
+                            </div>
+                            <div class="card-body">
+                                <p id="humanizerSummary" style="margin-bottom:14px;color:#4b5563;"></p>
+                                <div id="humanizerChanges" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
+                                <div id="humanizerWarnings" style="margin-top:14px;"></div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-bottom:20px;">
+                            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                                <h3>Refined Copy</h3>
+                                <button class="btn btn-sm btn-outline" id="copyHumanizedBtn">
+                                    <i class="fas fa-copy"></i> Copy
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <textarea id="humanizerOutput" style="min-height:260px;width:100%;padding:16px;border:1px solid #e5e7eb;border-radius:12px;resize:vertical;font-family:inherit;"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Alternative Angles</h3>
+                            </div>
+                            <div class="card-body" id="humanizerAlternatives"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Social Poster Pages (Iframed to preserve Tailwind styles) -->
             <div class="page" id="page-social-upload" style="padding: 0; min-height: calc(100vh - 60px);">
                 <iframe id="iframe-social-upload" src="" data-src="/social/posts/upload" style="width: 100%; height: calc(100vh - 60px); border: none;"></iframe>
@@ -706,6 +974,7 @@
 
     <script src="/public/js/app.js"></script>
     <script src="/public/js/onpage.js"></script>
+    <script src="/public/js/technical.js"></script>
 
 </body>
 </html>

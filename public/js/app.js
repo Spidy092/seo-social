@@ -7,6 +7,8 @@ const API_BASE = '';
 // ─── State ───
 let currentPage = 'dashboard';
 let currentKeyword = null;
+let humanizerAlternativesCache = [];
+let humanizerHistoryCache = [];
 
 // Pagination state
 const PG = {
@@ -25,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Check for hash on load for deep linking
     const hash = window.location.hash.substring(1);
-    const validPages = ['dashboard', 'research', 'competitors', 'analysis', 'tracking', 'alerts', 'onpage', 'social-upload', 'social-schedule', 'social-platforms', 'social-analytics'];
+    const validPages = ['dashboard', 'research', 'competitors', 'analysis', 'tracking', 'alerts', 'onpage', 'technical', 'humanizer', 'social-upload', 'social-schedule', 'social-platforms', 'social-analytics'];
     
     if (hash && validPages.includes(hash)) {
         navigateTo(hash);
@@ -116,6 +118,8 @@ function navigateTo(page) {
         tracking: 'Rank Tracking',
         alerts: 'Alerts',
         onpage: 'On-Page SEO Analyzer',
+        technical: 'Technical SEO Audit',
+        humanizer: 'Content Humanizer',
         'social-upload': 'Upload Content',
         'social-schedule': 'Post Schedule',
         'social-platforms': 'Social Platforms',
@@ -132,6 +136,8 @@ function navigateTo(page) {
         case 'tracking': loadTrackedDomains(); break;
         case 'alerts': loadAlerts(); break;
         case 'onpage': break;
+        case 'technical': break;
+        case 'humanizer': loadHumanizerHistory(); break;
         case 'social-upload':
             $('#iframe-social-upload').src = $('#iframe-social-upload').dataset.src;
             break;
@@ -147,6 +153,207 @@ function navigateTo(page) {
     }
 
 }
+
+// ─── Content Humanizer ───
+$('#humanizeBtn')?.addEventListener('click', async () => {
+    const text = $('#humanizerInput')?.value.trim();
+    const mode = $('#humanizerMode')?.value || 'standard';
+    const tone = $('#humanizerTone')?.value || 'natural';
+    const audience = $('#humanizerAudience')?.value.trim() || '';
+    const brandVoice = $('#humanizerVoice')?.value.trim() || '';
+    const preserveKeywords = $('#humanizerKeywords')?.value.trim() || '';
+    const primaryKeyword = mode === 'seo-blog' ? ($('#humanizerPrimaryKeyword')?.value.trim() || '') : '';
+    const relatedKeywords = mode === 'seo-blog' ? ($('#humanizerRelatedKeywords')?.value.trim() || '') : '';
+    const preserveHtml = $('#humanizerPreserveHtml')?.checked || false;
+    const maxChange = $('#humanizerMaxChange')?.value || 'balanced';
+
+    if (!text || text.length < 30) {
+        showError('Please paste at least a short paragraph to humanize.');
+        return;
+    }
+
+    try {
+        const data = await api('/api/content/humanize', {
+            method: 'POST',
+            body: JSON.stringify({
+                text,
+                mode,
+                tone,
+                audience,
+                brandVoice,
+                preserveKeywords,
+                primaryKeyword,
+                relatedKeywords,
+                preserveHtml,
+                maxChange,
+            }),
+        });
+
+        if (!data.success) {
+            showError(data.error || 'Humanizer failed.');
+            return;
+        }
+
+        renderHumanizerResult(data.result);
+        loadHumanizerHistory();
+        showSuccess('Content refined successfully.');
+    } catch (err) {
+        console.error('Humanizer failed:', err);
+        showError('Could not humanize content right now.');
+    }
+});
+
+$('#refreshHumanizerHistoryBtn')?.addEventListener('click', () => {
+    loadHumanizerHistory();
+});
+
+$('#humanizerMode')?.addEventListener('change', () => {
+    toggleHumanizerModeFields();
+});
+
+$('#copyHumanizedBtn')?.addEventListener('click', async () => {
+    const output = $('#humanizerOutput');
+    if (!output?.value) return;
+
+    try {
+        await navigator.clipboard.writeText(output.value);
+        showSuccess('Refined copy copied to clipboard.');
+    } catch (err) {
+        showError('Could not copy text.');
+    }
+});
+
+function renderHumanizerResult(result) {
+    humanizerAlternativesCache = result.alternatives || [];
+    $('#humanizerResults').style.display = 'block';
+    $('#humanizerOriginalScore').textContent = `${result.originalAnalysis?.estimatedHumanScore || 0}/100`;
+    $('#humanizerRefinedScore').textContent = `${result.refinedAnalysis?.estimatedHumanScore || 0}/100`;
+    $('#humanizerReadability').textContent = `${capitalize(result.refinedAnalysis?.readability?.label || 'unknown')} (${result.refinedAnalysis?.readability?.score || 0})`;
+    $('#humanizerWarningsCount').textContent = result.verification?.warnings?.length || 0;
+    $('#humanizerSummary').textContent = result.summary || '';
+    $('#humanizerOutput').value = result.refinedText || '';
+
+    const changes = result.changes || [];
+    $('#humanizerChanges').innerHTML = changes.length
+        ? changes.map(change => `<span class="tag tag-outline">${escapeHtml(change)}</span>`).join('')
+        : '<span class="text-muted">No structured change notes returned.</span>';
+
+    const warnings = result.verification?.warnings || [];
+    $('#humanizerWarnings').innerHTML = warnings.length
+        ? warnings.map(message => `<div class="recommendation-item warning" style="margin-bottom:10px;"><i class="fas fa-shield-alt"></i><span>${escapeHtml(message)}</span></div>`).join('')
+        : '<div class="recommendation-item" style="background:#ecfdf5;color:#065f46;"><i class="fas fa-check-circle"></i><span>No preservation warnings detected.</span></div>';
+
+    const alternatives = humanizerAlternativesCache;
+    $('#humanizerAlternatives').innerHTML = alternatives.length
+        ? alternatives.map((option, index) => `
+            <div style="border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px;margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;">
+                    <strong>${escapeHtml(capitalize(option.label))}</strong>
+                    <button class="btn btn-sm btn-outline humanizer-alt-btn" data-alt-index="${index}">
+                        Use this
+                    </button>
+                </div>
+                <div style="white-space:pre-wrap;color:#4b5563;line-height:1.7;">${escapeHtml(option.text)}</div>
+            </div>
+        `).join('')
+        : '<p class="text-muted">No alternatives returned for this rewrite.</p>';
+
+    $$('.humanizer-alt-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            const index = Number(button.dataset.altIndex);
+            applyAlternativeHumanizerText(index);
+        });
+    });
+}
+
+function applyAlternativeHumanizerText(index) {
+    const option = humanizerAlternativesCache[index];
+    if (!option) return;
+    $('#humanizerOutput').value = option.text;
+    showSuccess('Alternative loaded into the output box.');
+}
+
+function toggleHumanizerModeFields() {
+    const mode = $('#humanizerMode')?.value || 'standard';
+    const seoFields = $('#seoBlogFields');
+    if (!seoFields) return;
+    seoFields.style.display = mode === 'seo-blog' ? 'block' : 'none';
+}
+
+async function loadHumanizerHistory() {
+    const container = $('#humanizerHistoryList');
+    if (!container) return;
+
+    try {
+        const data = await api('/api/content/history?limit=8');
+        humanizerHistoryCache = data.history || [];
+        renderHumanizerHistory(humanizerHistoryCache);
+    } catch (err) {
+        console.error('Failed to load humanizer history:', err);
+        container.innerHTML = '<p class="text-muted">Could not load rewrite history.</p>';
+    }
+}
+
+function renderHumanizerHistory(history) {
+    const container = $('#humanizerHistoryList');
+    if (!container) return;
+
+    if (!history.length) {
+        container.innerHTML = '<p class="text-muted">No saved rewrites yet.</p>';
+        return;
+    }
+
+    container.innerHTML = history.map((item, index) => `
+        <div style="border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;">
+                <div>
+                    <div style="font-weight:600;color:#111827;">${escapeHtml(item.summary || 'Saved rewrite')}</div>
+                    <div style="font-size:0.9rem;color:#6b7280;margin-top:4px;">${escapeHtml(item.mode || 'standard')} · ${escapeHtml(item.tone || 'natural')} · ${formatTimeAgo(item.created_at)}</div>
+                </div>
+                <button class="btn btn-sm btn-outline humanizer-history-load-btn" data-history-index="${index}">
+                    Load
+                </button>
+            </div>
+            <div style="color:#4b5563;line-height:1.6;">${escapeHtml(truncate(item.input_text || '', 180))}</div>
+        </div>
+    `).join('');
+
+    $$('.humanizer-history-load-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            const index = Number(button.dataset.historyIndex);
+            loadHumanizerHistoryItem(index);
+        });
+    });
+}
+
+function loadHumanizerHistoryItem(index) {
+    const item = humanizerHistoryCache[index];
+    if (!item) return;
+
+    $('#humanizerInput').value = item.input_text || '';
+    $('#humanizerOutput').value = item.output_text || '';
+    $('#humanizerMode').value = item.mode || 'standard';
+    toggleHumanizerModeFields();
+    $('#humanizerTone').value = item.tone || 'natural';
+    $('#humanizerAudience').value = item.audience || '';
+    $('#humanizerVoice').value = item.brand_voice || '';
+    $('#humanizerKeywords').value = Array.isArray(item.preserve_keywords)
+        ? item.preserve_keywords.join(', ')
+        : '';
+    $('#humanizerPrimaryKeyword').value = item.primary_keyword || '';
+    $('#humanizerRelatedKeywords').value = Array.isArray(item.related_keywords)
+        ? item.related_keywords.join(', ')
+        : '';
+    $('#humanizerPreserveHtml').checked = Boolean(item.preserve_html);
+    $('#humanizerMaxChange').value = item.max_change || 'balanced';
+    $('#humanizerSummary').textContent = item.summary || 'Loaded from history';
+    $('#humanizerChanges').innerHTML = '<span class="text-muted">Loaded from saved history.</span>';
+    $('#humanizerWarnings').innerHTML = '<div class="recommendation-item" style="background:#eff6ff;color:#1d4ed8;"><i class="fas fa-clock-rotate-left"></i><span>Loaded a previous rewrite result.</span></div>';
+    $('#humanizerResults').style.display = 'block';
+    showSuccess('Loaded rewrite from history.');
+}
+
+toggleHumanizerModeFields();
 
 // ─── API Helper ───
 async function api(endpoint, options = {}) {
@@ -1405,6 +1612,20 @@ function formatTimeAgo(dateStr) {
 function truncate(str, len) {
     if (!str) return '';
     return str.length > len ? str.slice(0, len) + '...' : str;
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function capitalize(value) {
+    const text = String(value || '');
+    return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
 }
 
 function getAlertIcon(type) {

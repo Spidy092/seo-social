@@ -225,6 +225,51 @@ async function initializeDatabase() {
         )
     `);
 
+    await query(`
+        CREATE TABLE IF NOT EXISTS content_rewrite_history (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            input_text TEXT NOT NULL,
+            output_text TEXT NOT NULL,
+            mode TEXT DEFAULT 'standard',
+            primary_keyword TEXT,
+            related_keywords JSONB DEFAULT '[]'::jsonb,
+            tone TEXT DEFAULT 'natural',
+            audience TEXT,
+            brand_voice TEXT,
+            preserve_keywords JSONB DEFAULT '[]'::jsonb,
+            preserve_html BOOLEAN DEFAULT FALSE,
+            max_change TEXT DEFAULT 'balanced',
+            summary TEXT,
+            verification JSONB,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS technical_audits (
+            id SERIAL PRIMARY KEY,
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            site_url TEXT NOT NULL,
+            status VARCHAR(30) DEFAULT 'completed',
+            pages_crawled INTEGER DEFAULT 0,
+            overall_score INTEGER DEFAULT 0,
+            summary JSONB DEFAULT '{}'::jsonb,
+            issues JSONB DEFAULT '[]'::jsonb,
+            pages JSONB DEFAULT '[]'::jsonb,
+            robots_txt JSONB DEFAULT '{}'::jsonb,
+            sitemaps JSONB DEFAULT '[]'::jsonb,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+
+    await query(`ALTER TABLE content_rewrite_history ADD COLUMN IF NOT EXISTS primary_keyword TEXT`);
+    await query(`ALTER TABLE content_rewrite_history ADD COLUMN IF NOT EXISTS related_keywords JSONB DEFAULT '[]'::jsonb`);
+
+    await query(`CREATE INDEX IF NOT EXISTS idx_content_rewrite_history_user_created ON content_rewrite_history(user_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_technical_audits_site_created ON technical_audits(site_url, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_technical_audits_user_created ON technical_audits(user_id, created_at DESC)`);
+
     log.info('✅ database schema initialized');
 }
 

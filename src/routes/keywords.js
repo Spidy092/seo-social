@@ -3,7 +3,9 @@
  */
 
 const keywordService = require('../services/keywordService');
+const googleAdsService = require('../services/googleAdsService');
 const { createLogger } = require('../utils/logger');
+
 
 const log = createLogger('routes:keywords');
 
@@ -51,6 +53,34 @@ async function keywordRoutes(fastify, options) {
             success: true,
             locations: SUPPORTED_LOCATIONS,
         };
+    });
+
+    // ─── Check Google Ads Credential Status ───
+    fastify.get('/api/keywords/check-ads', async (request, reply) => {
+        const status = await googleAdsService.checkCredentials();
+        return {
+            googleAds: status,
+            dataSource: status.valid
+                ? '✅ Real volume from Google Ads Keyword Planner'
+                : '⚠️ Estimated volume (Google Ads not connected)',
+        };
+    });
+
+    // ─── Test Single Keyword Volume (Google Ads) ───
+    fastify.get('/api/keywords/volume-test', async (request, reply) => {
+        const { keyword = 'seo services india', location = 'India' } = request.query;
+        try {
+            const data = await googleAdsService.getSingleKeywordVolume(keyword, location);
+            return {
+                success: true,
+                keyword,
+                location,
+                result: data,
+                isReal: data?.isReal ?? false,
+            };
+        } catch (err) {
+            return reply.code(500).send({ success: false, error: err.message });
+        }
     });
 
     // ─── Advanced Keyword Research ───

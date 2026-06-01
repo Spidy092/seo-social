@@ -8,6 +8,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const config = require('../config');
 const { createLogger } = require('../utils/logger');
+const googleAdsService = require('./googleAdsService');
 
 const log = createLogger('keyword-service');
 
@@ -127,25 +128,50 @@ function getLocationConfig(location) {
     return LOCATION_MAP[key] || { gl: 'in', hl: 'en', google: 'google.co.in' };
 }
 
-// ─── Search Volume Estimation ───
+// ─── Search Volume (Real Data First, then Estimation Fallback) ───
 async function estimateSearchVolume(keyword, location = 'India') {
-    log.info({ keyword, location }, 'estimating search volume');
+    log.info({ keyword, location }, 'fetching search volume');
 
     try {
-        // Method 1: Serper.dev (if API key available)
+        // ── Method 1: Google Ads Keyword Planner (REAL data) ──
+        const adsData = await googleAdsService.getSingleKeywordVolume(keyword, location);
+        if (adsData && adsData.isReal) {
+            log.info({ keyword, volume: adsData.volume }, 'real volume from Google Ads');
+            return {
+                volume: adsData.volume,
+                competition: adsData.competition,
+                competitionIndex: adsData.competitionIndex,
+                cpc: adsData.cpc,
+                cpcRange: adsData.cpcRange,
+                difficulty: Math.round((adsData.competitionIndex / 100) * 70 + 15), // 15–85 scale
+                monthlyTrend: adsData.monthlyTrend,
+                relatedSearches: [],
+                resultCount: 0,
+                source: 'google_ads_keyword_planner',
+                isReal: true,
+            };
+        }
+    } catch (err) {
+        log.warn({ keyword, err: err.message }, 'Google Ads volume failed, falling back to estimation');
+    }
+
+    try {
+        // ── Method 2: Serper.dev (estimated from SERP data) ──
         if (config.apis.serper.key) {
             try {
-                return await estimateViaSerper(keyword, location);
+                const serperData = await estimateViaSerper(keyword, location);
+                return { ...serperData, source: 'serper_estimated', isReal: false };
             } catch (err) {
-                log.warn({ err: err.message }, 'Serper estimation failed, falling back to Google');
+                log.warn({ err: err.message }, 'Serper estimation failed, trying Google scraping');
             }
         }
 
-        // Method 2: Google Autocomplete + Related Searches
-        return await estimateViaGoogle(keyword, location);
+        // ── Method 3: Google scraping (estimated from result count) ──
+        const googleData = await estimateViaGoogle(keyword, location);
+        return { ...googleData, source: 'google_estimated', isReal: false };
     } catch (err) {
-        log.error({ err: err.message }, 'search volume estimation failed');
-        return { volume: 0, competition: 'unknown', cpc: 0, difficulty: 0 };
+        log.error({ err: err.message }, 'all search volume methods failed');
+        return { volume: 0, competition: 'unknown', cpc: 0, difficulty: 0, source: 'failed', isReal: false };
     }
 }
 

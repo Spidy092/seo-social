@@ -7,7 +7,7 @@
 const { createLogger } = require('../utils/logger');
 const keywordService = require('./keywordService');
 const aiService = require('./aiService');
-const { analyzeWhyCompetitorRanks } = require('./analysisService'); 
+
 
 const log = createLogger('analysis-service');
 
@@ -593,6 +593,57 @@ async function generateReport(keyword, myDomain, competitorDomains, serpResults)
     } catch (err) {
         log.error({ err: err.message }, 'report generation failed');
         return { ...report, error: err.message };
+    }
+}
+
+// ─── Analyze Why Competitor Ranks ───
+async function analyzeWhyCompetitorRanks(competitorDomain, keyword, location = 'India') {
+    log.info({ competitorDomain, keyword }, 'analyzing why competitor ranks');
+    try {
+        const serpResults = await keywordService.getSERPResults(keyword, location, 20);
+        const serpEntry = serpResults.find(r => r.domain?.includes(competitorDomain));
+        const domainAuthority = await keywordService.getDomainAuthority(competitorDomain);
+
+        let pageAnalysis = null;
+        if (serpEntry?.url) {
+            pageAnalysis = await keywordService.analyzePageContent(serpEntry.url, keyword);
+        }
+
+        const reasons = [];
+
+        if (domainAuthority >= 50) {
+            reasons.push({ factor: 'High Domain Authority', value: domainAuthority, impact: 'HIGH' });
+        }
+        if (pageAnalysis?.wordCount >= 1500) {
+            reasons.push({ factor: 'Long-form Content', value: `${pageAnalysis.wordCount} words`, impact: 'HIGH' });
+        }
+        if (pageAnalysis?.seoElements?.hasSchema) {
+            reasons.push({ factor: 'Schema Markup', value: 'Present', impact: 'MEDIUM' });
+        }
+        if (pageAnalysis?.seoElements?.hasH1) {
+            reasons.push({ factor: 'H1 Tag Optimized', value: pageAnalysis.seoElements.h1Text, impact: 'MEDIUM' });
+        }
+        if (pageAnalysis?.keywordAnalysis?.density >= 1) {
+            reasons.push({ factor: 'Keyword Density', value: `${pageAnalysis.keywordAnalysis.density}%`, impact: 'MEDIUM' });
+        }
+
+        return {
+            competitorDomain,
+            keyword,
+            serpPosition: serpEntry?.position || null,
+            domainAuthority,
+            pageAnalysis: pageAnalysis ? {
+                wordCount: pageAnalysis.wordCount,
+                keywordDensity: pageAnalysis.keywordAnalysis?.density,
+                hasSchema: pageAnalysis.seoElements?.hasSchema,
+                hasH1: pageAnalysis.seoElements?.hasH1,
+            } : null,
+            reasons,
+            timestamp: new Date().toISOString(),
+        };
+    } catch (err) {
+        log.error({ err: err.message }, 'analyzeWhyCompetitorRanks failed');
+        return { competitorDomain, keyword, error: err.message, reasons: [] };
     }
 }
 

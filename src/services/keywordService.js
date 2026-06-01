@@ -901,7 +901,7 @@ function extractDomain(url) {
 }
 
 // ─── Get Keyword Suggestions ───
-async function getKeywordSuggestions(seed, location = 'India') {
+async function getKeywordSuggestions(seed, location = 'India', enrich = true) {
     log.info({ seed, location }, 'getting keyword suggestions');
 
     const suggestions = [];
@@ -1032,7 +1032,99 @@ async function getKeywordSuggestions(seed, location = 'India') {
     }
 
     log.info({ seed, total: unique.length }, 'keyword suggestions complete');
-    return unique.slice(0, 20);
+    const result = unique.slice(0, 20);
+    if (enrich) {
+        return await enrichKeywordsWithMetrics(result, location);
+    }
+    return result;
+}
+
+/**
+ * Enrich keyword suggestions with metrics (Volume, CPC, Competition, Difficulty, Intent)
+ */
+async function enrichKeywordsWithMetrics(suggestions, location = 'India') {
+    if (!suggestions || suggestions.length === 0) return [];
+
+    const keywordsList = suggestions.map(s => s.keyword);
+    
+    // 1. Try Google Ads bulk fetch first
+    let googleAdsMap = new Map();
+    try {
+        if (await googleAdsService.checkCredentials()) {
+            googleAdsMap = await googleAdsService.getBulkKeywordVolume(keywordsList, location);
+        }
+    } catch (err) {
+        log.warn({ err: err.message }, 'Failed to fetch bulk volume from Google Ads, falling back to estimation');
+    }
+
+    // 2. Iterate and enrich each suggestion
+    const enriched = [];
+    const missingKeywords = [];
+
+    for (const suggestion of suggestions) {
+        const key = suggestion.keyword.toLowerCase();
+        if (googleAdsMap && googleAdsMap.has(key)) {
+            const adsData = googleAdsMap.get(key);
+            enriched.push({
+                ...suggestion,
+                volume: adsData.volume || 0,
+                competition: adsData.competition || 'unknown',
+                competitionIndex: adsData.competitionIndex || 0,
+                cpc: adsData.cpc || 0,
+                cpcRange: adsData.cpcRange || { low: 0, high: 0 },
+                difficulty: Math.round(((adsData.competitionIndex || 0) / 100) * 70 + 15),
+                monthlyTrend: adsData.monthlyTrend || [],
+                intent: analyzeKeywordIntent(suggestion.keyword),
+                isReal: true,
+                source: 'google_ads'
+            });
+        } else {
+            missingKeywords.push(suggestion);
+        }
+    }
+
+    // Process missing keywords in chunks of 5 to avoid API rate limits / blocking too long
+    const chunkSize = 5;
+    for (let i = 0; i < missingKeywords.length; i += chunkSize) {
+        const chunk = missingKeywords.slice(i, i + chunkSize);
+        const chunkPromises = chunk.map(async (suggestion) => {
+            try {
+                const est = await estimateSearchVolume(suggestion.keyword, location);
+                return {
+                    ...suggestion,
+                    volume: est.volume || 0,
+                    competition: est.competition || 'unknown',
+                    competitionIndex: est.competitionIndex || 0,
+                    cpc: est.cpc || 0,
+                    cpcRange: est.cpcRange || { low: 0, high: 0 },
+                    difficulty: est.difficulty || 0,
+                    monthlyTrend: est.monthlyTrend || [],
+                    intent: analyzeKeywordIntent(suggestion.keyword),
+                    isReal: false,
+                    source: est.source || 'estimation'
+                };
+            } catch (err) {
+                return {
+                    ...suggestion,
+                    volume: 0,
+                    competition: 'unknown',
+                    competitionIndex: 0,
+                    cpc: 0,
+                    cpcRange: { low: 0, high: 0 },
+                    difficulty: 0,
+                    monthlyTrend: [],
+                    intent: analyzeKeywordIntent(suggestion.keyword),
+                    isReal: false,
+                    source: 'failed'
+                };
+            }
+        });
+        const chunkResults = await Promise.all(chunkPromises);
+        enriched.push(...chunkResults);
+    }
+
+    // Sort by volume descending
+    return enriched.sort((a, b) => (b.volume || 0) - (a.volume || 0));
 }
 
 // ─── Advanced Keyword Research ───
@@ -1131,7 +1223,11 @@ async function advancedKeywordResearch(keyword, options = {}) {
         relatedKeywords: relatedKeywords.slice(0, 15).map(k => ({
             keyword: k.keyword,
             type: k.type,
-            intent: analyzeKeywordIntent(k.keyword),
+            volume: k.volume || 0,
+            competition: k.competition || 'unknown',
+            cpc: k.cpc || 0,
+            difficulty: k.difficulty || 0,
+            intent: k.intent || analyzeKeywordIntent(k.keyword),
         })),
         multiLocation: multiLocationAnalysis,
         timestamp: new Date().toISOString(),
@@ -1564,4 +1660,5 @@ module.exports = {
     advancedKeywordResearch,
     analyzeKeywordIntent,
     detectSERPFeatures,
+    enrichKeywordsWithMetrics,
 };

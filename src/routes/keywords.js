@@ -257,6 +257,11 @@ async function keywordRoutes(fastify, options) {
                     relatedKeywords: suggestions.map(s => ({
                         keyword: s.keyword,
                         type: s.type,
+                        volume: s.volume || 0,
+                        competition: s.competition || 'unknown',
+                        cpc: s.cpc || 0,
+                        difficulty: s.difficulty || 0,
+                        intent: s.intent || 'informational',
                         source: s.source,
                     })),
                     competitors: serpResults.map(r => ({
@@ -382,7 +387,7 @@ async function keywordRoutes(fastify, options) {
         const { keyword } = request.params;
 
         try {
-            const suggestions = await keywordService.getKeywordSuggestions(keyword, 'India');
+            const suggestions = await keywordService.getKeywordSuggestions(keyword, 'India', false);
 
             return {
                 keyword,

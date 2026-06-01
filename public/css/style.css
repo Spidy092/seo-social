@@ -945,19 +945,61 @@ body {
     margin-bottom: 12px;
 }
 
+.suggestion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
 .suggestion-item .priority {
     display: inline-block;
-    margin-bottom: 8px;
+}
+
+.suggestion-score {
+    color: var(--gray);
+    font-size: 0.82rem;
+    font-weight: 600;
 }
 
 .suggestion-item .action {
+    color: var(--dark);
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.suggestion-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.suggestion-meta span {
+    background: var(--light);
+    border: 1px solid var(--gray-light);
+    border-radius: 16px;
+    color: var(--gray);
+    font-size: 0.78rem;
     font-weight: 600;
-    margin-bottom: 8px;
+    padding: 4px 10px;
+}
+
+.suggestion-metric,
+.suggestion-why,
+.next-step {
+    color: var(--gray);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-bottom: 10px;
 }
 
 .suggestion-item .details {
     list-style: disc;
-    margin-left: 20px;
+    margin: 0 0 0 20px;
     color: var(--gray);
     font-size: 0.9rem;
 }
@@ -966,7 +1008,7 @@ body {
     margin-top: 10px;
     font-size: 0.85rem;
     color: var(--secondary);
-    font-weight: 500;
+    font-weight: 600;
 }
 
 /* ─── Alerts ─── */

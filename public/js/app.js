@@ -10,11 +10,11 @@ let currentKeyword = null;
 let humanizerAlternativesCache = [];
 let humanizerHistoryCache = [];
 
-// Pagination state
 const PG = {
     competitors: { page: 1, perPage: 15, total: 0 },
     alerts:      { page: 1, perPage: 20, total: 0 },
     history:     { page: 1, perPage: 10, total: 0 },
+    related:     { page: 1, perPage: 8, total: 0, data: [] },
 };
 
 // ─── DOM Elements ───
@@ -741,17 +741,85 @@ function renderAdvancedResearchResults(data) {
     }
 
     // Related searches
-    const relatedContainer = $('#relatedSearches');
-    const allRelated = (data.relatedKeywords || []).map(r => r.keyword || '').filter(Boolean);
-    const uniqueRelated = [...new Set(allRelated)];
+    const allRelated = data.relatedKeywords || [];
+    // Deduplicate by keyword
+    const uniqueRelated = [];
+    const seen = new Set();
+    for (const item of allRelated) {
+        if (item.keyword && !seen.has(item.keyword.toLowerCase())) {
+            seen.add(item.keyword.toLowerCase());
+            uniqueRelated.push(item);
+        }
+    }
     
-    relatedContainer.innerHTML = uniqueRelated.length > 0 
-        ? uniqueRelated.map(rs => 
-            `<span class="tag" onclick="searchRelated('${String(rs).replace(/'/g, "\\'")}')">${rs}</span>`
-          ).join('')
-        : '<span class="text-muted">No related searches found</span>';
+    PG.related.data = uniqueRelated;
+    PG.related.total = uniqueRelated.length;
+    PG.related.page = 1;
     
     $('#relatedCount').textContent = uniqueRelated.length;
+    renderRelatedKeywordsTable(1);
+}
+
+function renderRelatedKeywordsTable(page = 1) {
+    PG.related.page = page;
+    const container = $('#relatedSearchesTable tbody');
+    if (!container) return;
+    
+    const start = (page - 1) * PG.related.perPage;
+    const end = start + PG.related.perPage;
+    const chunk = PG.related.data.slice(start, end);
+    
+    const intentColors = {
+        informational: '#3b82f6',
+        navigational: '#8b5cf6',
+        commercial: '#f59e0b',
+        transactional: '#10b981'
+    };
+    
+    if (chunk.length === 0) {
+        container.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No related keywords found</td></tr>';
+        const paginationContainer = $('#relatedSearchesPagination');
+        if (paginationContainer) paginationContainer.innerHTML = '';
+        return;
+    }
+    
+    container.innerHTML = chunk.map(kw => {
+        const safeKeyword = String(kw.keyword).replace(/'/g, "\\'");
+        const volStr = formatNumber(kw.volume);
+        const cpcStr = kw.cpc ? `$${Number(kw.cpc).toFixed(2)}` : '$0.00';
+        
+        // difficulty progress bar
+        const diffColor = kw.difficulty > 60 ? '#ef4444' : (kw.difficulty > 35 ? '#f59e0b' : '#10b981');
+        const diffHtml = `
+            <div style="display:flex;align-items:center;gap:8px;">
+                <div class="progress-bar" style="flex:1;height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden;margin-bottom:0;">
+                    <div class="progress" style="width:${kw.difficulty}%;height:100%;background:${diffColor};border-radius:3px;"></div>
+                </div>
+                <span style="font-weight:600;font-size:0.85rem;min-width:28px;text-align:right;">${kw.difficulty}%</span>
+            </div>
+        `;
+        
+        // intent badge
+        const intentStyle = `background:${intentColors[kw.intent] || '#6b7280'};color:#fff;font-size:0.75rem;padding:2px 8px;border-radius:12px;font-weight:600;display:inline-block;text-transform:capitalize;`;
+        const intentHtml = `<span style="${intentStyle}">${kw.intent || 'unknown'}</span>`;
+        
+        return `
+            <tr>
+                <td><strong>${kw.keyword}</strong></td>
+                <td>${volStr}</td>
+                <td>${cpcStr}</td>
+                <td>${diffHtml}</td>
+                <td>${intentHtml}</td>
+                <td>
+                    <button class="btn btn-sm btn-primary" onclick="searchRelated('${safeKeyword}')">
+                        <i class="fas fa-search"></i> Analyze
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    renderPagination('relatedSearchesPagination', PG.related, renderRelatedKeywordsTable);
 }
 
 function searchRelated(keyword) {
@@ -1213,16 +1281,34 @@ function renderAnalysisResults(comparison) {
 
     // Suggestions
     const suggestionsList = $('#suggestionsList');
-    suggestionsList.innerHTML = (comparison.suggestions || []).map(sug => `
-        <div class="suggestion-item">
-            <span class="priority badge badge-${sug.priority.toLowerCase()}">${sug.priority}</span>
-            <div class="action">${sug.action}</div>
-            <ul class="details">
-                ${sug.details.map(d => `<li>${d}</li>`).join('')}
-            </ul>
-            <div class="impact">📈 ${sug.estimatedImpact}</div>
-        </div>
-    `).join('') || '<p>No suggestions available</p>';
+    suggestionsList.innerHTML = (comparison.suggestions || []).map(sug => {
+        const priority = escapeHtml(sug.priority || 'LOW');
+        const priorityClass = priority.toLowerCase();
+        const details = Array.isArray(sug.details) ? sug.details : [];
+        const meta = [
+            sug.category ? `Category: ${sug.category}` : '',
+            sug.effort ? `Effort: ${sug.effort}` : '',
+            sug.timeline ? `Timeline: ${sug.timeline}` : '',
+        ].filter(Boolean);
+
+        return `
+            <div class="suggestion-item">
+                <div class="suggestion-header">
+                    <span class="priority badge badge-${priorityClass}">${priority}</span>
+                    ${sug.priorityScore ? `<span class="suggestion-score">Impact score ${escapeHtml(sug.priorityScore)}/3</span>` : ''}
+                </div>
+                <div class="action">${escapeHtml(sug.action || 'Review this opportunity')}</div>
+                ${meta.length ? `<div class="suggestion-meta">${meta.map(item => `<span>${escapeHtml(item)}</span>`).join('')}</div>` : ''}
+                ${sug.metric ? `<div class="suggestion-metric"><strong>Trigger:</strong> ${escapeHtml(sug.metric)}</div>` : ''}
+                ${sug.why ? `<div class="suggestion-why"><strong>Why:</strong> ${escapeHtml(sug.why)}</div>` : ''}
+                <ul class="details">
+                    ${details.map(d => `<li>${escapeHtml(d)}</li>`).join('')}
+                </ul>
+                ${sug.nextStep ? `<div class="next-step"><strong>Next step:</strong> ${escapeHtml(sug.nextStep)}</div>` : ''}
+                <div class="impact">Impact: ${escapeHtml(sug.estimatedImpact || 'Improves SEO quality')}</div>
+            </div>
+        `;
+    }).join('') || '<p>No suggestions available</p>';
 }
 
 // ─── Rank Tracking ─── (uses new POST /api/domains)

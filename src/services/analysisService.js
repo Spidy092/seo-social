@@ -63,7 +63,8 @@ async function compareDomains(myDomain, competitorDomain, keyword, myPageData = 
             comparison.scores,
             comparison.keyDifferences,
             myPageData,
-            competitorPageData
+            competitorPageData,
+            keyword
         );
 
         // Calculate overall score
@@ -288,29 +289,66 @@ function analyzeKeyDifferences(scores, myPage, competitorPage) {
     return differences;
 }
 
+function getPriorityScore(priority) {
+    return { HIGH: 3, MEDIUM: 2, LOW: 1 }[priority] || 1;
+}
+
+function createSuggestion({
+    priority,
+    category,
+    action,
+    details,
+    estimatedImpact,
+    why,
+    nextStep,
+    effort = 'Medium',
+    timeline = '1-2 weeks',
+    metric,
+}) {
+    return {
+        priority,
+        priorityScore: getPriorityScore(priority),
+        category,
+        action,
+        details,
+        estimatedImpact,
+        why,
+        nextStep: nextStep || details?.[0] || action,
+        effort,
+        timeline,
+        metric,
+    };
+}
+
 // ─── Generate Improvement Suggestions ───
-function generateSuggestions(scores, reasons, myPage, competitorPage) {
+function generateSuggestions(scores, reasons, myPage, competitorPage, keyword = '') {
     const suggestions = [];
 
     // Content suggestions
     if (scores.content?.wordCount?.difference > 200) {
-        suggestions.push({
+        const wordGap = Math.ceil(scores.content.wordCount.difference / 100) * 100;
+        suggestions.push(createSuggestion({
             priority: 'HIGH',
             category: 'Content',
-            action: `Add ${Math.ceil(scores.content.wordCount.difference / 100) * 100} more words to your content`,
+            action: `Add ${wordGap} more words to your content`,
             details: [
                 'Add more detailed sections',
                 'Include FAQs related to the topic',
                 'Add examples and case studies',
                 'Include statistics and data',
             ],
+            why: `The competitor has ${competitorPage?.wordCount || 0} words vs your ${myPage?.wordCount || 0}. Closing this gap helps cover more search intent.`,
+            nextStep: `Add one new section that answers a common question about "${keyword || 'this keyword'}".`,
+            effort: 'High',
+            timeline: '2-4 weeks',
+            metric: `${myPage?.wordCount || 0} -> ${competitorPage?.wordCount || 0} words`,
             estimatedImpact: 'Could improve ranking by 5-10 positions',
-        });
+        }));
     }
 
     // Keyword optimization
     if (scores.content?.keywordDensity?.difference > 0.3) {
-        suggestions.push({
+        suggestions.push(createSuggestion({
             priority: 'HIGH',
             category: 'Keywords',
             action: 'Improve keyword optimization',
@@ -321,13 +359,18 @@ function generateSuggestions(scores, reasons, myPage, competitorPage) {
                 'Use related keywords naturally',
                 'Target density: 1-2%',
             ],
+            why: `Your keyword density is ${scores.content.keywordDensity.mine}% vs competitor ${scores.content.keywordDensity.competitor}%.`,
+            nextStep: keyword ? `Add "${keyword}" naturally to the H1, intro, and one subheading if missing.` : 'Add the target keyword naturally to the H1, intro, and one subheading if missing.',
+            effort: 'Medium',
+            timeline: '1 week',
+            metric: `${scores.content.keywordDensity.mine}% -> ${scores.content.keywordDensity.competitor}% density`,
             estimatedImpact: 'Could improve ranking by 3-8 positions',
-        });
+        }));
     }
 
     // H1 tag
     if (!myPage?.seoElements?.hasH1) {
-        suggestions.push({
+        suggestions.push(createSuggestion({
             priority: 'HIGH',
             category: 'SEO',
             action: 'Add an H1 tag with your target keyword',
@@ -337,13 +380,20 @@ function generateSuggestions(scores, reasons, myPage, competitorPage) {
                 'Keep it under 60 characters',
                 'Make it compelling for users',
             ],
+            why: competitorPage?.seoElements?.h1Text
+                ? `The competitor has an H1: "${competitorPage.seoElements.h1Text}". Your page is missing one.`
+                : 'Your page is missing the main heading signal search engines and users expect.',
+            nextStep: keyword ? `Write one H1 that includes "${keyword}" and clearly describes the page.` : 'Write one clear H1 that includes the target keyword.',
+            effort: 'Low',
+            timeline: 'Same day',
+            metric: 'Missing H1',
             estimatedImpact: 'Could improve ranking by 5-15 positions',
-        });
+        }));
     }
 
     // Meta description
     if (!myPage?.seoElements?.hasMetaDescription) {
-        suggestions.push({
+        suggestions.push(createSuggestion({
             priority: 'MEDIUM',
             category: 'SEO',
             action: 'Add a meta description',
@@ -353,8 +403,13 @@ function generateSuggestions(scores, reasons, myPage, competitorPage) {
                 'Add a call-to-action',
                 'Make it compelling to click',
             ],
+            why: 'A missing meta description can reduce control over the search snippet and weaken click-through rate.',
+            nextStep: keyword ? `Draft a 150-160 character meta description that includes "${keyword}" and a clear benefit.` : 'Draft a 150-160 character meta description with the target keyword and a clear benefit.',
+            effort: 'Low',
+            timeline: 'Same day',
+            metric: 'Missing meta description',
             estimatedImpact: 'Improves click-through rate by 5-10%',
-        });
+        }));
     }
 
     // Schema markup
@@ -362,7 +417,7 @@ function generateSuggestions(scores, reasons, myPage, competitorPage) {
         const compSchemaTypes = competitorPage.seoElements.schemaDetails?.detectedTypes || [];
         const pageType = competitorPage.seoElements.pageType?.primary || 'WebPage';
         
-        suggestions.push({
+        suggestions.push(createSuggestion({
             priority: 'MEDIUM',
             category: 'Technical SEO',
             action: 'Add schema markup (structured data)',
@@ -372,28 +427,38 @@ function generateSuggestions(scores, reasons, myPage, competitorPage) {
                 'Use Google\'s Rich Results Test to validate',
                 'Add matching schema to your page',
             ],
+            why: 'The competitor uses structured data and your page does not, which can affect eligibility for enhanced search results.',
+            nextStep: `Add ${pageType} schema and validate it before publishing.`,
+            effort: 'Medium',
+            timeline: '1 week',
+            metric: `Competitor schema: ${compSchemaTypes.join(', ') || pageType}`,
             competitorSchemaTypes: compSchemaTypes,
             pageType,
             estimatedImpact: 'Can get rich snippets in search results',
-        });
+        }));
     }
     
     // Schema validation errors
     if (myPage?.seoElements?.schemaDetails?.errors?.length > 0) {
-        suggestions.push({
+        suggestions.push(createSuggestion({
             priority: 'HIGH',
             category: 'Technical SEO',
             action: 'Fix schema markup errors',
             details: myPage.seoElements.schemaDetails.errors.map(e => e.message),
+            why: 'Invalid structured data may be ignored by search engines and can block rich result eligibility.',
+            nextStep: 'Fix the first validation error, then retest the page with Google Rich Results Test.',
+            effort: 'Medium',
+            timeline: '1 week',
+            metric: `${myPage.seoElements.schemaDetails.errors.length} schema error(s)`,
             estimatedImpact: 'Prevents schema-related indexing issues',
-        });
+        }));
     }
     
     // Schema suggestions based on content
     if (myPage?.seoElements?.schemaSuggestions?.length > 0) {
         const topSuggestion = myPage.seoElements.schemaSuggestions[0];
         if (!myPage.seoElements.hasSchema) {
-            suggestions.push({
+            suggestions.push(createSuggestion({
                 priority: topSuggestion.priority === 'CRITICAL' ? 'HIGH' : topSuggestion.priority,
                 category: 'Technical SEO',
                 action: `Add ${topSuggestion.type} schema`,
@@ -401,9 +466,14 @@ function generateSuggestions(scores, reasons, myPage, competitorPage) {
                     topSuggestion.reason,
                     ...(topSuggestion.fields ? [`Recommended fields: ${topSuggestion.fields.join(', ')}`] : []),
                 ],
+                why: topSuggestion.reason,
+                nextStep: `Create ${topSuggestion.type} schema with the recommended fields and validate it.`,
+                effort: 'Medium',
+                timeline: '1 week',
+                metric: `Recommended schema: ${topSuggestion.type}`,
                 schemaExample: topSuggestion.example,
                 estimatedImpact: 'May enable rich snippets in search results',
-            });
+            }));
         }
     }
 
@@ -411,7 +481,7 @@ function generateSuggestions(scores, reasons, myPage, competitorPage) {
     const compLinks = competitorPage?.seoElements?.internalLinks || 0;
     const myLinks = myPage?.seoElements?.internalLinks || 0;
     if (compLinks > myLinks + 3) {
-        suggestions.push({
+        suggestions.push(createSuggestion({
             priority: 'MEDIUM',
             category: 'Link Building',
             action: `Add ${compLinks - myLinks} more internal links`,
@@ -421,13 +491,18 @@ function generateSuggestions(scores, reasons, myPage, competitorPage) {
                 'Link to related content',
                 'Create a content hub structure',
             ],
+            why: `The competitor has ${compLinks} internal links vs your ${myLinks}, giving search engines more context and crawl paths.`,
+            nextStep: 'Add links from related high-authority pages using descriptive anchor text.',
+            effort: 'Medium',
+            timeline: '1-2 weeks',
+            metric: `${myLinks} -> ${compLinks} internal links`,
             estimatedImpact: 'Improves page authority and crawlability',
-        });
+        }));
     }
 
     // Domain Authority (long-term)
     if (scores.domainAuthority?.difference > 20) {
-        suggestions.push({
+        suggestions.push(createSuggestion({
             priority: 'LOW',
             category: 'Authority',
             action: 'Build domain authority (long-term strategy)',
@@ -437,29 +512,45 @@ function generateSuggestions(scores, reasons, myPage, competitorPage) {
                 'Guest post on relevant sites',
                 'Build brand mentions',
             ],
+            why: `The competitor leads by ${scores.domainAuthority.difference} authority points, so content improvements should be paired with authority building.`,
+            nextStep: 'Create one linkable asset or outreach target list around this topic.',
+            effort: 'High',
+            timeline: '2-3 months',
+            metric: `${scores.domainAuthority.mine} -> ${scores.domainAuthority.competitor} DA`,
             estimatedImpact: 'Long-term improvement in all rankings',
-        });
+        }));
     }
 
     // Image optimization
     if (myPage?.seoElements?.images > myPage?.seoElements?.imagesWithAlt) {
-        suggestions.push({
+        const missingAlt = myPage.seoElements.images - myPage.seoElements.imagesWithAlt;
+        suggestions.push(createSuggestion({
             priority: 'LOW',
             category: 'SEO',
             action: 'Add alt text to all images',
             details: [
-                `You have ${myPage.seoElements.images} images, ${myPage.seoElements.images - myPage.seoElements.imagesWithAlt} missing alt text`,
+                `You have ${myPage.seoElements.images} images, ${missingAlt} missing alt text`,
                 'Use descriptive alt text',
                 'Include keywords where relevant',
                 'Keep alt text under 125 characters',
             ],
+            why: 'Missing image alt text weakens accessibility and image SEO signals.',
+            nextStep: 'Add descriptive alt text to the largest or most important images first.',
+            effort: 'Low',
+            timeline: 'Same day',
+            metric: `${missingAlt} image(s) missing alt text`,
             estimatedImpact: 'Improves image SEO and accessibility',
-        });
+        }));
     }
 
     // Sort by priority
     const priorityOrder = { HIGH: 0, MEDIUM: 1, LOW: 2 };
-    suggestions.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+    const effortOrder = { Low: 0, Medium: 1, High: 2 };
+    suggestions.sort((a, b) => {
+        const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+        if (priorityDiff !== 0) return priorityDiff;
+        return (effortOrder[a.effort] ?? 9) - (effortOrder[b.effort] ?? 9);
+    });
 
     return suggestions;
 }

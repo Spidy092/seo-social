@@ -23,6 +23,54 @@ const USER_AGENTS = [
 
 const getRandomUA = () => USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 
+function getSerperKeys() {
+    return config.apis.serper.keys?.length
+        ? config.apis.serper.keys
+        : [config.apis.serper.key].filter(Boolean);
+}
+
+function getSerperErrorMessage(data) {
+    if (!data || typeof data !== 'object') return 'Serper request failed';
+    return data.message || data.error || data.errorMessage || data.statusText || 'Serper request failed';
+}
+
+async function postSerperSearch(payload, context = {}) {
+    const keys = getSerperKeys();
+    if (!keys.length) {
+        throw new Error('SERPER_API_KEY or SERPER_API_KEYS is required');
+    }
+
+    let lastError = null;
+    for (let index = 0; index < keys.length; index++) {
+        const key = keys[index];
+        try {
+            const response = await axios.post(config.apis.serper.url, payload, {
+                headers: {
+                    'X-API-KEY': key,
+                    'Content-Type': 'application/json',
+                },
+                timeout: 10000,
+            });
+
+            const data = response.data || {};
+            if (data.message || data.error || data.errorMessage) {
+                throw new Error(getSerperErrorMessage(data));
+            }
+
+            if (index > 0) {
+                log.info({ ...context, keyIndex: index + 1 }, 'Serper request succeeded with fallback key');
+            }
+            return data;
+        } catch (err) {
+            lastError = err;
+            const message = err.response?.data ? getSerperErrorMessage(err.response.data) : err.message;
+            log.warn({ ...context, keyIndex: index + 1, err: message }, 'Serper key failed; trying next key if available');
+        }
+    }
+
+    throw new Error(lastError?.response?.data ? getSerperErrorMessage(lastError.response.data) : lastError?.message || 'All Serper keys failed');
+}
+
 /**
  * Returns a pseudo-random float between 0 and 1, deterministic based on input string and optional seed.
  */
@@ -204,7 +252,7 @@ async function estimateSearchVolume(keyword, location = 'India') {
 
     try {
         // ── Method 2: Serper.dev (estimated from SERP data) ──
-        if (config.apis.serper.key) {
+        if (getSerperKeys().length) {
             try {
                 const serperData = await estimateViaSerper(keyword, location);
                 return { ...serperData, source: 'serper_estimated', isReal: false };
@@ -225,21 +273,13 @@ async function estimateSearchVolume(keyword, location = 'India') {
 // ─── Estimate via Serper.dev ───
 async function estimateViaSerper(keyword, location) {
     try {
-        const response = await axios.post(config.apis.serper.url, {
+        const data = await postSerperSearch({
             q: keyword,
             location: location,
             gl: location.toLowerCase().includes('india') ? 'in' : 'us',
             hl: 'en',
             num: 10,
-        }, {
-            headers: {
-                'X-API-KEY': config.apis.serper.key,
-                'Content-Type': 'application/json',
-            },
-            timeout: 10000,
-        });
-
-        const data = response.data;
+        }, { keyword, location, purpose: 'estimate' });
         
         // Estimate based on results count and related searches
         const resultCount = data.searchInformation?.totalResults || 0;
@@ -446,7 +486,7 @@ async function getSERPResults(keyword, location = 'India', numResults = 20) {
     log.info({ keyword, location, numResults }, 'fetching SERP results');
 
     // Tier 1: Serper
-    if (config.apis.serper.key) {
+    if (getSerperKeys().length) {
         try {
             return await getSERPViaSerper(keyword, location, numResults);
         } catch (err) {
@@ -524,22 +564,16 @@ async function getSERPViaSerper(keyword, location, numResults) {
 
     for (let page = 0; page < pages; page++) {
         try {
-            const response = await axios.post(config.apis.serper.url, {
+            const data = await postSerperSearch({
                 q: keyword,
                 location: location,
                 gl: location.toLowerCase().includes('india') ? 'in' : 'us',
                 hl: 'en',
                 num: 10,
                 page: page,
-            }, {
-                headers: {
-                    'X-API-KEY': config.apis.serper.key,
-                    'Content-Type': 'application/json',
-                },
-                timeout: 10000,
-            });
+            }, { keyword, location, page, purpose: 'serp' });
 
-            const organic = response.data.organic || [];
+            const organic = data.organic || [];
             for (const result of organic) {
                 results.push({
                     position: results.length + 1,

@@ -122,6 +122,7 @@ LOG_LEVEL=info
 
 # Add these when you are ready to enable the related integrations.
 SERPER_API_KEY=
+SERPER_API_KEYS=
 OPENPAGERANK_API_KEY=
 OPENROUTER_API_KEY=
 CLOUDINARY_CLOUD_NAME=
@@ -222,11 +223,16 @@ main() {
 
     log "Fetching application code"
     if [ -d "$DEPLOY_DIR/.git" ]; then
+        git -C "$DEPLOY_DIR" remote set-url origin "$REPO_URL"
         git -C "$DEPLOY_DIR" fetch origin "$BRANCH"
         git -C "$DEPLOY_DIR" checkout "$BRANCH"
         git -C "$DEPLOY_DIR" pull --ff-only origin "$BRANCH"
     elif [ -d "$DEPLOY_DIR" ]; then
-        ok "$DEPLOY_DIR exists; using existing files"
+        local backup_dir
+        backup_dir="${DEPLOY_DIR}.backup.$(date +%Y%m%d%H%M%S)"
+        mv "$DEPLOY_DIR" "$backup_dir"
+        ok "Moved existing deploy folder to $backup_dir"
+        git clone --branch "$BRANCH" "$REPO_URL" "$DEPLOY_DIR"
     else
         git clone --branch "$BRANCH" "$REPO_URL" "$DEPLOY_DIR"
     fi
@@ -252,7 +258,11 @@ main() {
     log "Starting application with PM2"
     mkdir -p logs
     pm2 delete "$APP_NAME" >/dev/null 2>&1 || true
-    pm2 start ecosystem.config.js --env production
+    if [ -f ecosystem.config.js ]; then
+        pm2 start ecosystem.config.js --env production
+    else
+        pm2 start npm --name "$APP_NAME" -- start
+    fi
     pm2 save
     sudo env PATH="$PATH" pm2 startup systemd -u "$USER" --hp "$HOME" >/dev/null || true
 

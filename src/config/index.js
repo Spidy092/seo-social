@@ -21,7 +21,11 @@ module.exports = {
     // ─── API Keys ───
     apis: {
         serper: { 
-            key: process.env.SERPER_API_KEY, 
+            key: process.env.SERPER_API_KEY,
+            keys: Array.from(new Set([
+                ...(process.env.SERPER_API_KEYS || '').split(',').map(key => key.trim()).filter(Boolean),
+                process.env.SERPER_API_KEY,
+            ].filter(Boolean))), 
             dailyLimit: parseInt(process.env.SERPER_DAILY_LIMIT || '2500'),
             url: 'https://google.serper.dev/search',
         },

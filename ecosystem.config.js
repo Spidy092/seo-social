@@ -3,8 +3,8 @@ module.exports = {
     apps: [{
         name:         'keyword-analyzer',
         script:       'index.js',
-        instances:    2,               // 2 CPU cores — adjust to your EC2 size
-        exec_mode:    'cluster',       // load-balanced cluster mode
+        instances:    1,
+        exec_mode:    'fork',
         watch:        false,
         max_memory_restart: '500M',
 

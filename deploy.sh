@@ -9,17 +9,18 @@
 #   DOMAIN=keyword.example.com bash deploy.sh
 #
 # Optional overrides:
-#   REPO_URL=https://github.com/Spidy092/keyword-analyzer.git BRANCH=main APP_PORT=3000 bash deploy.sh
+#   REPO_URL=https://github.com/Spidy092/seo-social.git BRANCH=main APP_PORT=3000 bash deploy.sh
 # ============================================================
 set -Eeuo pipefail
 
-REPO_URL="${REPO_URL:-https://github.com/Spidy092/keyword-analyzer.git}"
+REPO_URL="${REPO_URL:-https://github.com/Spidy092/seo-social.git}"
 BRANCH="${BRANCH:-main}"
 DEPLOY_DIR="${DEPLOY_DIR:-$HOME/keyword-analyzer}"
 APP_PORT="${APP_PORT:-3000}"
 NODE_MAJOR="${NODE_MAJOR:-20}"
 APP_NAME="${APP_NAME:-keyword-analyzer}"
 DOMAIN="${DOMAIN:-_}"
+SSL_EMAIL="${SSL_EMAIL:-}"
 
 DB_NAME="${DB_NAME:-keyword_analyzer}"
 DB_USER="${DB_USER:-keyword_user}"
@@ -92,7 +93,7 @@ write_env_if_missing() {
     if [ "$DOMAIN" = "_" ]; then
         app_url="http://${ip}"
     else
-        app_url="http://${DOMAIN}"
+        app_url="https://${DOMAIN}"
     fi
 
     if [ -f "$app_dir/.env" ]; then
@@ -177,6 +178,26 @@ NGINX_EOF
     ok "nginx is proxying port 80 to ${APP_PORT}"
 }
 
+enable_https_if_domain_set() {
+    if [ "$DOMAIN" = "_" ]; then
+        ok "No domain provided; skipping HTTPS certificate"
+        return
+    fi
+
+    log "Enabling HTTPS for ${DOMAIN}"
+    sudo apt install -y certbot python3-certbot-nginx
+
+    local email_args
+    if [ -n "$SSL_EMAIL" ]; then
+        email_args="-m ${SSL_EMAIL}"
+    else
+        email_args="--register-unsafely-without-email"
+    fi
+
+    sudo certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos $email_args --redirect
+    ok "HTTPS enabled for ${DOMAIN}"
+}
+
 main() {
     require_ubuntu
 
@@ -222,7 +243,11 @@ main() {
     npm install --omit=dev
 
     log "Running database migration"
-    npm run migrate
+    if [ -f "src/db/migrate.js" ]; then
+        npm run migrate
+    else
+        ok "No src/db/migrate.js found; app will initialize schema on startup"
+    fi
 
     log "Starting application with PM2"
     mkdir -p logs
@@ -232,6 +257,7 @@ main() {
     sudo env PATH="$PATH" pm2 startup systemd -u "$USER" --hp "$HOME" >/dev/null || true
 
     write_nginx_site "$DOMAIN"
+    enable_https_if_domain_set
 
     log "Checking health endpoint"
     sleep 3
@@ -246,7 +272,7 @@ main() {
     if [ "$DOMAIN" = "_" ]; then
         url="http://${ip}"
     else
-        url="http://${DOMAIN}"
+        url="https://${DOMAIN}"
     fi
 
     cat <<DONE_EOF
@@ -263,8 +289,8 @@ Update:       cd ${DEPLOY_DIR} && git pull --ff-only origin ${BRANCH} && cd ${AP
 
 Domain later:
   1. Point your DNS A record to ${ip}
-  2. Re-run: DOMAIN=yourdomain.com bash ${APP_DIR}/deploy.sh
-  3. Install SSL: sudo apt install -y certbot python3-certbot-nginx && sudo certbot --nginx -d yourdomain.com
+  2. Open port 443 in your firewall
+  3. Re-run: DOMAIN=yourdomain.com SSL_EMAIL=you@example.com bash ${APP_DIR}/deploy.sh
 ============================================================
 DONE_EOF
 }

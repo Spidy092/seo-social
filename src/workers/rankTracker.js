@@ -33,18 +33,38 @@ async function checkAllRankings(db) {
 
         log.info({ domains: domains.length, keywords: keywords.length }, 'checking rankings');
 
+        // Build work items
+        const tasks = [];
         for (const domain of domains) {
             for (const keyword of keywords) {
-                try {
-                    await checkDomainRanking(db, domain, keyword);
-                    await new Promise(r => setTimeout(r, config.rankTracking.rateLimitDelay));
-                } catch (err) {
-                    log.error({ domain, keyword: keyword.keyword, err: err.message }, 'rank check failed');
-                }
+                tasks.push({ domain, keyword });
             }
         }
 
-        log.info('✅ rank check complete');
+        // Process with concurrency limit
+        const concurrency = config.rankTracking.batchConcurrency || 3;
+        let index = 0;
+        let succeeded = 0;
+        let failed = 0;
+
+        async function worker() {
+            while (index < tasks.length) {
+                const task = tasks[index++];
+                try {
+                    await checkDomainRanking(db, task.domain, task.keyword);
+                    succeeded++;
+                } catch (err) {
+                    failed++;
+                    log.error({ domain: task.domain, keyword: task.keyword.keyword, err: err.message }, 'rank check failed');
+                }
+                await new Promise(r => setTimeout(r, config.rankTracking.rateLimitDelay));
+            }
+        }
+
+        const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker());
+        await Promise.all(workers);
+
+        log.info({ succeeded, failed, total: tasks.length }, '✅ rank check complete');
     } catch (err) {
         log.error({ err: err.message }, 'rank check failed');
     }

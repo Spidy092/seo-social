@@ -4,10 +4,42 @@
 
 const keywordService = require('../services/keywordService');
 const googleAdsService = require('../services/googleAdsService');
+const contentBriefService = require('../services/contentBriefService');
 const { createLogger } = require('../utils/logger');
 
 
 const log = createLogger('routes:keywords');
+
+const VALID_INTENTS = new Set(['informational', 'navigational', 'commercial', 'transactional']);
+
+function normalizeBulkKeywordItems(items = []) {
+    const seen = new Set();
+    return (Array.isArray(items) ? items : [])
+        .map(item => {
+            const raw = typeof item === 'string' ? { keyword: item } : item || {};
+            const keyword = String(raw.keyword || '').trim();
+            const key = keyword.toLowerCase();
+            if (!keyword || seen.has(key)) return null;
+            seen.add(key);
+            return {
+                keyword,
+                volume: Number(raw.volume || raw.searchVolume || 0),
+                competition: String(raw.competition || 'unknown').toLowerCase(),
+                cpc: Number(raw.cpc || 0),
+                difficulty: Number(raw.difficulty || 0),
+                intent: VALID_INTENTS.has(raw.intent) ? raw.intent : keywordService.analyzeKeywordIntent(keyword).primary,
+                priorityScore: Number(raw.priorityScore || raw.opportunityScore || 0),
+            };
+        })
+        .filter(Boolean)
+        .slice(0, 100);
+}
+
+function taskPriorityFromKeyword(item) {
+    if (item.priorityScore >= 70 || item.intent === 'transactional') return 'high';
+    if (item.priorityScore >= 40 || item.intent === 'commercial') return 'medium';
+    return 'low';
+}
 
 // ─── Supported Locations List ───
 const SUPPORTED_LOCATIONS = {
@@ -99,6 +131,7 @@ async function keywordRoutes(fastify, options) {
                     includeCompetitorAnalysis: { type: 'boolean', default: true },
                     compareLocations: { type: 'array', items: { type: 'string' } },
                     numResults: { type: 'integer', default: 20, maximum: 50 },
+                    projectId: { type: 'string' },
                 },
             },
         },
@@ -113,6 +146,7 @@ async function keywordRoutes(fastify, options) {
                 includeCompetitorAnalysis = true,
                 compareLocations,
                 numResults = 20,
+                projectId,
             } = request.body;
 
             try {
@@ -147,6 +181,32 @@ async function keywordRoutes(fastify, options) {
 
                 const keywordId = dbResult.rows[0].id;
 
+                if (projectId) {
+                    const userId = request.session?.get('userId') || null;
+                    const projectAccess = await db.query(
+                        `SELECT p.id, p.client_id
+                         FROM seo_projects p
+                         JOIN seo_clients c ON c.id = p.client_id
+                         WHERE p.id = $1 AND (c.user_id = $2 OR c.user_id IS NULL OR c.user_id = '00000000-0000-0000-0000-000000000000')`,
+                        [projectId, userId]
+                    );
+
+                    if (!projectAccess.rows.length) {
+                        return reply.code(404).send({ error: 'Project not found' });
+                    }
+
+                    await db.query(
+                        `INSERT INTO seo_project_keywords (project_id, keyword_id, intent, priority_score)
+                         VALUES ($1, $2, $3, $4)
+                         ON CONFLICT (project_id, keyword_id) DO UPDATE SET
+                             intent = COALESCE($3, seo_project_keywords.intent),
+                             priority_score = GREATEST(seo_project_keywords.priority_score, $4)`,
+                        [projectId, keywordId, result.intent?.primary || null, result.metrics.opportunityScore || 0]
+                    );
+                    await db.query(`UPDATE seo_projects SET updated_at = NOW() WHERE id = $1`, [projectId]);
+                    await db.query(`UPDATE seo_clients SET updated_at = NOW() WHERE id = $1`, [projectAccess.rows[0].client_id]);
+                }
+
                 // Store competitors from SERP results
                 if (result.competitors) {
                     for (const serp of result.competitors) {
@@ -171,6 +231,184 @@ async function keywordRoutes(fastify, options) {
                 };
             } catch (err) {
                 log.error({ err: err.message }, 'advanced research failed');
+                return reply.code(500).send({ error: err.message });
+            }
+        },
+    });
+
+
+    // ─── Save Selected Research Keywords to Project / Tasks / Briefs ───
+    fastify.post('/api/keywords/project-bulk', {
+        schema: {
+            body: {
+                type: 'object',
+                required: ['projectId', 'keywords'],
+                properties: {
+                    projectId: { type: 'string' },
+                    location: { type: 'string', default: 'India' },
+                    keywords: {
+                        type: 'array',
+                        minItems: 1,
+                        maxItems: 100,
+                        items: {
+                            type: 'object',
+                            required: ['keyword'],
+                            properties: {
+                                keyword: { type: 'string' },
+                                volume: { type: 'number' },
+                                competition: { type: 'string' },
+                                cpc: { type: 'number' },
+                                difficulty: { type: 'number' },
+                                intent: { type: 'string' },
+                                priorityScore: { type: 'number' },
+                            },
+                        },
+                    },
+                    saveKeywords: { type: 'boolean', default: true },
+                    createTasks: { type: 'boolean', default: false },
+                    createBriefs: { type: 'boolean', default: false },
+                    briefLimit: { type: 'integer', default: 3, minimum: 1, maximum: 5 },
+                },
+            },
+        },
+        handler: async (request, reply) => {
+            const userId = request.session?.get('userId') || null;
+            const {
+                projectId,
+                location = 'India',
+                saveKeywords = true,
+                createTasks = false,
+                createBriefs = false,
+                briefLimit = 3,
+            } = request.body;
+            const items = normalizeBulkKeywordItems(request.body.keywords);
+
+            if (!items.length) {
+                return reply.code(400).send({ error: 'At least one keyword is required' });
+            }
+
+            try {
+                const projectAccess = await db.query(
+                    `SELECT p.id, p.client_id, p.name AS project_name, c.website_url, c.user_id
+                     FROM seo_projects p
+                     JOIN seo_clients c ON c.id = p.client_id
+                     WHERE p.id = $1 AND (c.user_id = $2 OR c.user_id IS NULL OR c.user_id = '00000000-0000-0000-0000-000000000000')`,
+                    [projectId, userId]
+                );
+
+                const project = projectAccess.rows[0];
+                if (!project) {
+                    return reply.code(404).send({ error: 'Project not found' });
+                }
+
+                let savedKeywords = 0;
+                let linkedKeywords = 0;
+                let tasksCreated = 0;
+                let briefsCreated = 0;
+                const briefErrors = [];
+
+                for (const item of items) {
+                    const keywordResult = await db.query(
+                        `INSERT INTO keywords (keyword, location, search_volume, competition, cpc, difficulty)
+                         VALUES ($1, $2, $3, $4, $5, $6)
+                         ON CONFLICT (keyword, location) DO UPDATE SET
+                             search_volume = GREATEST(keywords.search_volume, $3),
+                             competition = COALESCE(NULLIF($4, 'unknown'), keywords.competition),
+                             cpc = GREATEST(keywords.cpc, $5),
+                             difficulty = GREATEST(keywords.difficulty, $6),
+                             updated_at = NOW()
+                         RETURNING id`,
+                        [item.keyword, location, item.volume, item.competition, item.cpc, item.difficulty]
+                    );
+
+                    savedKeywords++;
+                    const keywordId = keywordResult.rows[0].id;
+
+                    if (saveKeywords) {
+                        await db.query(
+                            `INSERT INTO seo_project_keywords (project_id, keyword_id, intent, priority_score)
+                             VALUES ($1, $2, $3, $4)
+                             ON CONFLICT (project_id, keyword_id) DO UPDATE SET
+                                 intent = COALESCE($3, seo_project_keywords.intent),
+                                 priority_score = GREATEST(seo_project_keywords.priority_score, $4)`,
+                            [projectId, keywordId, item.intent, item.priorityScore]
+                        );
+                        linkedKeywords++;
+                    }
+
+                    if (createTasks) {
+                        const title = `Create or optimize page for "${item.keyword}"`;
+                        const existing = await db.query(
+                            `SELECT id FROM seo_tasks WHERE project_id = $1 AND LOWER(title) = LOWER($2) LIMIT 1`,
+                            [projectId, title]
+                        );
+
+                        if (!existing.rows.length) {
+                            await db.query(
+                                `INSERT INTO seo_tasks (user_id, client_id, project_id, title, description, category, impact, effort, priority, status)
+                                 VALUES ($1, $2, $3, $4, $5, 'content', $6, 'medium', $7, 'todo')`,
+                                [
+                                    userId,
+                                    project.client_id,
+                                    projectId,
+                                    title,
+                                    `Build a search-intent matched page or section for "${item.keyword}". Include the keyword naturally in title/H1, answer related questions, add internal links, and connect it to the project conversion goal. Intent: ${item.intent}.`,
+                                    item.intent === 'transactional' || item.intent === 'commercial' ? 'high' : 'medium',
+                                    taskPriorityFromKeyword(item),
+                                ]
+                            );
+                            tasksCreated++;
+                        }
+                    }
+                }
+
+                if (createBriefs) {
+                    const briefItems = items.slice(0, Math.min(Number(briefLimit) || 3, 5));
+                    for (const item of briefItems) {
+                        try {
+                            const brief = await contentBriefService.generateContentBrief({
+                                keyword: item.keyword,
+                                location,
+                                projectId,
+                                myDomain: project.website_url || '',
+                                numResults: 8,
+                                useAi: false,
+                            });
+
+                            await db.query(
+                                `INSERT INTO content_briefs
+                                 (user_id, project_id, keyword, location, brief, source_metrics)
+                                 VALUES ($1, $2, $3, $4, $5, $6)`,
+                                [
+                                    userId,
+                                    projectId,
+                                    brief.keyword,
+                                    brief.location,
+                                    JSON.stringify(brief),
+                                    JSON.stringify(brief.sourceData || {}),
+                                ]
+                            );
+                            briefsCreated++;
+                        } catch (err) {
+                            briefErrors.push({ keyword: item.keyword, error: err.message });
+                            log.warn({ err: err.message, keyword: item.keyword, projectId }, 'bulk content brief failed');
+                        }
+                    }
+                }
+
+                await db.query(`UPDATE seo_projects SET updated_at = NOW() WHERE id = $1`, [projectId]);
+                await db.query(`UPDATE seo_clients SET updated_at = NOW() WHERE id = $1`, [project.client_id]);
+
+                return {
+                    success: true,
+                    savedKeywords,
+                    linkedKeywords,
+                    tasksCreated,
+                    briefsCreated,
+                    briefErrors,
+                };
+            } catch (err) {
+                log.error({ err: err.message, projectId }, 'bulk keyword project action failed');
                 return reply.code(500).send({ error: err.message });
             }
         },

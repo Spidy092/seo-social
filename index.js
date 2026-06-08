@@ -20,6 +20,8 @@ const alertRoutes = require('./src/routes/alerts');
 const onpageRoutes = require('./src/routes/onpage');
 const technicalRoutes = require('./src/routes/technical');
 const contentRoutes = require('./src/routes/content');
+const clientRoutes = require('./src/routes/clients');
+const reportRoutes = require('./src/routes/reports');
 
 
 const log = createLogger('server');
@@ -92,7 +94,10 @@ async function main() {
         }
 
         if (!request.session.get('userId')) {
-            request.log.info({ url: request.url, routerPath: request.routerPath }, 'Unauthenticated access, redirecting to /login');
+            request.log.info({ url: request.url, routerPath: request.routerPath }, 'Unauthenticated access');
+            if (urlPath.startsWith('/api/')) {
+                return reply.code(401).send({ error: 'Unauthorized' });
+            }
             return reply.redirect('/login');
         }
     });
@@ -106,6 +111,11 @@ async function main() {
     await fastify.register(onpageRoutes, { db });
     await fastify.register(technicalRoutes, { db });
     await fastify.register(contentRoutes, { db });
+    await fastify.register(clientRoutes, { db });
+    await fastify.register(reportRoutes, { db });
+    await fastify.register(require('./src/routes/tasks'), { db });
+    await fastify.register(require('./src/routes/projectDashboard'), { db });
+    await fastify.register(require('./src/routes/pageOptimization'), { db });
     
     // Social Routes
     await fastify.register(require('./src/routes/social/platforms'), { db });

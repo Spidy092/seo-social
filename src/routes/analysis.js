@@ -53,6 +53,27 @@ async function analysisRoutes(fastify, options) {
                     competitorPageData
                 );
 
+                // Attach raw page snapshots (H1, meta, page type, headings, etc.)
+                // so the UI can render a "Page Snapshot" card without a second call.
+                comparison.myPage = myPageData ? buildPageSnapshot(myPageData) : null;
+                comparison.competitorPage = competitorPageData ? buildPageSnapshot(competitorPageData) : null;
+
+                // Best-effort SERP enrichment (does not block the response if it fails).
+                try {
+                    const serpResults = await keywordService.getSERPResults(keyword, 'India', 20);
+                    const myClean = keywordService.extractDomain(myDomain);
+                    const compClean = keywordService.extractDomain(competitorDomain);
+                    const myHit = serpResults.find(r => r.domain?.includes(myClean));
+                    const compHit = serpResults.find(r => r.domain?.includes(compClean));
+                    comparison.serp = {
+                        mine: myHit ? { position: myHit.position, url: myHit.url, title: myHit.title } : null,
+                        competitor: compHit ? { position: compHit.position, url: compHit.url, title: compHit.title } : null,
+                    };
+                } catch (serpErr) {
+                    log.warn({ err: serpErr.message }, 'SERP enrichment failed (non-fatal)');
+                    comparison.serp = { mine: null, competitor: null };
+                }
+
                 // Store comparison
                 const keywordResult = await db.query(
                     'SELECT id FROM keywords WHERE keyword = $1 LIMIT 1',
@@ -388,6 +409,29 @@ async function analysisRoutes(fastify, options) {
             }
         },
     });
+}
+
+// ─── Page Snapshot (lightweight, UI-friendly subset of analyzePageContent) ───
+function buildPageSnapshot(pageData) {
+    const seo = pageData.seoElements || {};
+    return {
+        url: pageData.url,
+        wordCount: pageData.wordCount || 0,
+        keywordDensity: pageData.keywordAnalysis?.density || 0,
+        exactMatches: pageData.keywordAnalysis?.exactMatches || 0,
+        h1Text: seo.h1Text || '',
+        metaDescription: seo.metaDescription || '',
+        hasH1: !!seo.hasH1,
+        hasMetaDescription: !!seo.hasMetaDescription,
+        hasSchema: !!seo.hasSchema,
+        schemaTypes: seo.schemaDetails?.detectedTypes || [],
+        pageType: seo.pageType?.primary || 'WebPage',
+        headings: seo.headings || { h1: 0, h2: 0, h3: 0 },
+        images: seo.images || 0,
+        imagesWithAlt: seo.imagesWithAlt || 0,
+        internalLinks: seo.internalLinks || 0,
+        externalLinks: seo.externalLinks || 0,
+    };
 }
 
 module.exports = analysisRoutes;

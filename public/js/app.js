@@ -7,8 +7,15 @@ const API_BASE = '';
 // ─── State ───
 let currentPage = 'dashboard';
 let currentKeyword = null;
+let latestResearchData = null;
+let latestResearchLocation = 'India';
+const selectedRelatedKeywordKeys = new Set();
 let humanizerAlternativesCache = [];
 let humanizerHistoryCache = [];
+
+let latestContentBrief = null;
+let seoClientsCache = [];
+let seoProjectsCache = [];
 
 const PG = {
     competitors: { page: 1, perPage: 15, total: 0 },
@@ -27,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Check for hash on load for deep linking
     const hash = window.location.hash.substring(1);
-    const validPages = ['dashboard', 'research', 'competitors', 'analysis', 'tracking', 'alerts', 'onpage', 'technical', 'humanizer', 'social-upload', 'social-schedule', 'social-platforms', 'social-analytics'];
+    const validPages = ['dashboard', 'clients', 'project-dashboard', 'research', 'competitors', 'analysis', 'tracking', 'alerts', 'onpage', 'technical', 'humanizer', 'content-brief', 'social-upload', 'social-schedule', 'social-platforms', 'social-analytics', 'reports', 'tasks'];
     
     if (hash && validPages.includes(hash)) {
         navigateTo(hash);
@@ -112,18 +119,25 @@ function navigateTo(page) {
     // Update title
     const titles = {
         dashboard: 'Dashboard',
+        clients: 'SEO Clients',
+        'project-dashboard': 'Project SEO Dashboard',
         research: 'Keyword Research',
         competitors: 'Competitors',
         analysis: 'Compare & Analyze',
         tracking: 'Rank Tracking',
         alerts: 'Alerts',
         onpage: 'On-Page SEO Analyzer',
+        'page-optimization': 'Page Optimization',
         technical: 'Technical SEO Audit',
         humanizer: 'Content Humanizer',
+        
+        'content-brief': 'Content Brief Generator',
         'social-upload': 'Upload Content',
         'social-schedule': 'Post Schedule',
         'social-platforms': 'Social Platforms',
-        'social-analytics': 'Social Analytics'
+        'social-analytics': 'Social Analytics',
+        'reports': 'Agency-Ready Reports',
+        'tasks': 'SEO Tasks Prioritization'
     };
 
     $('#pageTitle').textContent = titles[page] || page;
@@ -131,13 +145,18 @@ function navigateTo(page) {
     // Load page data
     switch (page) {
         case 'dashboard': loadDashboard(); break;
-        case 'research': break;
+        case 'clients': loadClientWorkspace(); break;
+        case 'project-dashboard': initProjectDashboard(); break;
+        case 'research': loadResearchProjects(); break;
         case 'competitors': loadTopCompetitors(); break;
         case 'tracking': loadTrackedDomains(); break;
         case 'alerts': loadAlerts(); break;
         case 'onpage': break;
+        case 'page-optimization': initPageOptimization(); break;
         case 'technical': break;
         case 'humanizer': loadHumanizerHistory(); break;
+        case 'reports': if (typeof loadSavedReports === 'function') loadSavedReports(); break;
+        case 'tasks': if (typeof initTasksPage === 'function') initTasksPage(); break;
         case 'social-upload':
             $('#iframe-social-upload').src = $('#iframe-social-upload').dataset.src;
             break;
@@ -384,6 +403,10 @@ async function loadDashboard() {
         $('#activeAlerts').textContent = stats.unreadAlerts || 0;
         $('#topRankings').textContent = stats.topRankings || 0;
 
+        const clientStats = await api('/api/clients/stats');
+        $('#totalClients').textContent = clientStats.clients || 0;
+        $('#totalProjects').textContent = clientStats.projects || 0;
+
         // Load recent keywords
         const keywordsData = await api('/api/keywords?limit=5');
         renderRecentKeywords(keywordsData.keywords || []);
@@ -399,6 +422,8 @@ async function loadDashboard() {
         $('#activeAlerts').textContent = '-';
         $('#totalCompetitors').textContent = '-';
         $('#topRankings').textContent = '-';
+        $('#totalClients').textContent = '-';
+        $('#totalProjects').textContent = '-';
     }
 }
 
@@ -493,16 +518,23 @@ $('#cityInput')?.addEventListener('change', function() {
 });
 
 // ─── Keyword Research ───
-$('#researchBtn')?.addEventListener('click', async () => {
-    const keyword = $('#keywordInput').value.trim();
-    
-    // Build location string
+function getResearchLocationInput() {
     let location = $('#countryInput')?.value || 'India';
     const city = $('#cityInput')?.value;
     const area = $('#areaInput')?.value;
-    
+
     if (city && city !== '') location = city;
     if (area && area !== '') location = `${area}, ${city}`;
+    return location;
+}
+
+function keywordSelectionKey(keyword) {
+    return String(keyword || '').trim().toLowerCase();
+}
+
+$('#researchBtn')?.addEventListener('click', async () => {
+    const keyword = $('#keywordInput').value.trim();
+    const location = getResearchLocationInput();
 
     if (!keyword) {
         showError('Please enter a keyword');
@@ -510,7 +542,10 @@ $('#researchBtn')?.addEventListener('click', async () => {
     }
 
     // Get options
+    const projectId = $('#researchProjectSelect')?.value || '';
+
     const options = {
+        projectId: projectId || undefined,
         includeIntent: $('#includeIntent')?.checked ?? true,
         includeSerpFeatures: $('#includeSerpFeatures')?.checked ?? true,
         includeContentGap: $('#includeContentGap')?.checked ?? true,
@@ -525,6 +560,9 @@ $('#researchBtn')?.addEventListener('click', async () => {
         });
 
         currentKeyword = data.keyword;
+        latestResearchLocation = location;
+        latestResearchData = data;
+        selectedRelatedKeywordKeys.clear();
         renderAdvancedResearchResults(data);
     } catch (err) {
         console.error('Research failed:', err);
@@ -757,7 +795,10 @@ function renderAdvancedResearchResults(data) {
     PG.related.page = 1;
     
     $('#relatedCount').textContent = uniqueRelated.length;
+    const bulkActions = $('#researchBulkActions');
+    if (bulkActions) bulkActions.style.display = uniqueRelated.length ? 'flex' : 'none';
     renderRelatedKeywordsTable(1);
+    updateRelatedKeywordSelectionUi();
 }
 
 function renderRelatedKeywordsTable(page = 1) {
@@ -777,7 +818,7 @@ function renderRelatedKeywordsTable(page = 1) {
     };
     
     if (chunk.length === 0) {
-        container.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No related keywords found</td></tr>';
+        container.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No related keywords found</td></tr>';
         const paginationContainer = $('#relatedSearchesPagination');
         if (paginationContainer) paginationContainer.innerHTML = '';
         return;
@@ -805,7 +846,10 @@ function renderRelatedKeywordsTable(page = 1) {
         
         return `
             <tr>
-                <td><strong>${kw.keyword}</strong></td>
+                <td>
+                    <input type="checkbox" class="related-keyword-check" data-keyword="${escapeHtml(kw.keyword)}" ${selectedRelatedKeywordKeys.has(keywordSelectionKey(kw.keyword)) ? 'checked' : ''}>
+                </td>
+                <td><strong>${escapeHtml(kw.keyword)}</strong></td>
                 <td>${volStr}</td>
                 <td>${cpcStr}</td>
                 <td>${diffHtml}</td>
@@ -820,6 +864,162 @@ function renderRelatedKeywordsTable(page = 1) {
     }).join('');
     
     renderPagination('relatedSearchesPagination', PG.related, renderRelatedKeywordsTable);
+    $$('.related-keyword-check').forEach(input => {
+        input.addEventListener('change', () => toggleRelatedKeywordSelection(input.dataset.keyword, input.checked));
+    });
+    updateRelatedKeywordSelectionUi();
+}
+
+function getSelectedRelatedKeywords() {
+    return PG.related.data.filter(item => selectedRelatedKeywordKeys.has(keywordSelectionKey(item.keyword)));
+}
+
+function getRelatedKeywordPayload({ selectedOnly = true } = {}) {
+    const source = selectedOnly ? getSelectedRelatedKeywords() : PG.related.data;
+    return source.map(item => ({
+        keyword: item.keyword,
+        volume: Number(item.volume || 0),
+        competition: item.competition || 'unknown',
+        cpc: Number(item.cpc || 0),
+        difficulty: Number(item.difficulty || 0),
+        intent: item.intent || 'informational',
+        priorityScore: Number(item.opportunityScore || item.priorityScore || 0),
+    }));
+}
+
+function toggleRelatedKeywordSelection(keyword, checked) {
+    const key = keywordSelectionKey(keyword);
+    if (!key) return;
+    if (checked) selectedRelatedKeywordKeys.add(key);
+    else selectedRelatedKeywordKeys.delete(key);
+    updateRelatedKeywordSelectionUi();
+}
+
+function toggleVisibleRelatedKeywords(checked) {
+    const start = (PG.related.page - 1) * PG.related.perPage;
+    const end = start + PG.related.perPage;
+    PG.related.data.slice(start, end).forEach(item => {
+        const key = keywordSelectionKey(item.keyword);
+        if (checked) selectedRelatedKeywordKeys.add(key);
+        else selectedRelatedKeywordKeys.delete(key);
+    });
+    renderRelatedKeywordsTable(PG.related.page);
+}
+
+function selectAllRelatedKeywords() {
+    PG.related.data.forEach(item => selectedRelatedKeywordKeys.add(keywordSelectionKey(item.keyword)));
+    renderRelatedKeywordsTable(PG.related.page);
+}
+
+function clearRelatedKeywordSelection() {
+    selectedRelatedKeywordKeys.clear();
+    renderRelatedKeywordsTable(PG.related.page);
+}
+
+function updateRelatedKeywordSelectionUi() {
+    const count = selectedRelatedKeywordKeys.size;
+    const countEl = $('#selectedKeywordCount');
+    if (countEl) countEl.textContent = `${count} selected`;
+
+    const start = (PG.related.page - 1) * PG.related.perPage;
+    const end = start + PG.related.perPage;
+    const visible = PG.related.data.slice(start, end);
+    const allVisibleSelected = visible.length > 0 && visible.every(item => selectedRelatedKeywordKeys.has(keywordSelectionKey(item.keyword)));
+    const visibleToggle = $('#selectVisibleKeywords');
+    if (visibleToggle) visibleToggle.checked = allVisibleSelected;
+}
+
+function csvEscape(value) {
+    const text = String(value ?? '');
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadTextFile(filename, content, type = 'text/csv;charset=utf-8;') {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
+function exportRelatedKeywordsCsv() {
+    const keywords = getRelatedKeywordPayload({ selectedOnly: selectedRelatedKeywordKeys.size > 0 });
+    if (!keywords.length) {
+        showError('No related keywords to export.');
+        return;
+    }
+
+    const header = ['Keyword', 'Search Volume', 'CPC', 'Difficulty', 'Intent', 'Competition'];
+    const rows = keywords.map(item => [item.keyword, item.volume, item.cpc, item.difficulty, item.intent, item.competition]);
+    const csv = [header, ...rows].map(row => row.map(csvEscape).join(',')).join('\n');
+    const base = keywordSelectionKey(currentKeyword?.keyword || $('#keywordInput')?.value || 'keyword-research').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'keyword-research';
+    downloadTextFile(`${base}-keywords.csv`, csv);
+    showSuccess(`Exported ${keywords.length} keyword${keywords.length === 1 ? '' : 's'} to CSV.`);
+}
+
+async function runSelectedKeywordProjectAction(options = {}) {
+    const projectId = $('#researchProjectSelect')?.value || '';
+    if (!projectId) {
+        showError('Choose a project before saving selected keywords.');
+        return null;
+    }
+
+    const keywords = getRelatedKeywordPayload({ selectedOnly: true });
+    if (!keywords.length) {
+        showError('Select at least one related keyword first.');
+        return null;
+    }
+
+    const data = await api('/api/keywords/project-bulk', {
+        method: 'POST',
+        body: JSON.stringify({
+            projectId,
+            location: latestResearchLocation || getResearchLocationInput(),
+            keywords,
+            ...options,
+        }),
+    });
+
+    if (!data.success) {
+        showError(data.error || 'Keyword action failed.');
+        return null;
+    }
+
+    return data;
+}
+
+async function saveSelectedKeywordsToProject() {
+    try {
+        const data = await runSelectedKeywordProjectAction({ saveKeywords: true, createTasks: false, createBriefs: false });
+        if (data) showSuccess(`Saved ${data.linkedKeywords || 0} keyword${data.linkedKeywords === 1 ? '' : 's'} to project.`);
+    } catch (err) {
+        console.error('Save selected keywords failed:', err);
+    }
+}
+
+async function createTasksFromSelectedKeywords() {
+    try {
+        const data = await runSelectedKeywordProjectAction({ saveKeywords: true, createTasks: true, createBriefs: false });
+        if (data) showSuccess(`Created ${data.tasksCreated || 0} SEO task${data.tasksCreated === 1 ? '' : 's'} and saved ${data.linkedKeywords || 0} keyword${data.linkedKeywords === 1 ? '' : 's'}.`);
+    } catch (err) {
+        console.error('Create tasks from selected keywords failed:', err);
+    }
+}
+
+async function createBriefsFromSelectedKeywords() {
+    try {
+        const data = await runSelectedKeywordProjectAction({ saveKeywords: true, createTasks: false, createBriefs: true, briefLimit: 3 });
+        if (data) {
+            const warning = data.briefErrors?.length ? ` ${data.briefErrors.length} brief failed.` : '';
+            showSuccess(`Created ${data.briefsCreated || 0} content brief${data.briefsCreated === 1 ? '' : 's'} and saved ${data.linkedKeywords || 0} keyword${data.linkedKeywords === 1 ? '' : 's'}.${warning}`);
+        }
+    } catch (err) {
+        console.error('Create briefs from selected keywords failed:', err);
+    }
 }
 
 function searchRelated(keyword) {
@@ -1198,7 +1398,20 @@ const cleanDomain = (input) => {
     }
 };
 
+// ─── Compare & Analyze: button + progressive loading ───
+const PROGRESS_STEPS = [
+    'Fetching domain authority…',
+    'Pulling SERP positions…',
+    'Crawling your page…',
+    'Crawling competitor page…',
+    'Computing SEO scores…',
+    'Asking the AI expert…',
+];
+
 $('#analyzeBtn')?.addEventListener('click', async () => {
+    const btn = $('#analyzeBtn');
+    const progress = $('#analysisProgress');
+    const progressText = progress?.querySelector('.progress-text');
     const myDomainRaw = $('#myDomainInput').value.trim();
     const competitorDomainRaw = $('#competitorDomainInput').value.trim();
     const keyword = $('#analysisKeywordInput').value.trim();
@@ -1213,102 +1426,430 @@ $('#analyzeBtn')?.addEventListener('click', async () => {
     // Auto-clean domains
     const myDomain = cleanDomain(myDomainRaw);
     const competitorDomain = cleanDomain(competitorDomainRaw);
-    
-    // Update inputs to show cleaned version
     $('#myDomainInput').value = myDomain;
     $('#competitorDomainInput').value = competitorDomain;
+
+    // Loading state + disable double-submit
+    if (btn) {
+        btn.disabled = true;
+        btn.classList.add('is-loading');
+    }
+    if (progress) {
+        progress.hidden = false;
+    }
+
+    let stepIndex = 0;
+    const tick = () => {
+        if (progressText) {
+            progressText.textContent = PROGRESS_STEPS[stepIndex % PROGRESS_STEPS.length];
+        }
+        stepIndex++;
+    };
+    tick();
+    const tickInterval = setInterval(tick, 2200);
 
     try {
         const data = await api('/api/analysis/compare', {
             method: 'POST',
             body: JSON.stringify({ myDomain, competitorDomain, keyword, myUrl, competitorUrl }),
         });
-
+        if (progressText) progressText.textContent = 'Rendering results…';
         renderAnalysisResults(data.comparison);
+        // Scroll the results into view so the user sees the hero card.
+        $('#analysisResults')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err) {
         console.error('Analysis failed:', err);
+        showError(err?.message || 'Analysis failed');
+    } finally {
+        clearInterval(tickInterval);
+        if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('is-loading');
+        }
+        if (progress) progress.hidden = true;
     }
 });
 
-function renderAnalysisResults(comparison) {
-    $('#analysisResults').style.display = 'block';
+// ─── Helpers for rendering ───
+function fmtNumber(n) {
+    if (n === null || n === undefined || n === '') return '–';
+    if (typeof n === 'number') return Number.isInteger(n) ? n.toString() : n.toFixed(2).replace(/\.?0+$/, '');
+    return n;
+}
 
-    // AI Insight Section (NEW)
-    const aiInsight = $('#aiInsight');
-    if (aiInsight && comparison.aiAnalysis) {
-        const ai = comparison.aiAnalysis;
-        aiInsight.innerHTML = `
-            <div class="ai-expert-box">
-                <div class="ai-header">
-                    <div class="ai-title"><i class="fas fa-robot"></i> AI Expert Insight</div>
-                    <div class="ai-score-badge">Expert Score: <span>${ai.aiScore}/100</span></div>
+function fmtPercent(n) {
+    if (n === null || n === undefined) return '–';
+    return `${Number(n).toFixed(2).replace(/\.?0+$/, '')}%`;
+}
+
+function clampPct(value, max) {
+    if (!max || value == null) return 0;
+    return Math.max(0, Math.min(100, (Number(value) / Number(max)) * 100));
+}
+
+function winnerSide(mine, theirs) {
+    if (mine == null || theirs == null) return 'tie';
+    if (Number(mine) > Number(theirs)) return 'mine';
+    if (Number(mine) < Number(theirs)) return 'competitor';
+    return 'tie';
+}
+
+function verdictClass(verdict) {
+    const v = String(verdict || '').toLowerCase();
+    if (v.includes('dominat')) return 'dominating';
+    if (v.includes('behind') || v.includes('risk') || v.includes('crush')) return 'behind';
+    return 'competitive';
+}
+
+function overallTone(score) {
+    if (score == null) return 'neutral';
+    if (score >= 67) return 'good';
+    if (score >= 40) return 'mid';
+    return 'bad';
+}
+
+function escapeAttr(value) {
+    return escapeHtml(value).replace(/"/g, '&quot;');
+}
+
+async function copyToClipboard(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        showSuccess('Copied to clipboard');
+    } catch (err) {
+        // Fallback: temporary textarea
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); showSuccess('Copied to clipboard'); }
+        catch { showError('Could not copy. Select and copy manually.'); }
+        document.body.removeChild(ta);
+    }
+}
+
+// ─── Render: AI Expert Insight (HERO) ───
+function renderAIInsight(comparison) {
+    const wrap = $('#aiInsight');
+    if (!wrap) return;
+    const ai = comparison.aiAnalysis;
+    if (!ai) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+
+    const aiScore = Number(ai.aiScore ?? ai.score ?? 0);
+    const tone = overallTone(aiScore);
+    const verdictCls = verdictClass(ai.verdict);
+
+    // Winning factor = first HIGH-impact difference
+    const diffs = comparison.keyDifferences || [];
+    const winMine = diffs.find(d => d.winner === 'mine' && d.impact === 'HIGH');
+    const winComp = diffs.find(d => d.winner === 'competitor' && d.impact === 'HIGH');
+    const topFactor = (aiScore >= 50 ? winMine : winComp) || diffs[0];
+
+    wrap.innerHTML = `
+        <div class="ai-expert-box ai-tone-${tone}">
+            <div class="ai-header">
+                <div class="ai-title">
+                    <i class="fas fa-robot"></i> AI Expert Insight
+                    <span class="ai-verdict ${verdictCls}">${escapeHtml(ai.verdict || 'Verdict')}</span>
                 </div>
-                <div class="ai-verdict ${ai.verdict.toLowerCase()}">Verdict: ${ai.verdict}</div>
-                <div class="ai-summary"><strong>Strategy:</strong> ${ai.strategicSummary}</div>
-                <div class="ai-observation"><strong>Observation:</strong> ${ai.keyObservation}</div>
+                <div class="ai-score-badge">
+                    <span class="label">Expert Score</span>
+                    <span class="value">${escapeHtml(String(aiScore))}</span>
+                    <span class="suffix">/100</span>
+                </div>
             </div>
-        `;
-        aiInsight.style.display = 'block';
+            ${topFactor ? `
+                <div class="ai-winning-factor ${topFactor.winner === 'mine' ? 'is-mine' : 'is-competitor'}">
+                    <i class="fas ${topFactor.winner === 'mine' ? 'fa-trophy' : 'fa-bolt'}"></i>
+                    <div>
+                        <div class="ai-factor-label">${topFactor.winner === 'mine' ? 'Your biggest advantage' : 'Competitor\'s biggest advantage'}</div>
+                        <div class="ai-factor-name">${escapeHtml(topFactor.factor)} — ${escapeHtml(topFactor.gap || '')}</div>
+                    </div>
+                </div>
+            ` : ''}
+            <div class="ai-summary"><strong>Strategy:</strong> ${escapeHtml(ai.strategicSummary || '')}</div>
+            <div class="ai-observation"><strong>Observation:</strong> ${escapeHtml(ai.keyObservation || '')}</div>
+        </div>
+    `;
+    wrap.style.display = 'block';
+}
+
+// ─── Render: Side-by-Side Metrics Grid ───
+function renderComparisonGrid(comparison) {
+    const grid = $('#comparisonGrid');
+    const scores = comparison.scores || {};
+    const seo = scores.seo?.scores || {};
+    const content = scores.content || {};
+    const serp = comparison.serp || {};
+
+    // Build metric rows. Each: {label, mine, theirs, max, format, winner}
+    const mySeoScore = Number(seo.mine || 0);
+    const compSeoScore = Number(seo.competitor || 0);
+    const mySeoChecks = scores.seo?.checks || {};
+    const compSeoChecks = scores.seo?.checks || {};
+
+    const rows = [
+        {
+            label: 'OpenPageRank',
+            icon: 'fa-globe',
+            mine: scores.domainAuthority?.mine,
+            theirs: scores.domainAuthority?.competitor,
+            max: 100,
+            format: 'number',
+            hint: 'Domain authority (higher = more trust)',
+        },
+        {
+            label: 'SEO Score',
+            icon: 'fa-gauge-high',
+            mine: mySeoScore,
+            theirs: compSeoScore,
+            max: 100,
+            format: 'number',
+            hint: 'On-page SEO (H1, meta, schema, links, images)',
+        },
+        {
+            label: 'Word Count',
+            icon: 'fa-align-left',
+            mine: content.wordCount?.mine,
+            theirs: content.wordCount?.competitor,
+            max: Math.max(content.wordCount?.mine || 0, content.wordCount?.competitor || 0, 1500),
+            format: 'number',
+            hint: 'Total words on the target page',
+        },
+        {
+            label: 'Keyword Density',
+            icon: 'fa-percent',
+            mine: content.keywordDensity?.mine,
+            theirs: content.keywordDensity?.competitor,
+            max: 3,
+            format: 'percent',
+            hint: 'Sweet spot 1–2%',
+        },
+        {
+            label: 'Internal Links',
+            icon: 'fa-link',
+            mine: mySeoChecks.internalLinks?.mine,
+            theirs: compSeoChecks.internalLinks?.competitor,
+            max: Math.max(mySeoChecks.internalLinks?.mine || 0, compSeoChecks.internalLinks?.competitor || 0, 30),
+            format: 'number',
+            hint: 'Helps distribute page authority',
+        },
+        {
+            label: 'Images w/ Alt',
+            icon: 'fa-image',
+            mine: mySeoChecks.imagesWithAlt?.mine,
+            theirs: compSeoChecks.imagesWithAlt?.competitor,
+            max: Math.max(mySeoChecks.imagesWithAlt?.mine || 0, compSeoChecks.imagesWithAlt?.competitor || 0, 10),
+            format: 'number',
+            hint: 'Accessibility + image SEO',
+        },
+    ];
+
+    const overall = Number(comparison.overallScore ?? 0);
+    const pill = $('#overallScorePill');
+    if (pill) {
+        pill.hidden = false;
+        pill.classList.remove('tone-good', 'tone-mid', 'tone-bad');
+        pill.classList.add(`tone-${overallTone(overall)}`);
+        const val = $('#overallScoreValue');
+        if (val) val.textContent = fmtNumber(overall);
     }
 
-    // Comparison grid
-    const grid = $('#comparisonGrid');
-    grid.innerHTML = `
-        <div class="comparison-item">
-            <div class="domain">${comparison.myDomain}</div>
-            <div class="score mine">${comparison.scores?.domainAuthority?.mine || '-'}</div>
-            <div class="label">OpenPageRank (DA)</div>
-        </div>
-        <div class="comparison-item">
-            <div class="domain">${comparison.competitorDomain}</div>
-            <div class="score competitor">${comparison.scores?.domainAuthority?.competitor || '-'}</div>
-            <div class="label">OpenPageRank (DA)</div>
+    const serpMine = serp.mine?.position;
+    const serpComp = serp.competitor?.position;
+    const serpRow = `
+        <div class="serp-positions">
+            <div class="serp-side">
+                <div class="serp-label">${escapeHtml(comparison.myDomain || 'You')}</div>
+                <div class="serp-pos ${serpMine ? `pos-${serpMine <= 3 ? 'top' : serpMine <= 10 ? 'mid' : 'low'}` : 'pos-none'}">
+                    ${serpMine ? `#${serpMine}` : 'Not ranking'}
+                </div>
+                ${serpMine && serp.mine.url ? `<a class="serp-link" href="${escapeAttr(serp.mine.url)}" target="_blank" rel="noopener">${escapeHtml(truncate(serp.mine.title || serp.mine.url, 50))}</a>` : '<div class="serp-link muted">No SERP match found</div>'}
+            </div>
+            <div class="serp-side">
+                <div class="serp-label">${escapeHtml(comparison.competitorDomain || 'Competitor')}</div>
+                <div class="serp-pos ${serpComp ? `pos-${serpComp <= 3 ? 'top' : serpComp <= 10 ? 'mid' : 'low'}` : 'pos-none'}">
+                    ${serpComp ? `#${serpComp}` : 'Not ranking'}
+                </div>
+                ${serpComp && serp.competitor.url ? `<a class="serp-link" href="${escapeAttr(serp.competitor.url)}" target="_blank" rel="noopener">${escapeHtml(truncate(serp.competitor.title || serp.competitor.url, 50))}</a>` : '<div class="serp-link muted">No SERP match found</div>'}
+            </div>
         </div>
     `;
 
-    // Differences
+    const rowHtml = rows.map(r => {
+        const mine = r.mine == null ? null : Number(r.mine);
+        const theirs = r.theirs == null ? null : Number(r.theirs);
+        const w = winnerSide(mine, theirs);
+        const mineStr = mine == null ? '–' : (r.format === 'percent' ? fmtPercent(mine) : fmtNumber(mine));
+        const theirsStr = theirs == null ? '–' : (r.format === 'percent' ? fmtPercent(theirs) : fmtNumber(theirs));
+        const minePct = clampPct(mine, r.max);
+        const theirsPct = clampPct(theirs, r.max);
+        return `
+            <div class="metric-row winner-${w}">
+                <div class="metric-label">
+                    <i class="fas ${r.icon}"></i>
+                    <div>
+                        <div class="metric-name">${escapeHtml(r.label)}</div>
+                        <div class="metric-hint">${escapeHtml(r.hint)}</div>
+                    </div>
+                </div>
+                <div class="metric-side metric-mine">
+                    <div class="metric-value">${escapeHtml(mineStr)} ${w === 'mine' ? '<i class="fas fa-check winner-check"></i>' : ''}</div>
+                    <div class="metric-bar"><span class="bar-mine" style="width:${minePct}%"></span></div>
+                </div>
+                <div class="metric-side metric-comp">
+                    <div class="metric-value">${escapeHtml(theirsStr)} ${w === 'competitor' ? '<i class="fas fa-check winner-check"></i>' : ''}</div>
+                    <div class="metric-bar"><span class="bar-comp" style="width:${theirsPct}%"></span></div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    grid.innerHTML = `
+        <div class="metric-head">
+            <div class="metric-label-spacer"></div>
+            <div class="metric-side-head metric-mine">${escapeHtml(comparison.myDomain || 'You')}</div>
+            <div class="metric-side-head metric-comp">${escapeHtml(comparison.competitorDomain || 'Competitor')}</div>
+        </div>
+        ${rowHtml}
+        <div class="serp-section">
+            <div class="serp-section-title"><i class="fas fa-search"></i> Google SERP position for <strong>${escapeHtml(comparison.keyword || '')}</strong></div>
+            ${serpRow}
+        </div>
+    `;
+}
+
+// ─── Render: Key Comparative Differences ───
+function renderDifferences(comparison) {
     const reasonsList = $('#reasonsList');
     reasonsList.innerHTML = (comparison.keyDifferences || []).map(diff => `
         <div class="reason-item winner-${diff.winner}">
             <div class="factor">
-                ${diff.factor} 
+                ${escapeHtml(diff.factor)}
                 <span class="winner-badge ${diff.winner}">${diff.winner === 'mine' ? '✅ Your Advantage' : '⚠️ Competitor Advantage'}</span>
+                <span class="impact-pill impact-${String(diff.impact || 'low').toLowerCase()}">${escapeHtml(diff.impact || 'LOW')}</span>
             </div>
-            <div class="explanation">${diff.explanation}</div>
-            <div class="gap">${diff.gap}</div>
+            <div class="explanation">${escapeHtml(diff.explanation || '')}</div>
+            <div class="gap">${escapeHtml(diff.gap || '')}</div>
         </div>
-    `).join('') || '<p>No significant differences found</p>';
+    `).join('') || '<p class="text-muted">No significant differences found.</p>';
+}
 
-    // Suggestions
-    const suggestionsList = $('#suggestionsList');
-    suggestionsList.innerHTML = (comparison.suggestions || []).map(sug => {
-        const priority = escapeHtml(sug.priority || 'LOW');
-        const priorityClass = priority.toLowerCase();
+// ─── Render: Suggestions (grouped by category, with Copy action) ───
+function renderSuggestions(comparison) {
+    const list = $('#suggestionsList');
+    const allSuggestions = comparison.suggestions || [];
+
+    $('#suggestionsCount').textContent = `${allSuggestions.length} item${allSuggestions.length === 1 ? '' : 's'}`;
+
+    if (!allSuggestions.length) {
+        list.innerHTML = '<p class="text-muted">No suggestions available — the two pages are evenly matched.</p>';
+        return;
+    }
+
+    // Group by category
+    const groups = {};
+    allSuggestions.forEach((sug, idx) => {
+        const cat = sug.category || 'Other';
+        if (!groups[cat]) groups[cat] = [];
+        groups[cat].push({ ...sug, _index: idx });
+    });
+
+    const categoryOrder = ['Content', 'SEO', 'Keywords', 'Technical SEO', 'Link Building', 'Authority', 'Benchmark', 'Other'];
+    const sortedCategories = Object.keys(groups).sort((a, b) => {
+        const ai = categoryOrder.indexOf(a);
+        const bi = categoryOrder.indexOf(b);
+        if (ai === -1 && bi === -1) return a.localeCompare(b);
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+    });
+
+    const categoryIcon = (cat) => {
+        const map = {
+            'Content': 'fa-pen-fancy',
+            'SEO': 'fa-magnifying-glass',
+            'Keywords': 'fa-key',
+            'Technical SEO': 'fa-code',
+            'Link Building': 'fa-link',
+            'Authority': 'fa-shield-halved',
+            'Benchmark': 'fa-bullseye',
+            'Other': 'fa-lightbulb',
+        };
+        return map[cat] || 'fa-lightbulb';
+    };
+
+    const renderSuggestion = (sug) => {
+        const priority = String(sug.priority || 'LOW').toLowerCase();
         const details = Array.isArray(sug.details) ? sug.details : [];
         const meta = [
-            sug.category ? `Category: ${sug.category}` : '',
             sug.effort ? `Effort: ${sug.effort}` : '',
             sug.timeline ? `Timeline: ${sug.timeline}` : '',
         ].filter(Boolean);
 
+        const copyText = [
+            `[${sug.priority || 'LOW'}] ${sug.action || ''}`,
+            sug.why ? `Why: ${sug.why}` : '',
+            sug.metric ? `Trigger: ${sug.metric}` : '',
+            sug.nextStep ? `Next step: ${sug.nextStep}` : '',
+            details.length ? `\nDetails:\n- ${details.join('\n- ')}` : '',
+        ].filter(Boolean).join('\n');
+
         return `
-            <div class="suggestion-item">
+            <div class="suggestion-item priority-${priority}" data-suggestion-idx="${sug._index}">
                 <div class="suggestion-header">
-                    <span class="priority badge badge-${priorityClass}">${priority}</span>
-                    ${sug.priorityScore ? `<span class="suggestion-score">Impact score ${escapeHtml(sug.priorityScore)}/3</span>` : ''}
+                    <span class="priority badge badge-${priority}">${escapeHtml(sug.priority || 'LOW')}</span>
+                    ${sug.priorityScore ? `<span class="suggestion-score">Impact ${escapeHtml(String(sug.priorityScore))}/3</span>` : ''}
+                    <button class="copy-btn" type="button" data-copy="${escapeAttr(copyText)}" title="Copy this action">
+                        <i class="fas fa-copy"></i> Copy
+                    </button>
                 </div>
                 <div class="action">${escapeHtml(sug.action || 'Review this opportunity')}</div>
                 ${meta.length ? `<div class="suggestion-meta">${meta.map(item => `<span>${escapeHtml(item)}</span>`).join('')}</div>` : ''}
                 ${sug.metric ? `<div class="suggestion-metric"><strong>Trigger:</strong> ${escapeHtml(sug.metric)}</div>` : ''}
                 ${sug.why ? `<div class="suggestion-why"><strong>Why:</strong> ${escapeHtml(sug.why)}</div>` : ''}
-                <ul class="details">
-                    ${details.map(d => `<li>${escapeHtml(d)}</li>`).join('')}
-                </ul>
+                ${details.length ? `
+                    <ul class="details">
+                        ${details.map(d => `<li>${escapeHtml(d)}</li>`).join('')}
+                    </ul>
+                ` : ''}
                 ${sug.nextStep ? `<div class="next-step"><strong>Next step:</strong> ${escapeHtml(sug.nextStep)}</div>` : ''}
                 <div class="impact">Impact: ${escapeHtml(sug.estimatedImpact || 'Improves SEO quality')}</div>
             </div>
         `;
-    }).join('') || '<p>No suggestions available</p>';
+    };
+
+    list.innerHTML = sortedCategories.map(cat => {
+        const items = groups[cat];
+        const highCount = items.filter(i => String(i.priority || '').toUpperCase() === 'HIGH').length;
+        return `
+            <details class="suggestion-group" open>
+                <summary>
+                    <i class="fas ${categoryIcon(cat)}"></i>
+                    <span class="group-name">${escapeHtml(cat)}</span>
+                    <span class="group-count">${items.length}${highCount ? ` · <strong>${highCount} high</strong>` : ''}</span>
+                </summary>
+                <div class="group-items">${items.map(renderSuggestion).join('')}</div>
+            </details>
+        `;
+    }).join('');
+
+    // Wire up copy buttons (event delegation, single listener).
+    list.onclick = (e) => {
+        const btn = e.target.closest('.copy-btn');
+        if (!btn) return;
+        const text = btn.getAttribute('data-copy') || '';
+        copyToClipboard(text);
+    };
+}
+
+// ─── Master render ───
+function renderAnalysisResults(comparison) {
+    $('#analysisResults').style.display = 'block';
+    renderAIInsight(comparison);
+    renderComparisonGrid(comparison);
+    renderDifferences(comparison);
+    renderSuggestions(comparison);
 }
 
 // ─── Rank Tracking ─── (uses new POST /api/domains)
@@ -1823,5 +2364,237 @@ async function deleteTrackedDomain(domain) {
     } catch (err) {
         console.error('Failed to delete domain:', err);
         showError('Network error while deleting domain');
+    }
+}
+
+// ─── SEO Client Workspace ───
+$('#saveClientBtn')?.addEventListener('click', saveSeoClient);
+$('#saveProjectBtn')?.addEventListener('click', saveSeoProject);
+$('#refreshClientsBtn')?.addEventListener('click', loadClientWorkspace);
+$('#projectClientSelect')?.addEventListener('change', () => loadClientProjects($('#projectClientSelect').value));
+
+async function loadClientWorkspace() {
+    await loadSeoClients();
+    await loadResearchProjects();
+}
+
+async function loadSeoClients() {
+    try {
+        const data = await api('/api/clients');
+        seoClientsCache = data.clients || [];
+        renderSeoClients(seoClientsCache);
+        populateClientSelect();
+
+        const selectedClientId = $('#projectClientSelect')?.value || seoClientsCache[0]?.id || '';
+        if (selectedClientId) {
+            $('#projectClientSelect').value = selectedClientId;
+            await loadClientProjects(selectedClientId);
+        }
+    } catch (err) {
+        console.error('Failed to load clients:', err);
+        const list = $('#clientsList');
+        if (list) list.innerHTML = '<p class="text-muted">Could not load clients.</p>';
+    }
+}
+
+function populateClientSelect() {
+    const select = $('#projectClientSelect');
+    if (!select) return;
+
+    const current = select.value;
+    select.innerHTML = '<option value="">Choose a client</option>' + seoClientsCache.map(client => `
+        <option value="${client.id}">${escapeHtml(client.name)}</option>
+    `).join('');
+
+    if (current && seoClientsCache.some(client => client.id === current)) {
+        select.value = current;
+    }
+}
+
+function renderSeoClients(clients) {
+    const container = $('#clientsList');
+    if (!container) return;
+
+    if (!clients.length) {
+        container.innerHTML = '<p class="text-center text-muted">No clients yet. Add your first SEO client above.</p>';
+        return;
+    }
+
+    container.innerHTML = clients.map(client => {
+        const locations = Array.isArray(client.target_locations) ? client.target_locations : [];
+        const competitors = Array.isArray(client.competitors) ? client.competitors : [];
+        const services = Array.isArray(client.services) ? client.services : [];
+        return `
+            <div class="client-card" data-client-id="${client.id}">
+                <div class="client-card-main">
+                    <div>
+                        <h4>${escapeHtml(client.name)}</h4>
+                        <p>${escapeHtml(client.industry || 'No industry set')} ${client.website_url ? `· <a href="${escapeHtml(client.website_url)}" target="_blank" rel="noopener">${escapeHtml(client.website_url)}</a>` : ''}</p>
+                    </div>
+                    <button class="btn btn-sm btn-outline client-select-btn" data-client-id="${client.id}">Use</button>
+                </div>
+                <div class="client-meta-grid">
+                    <span><strong>${client.project_count || 0}</strong> projects</span>
+                    <span><strong>${client.keyword_count || 0}</strong> keywords</span>
+                    <span>${escapeHtml(locations.slice(0, 3).join(', ') || 'No locations')}</span>
+                </div>
+                <div class="client-tags">
+                    ${services.slice(0, 5).map(service => `<span class="tag tag-outline">${escapeHtml(service)}</span>`).join('')}
+                    ${competitors.slice(0, 4).map(domain => `<span class="tag">${escapeHtml(domain)}</span>`).join('')}
+                </div>
+                ${client.goals ? `<p class="client-goals">${escapeHtml(truncate(client.goals, 180))}</p>` : ''}
+            </div>
+        `;
+    }).join('');
+
+    $$('.client-select-btn').forEach(button => {
+        button.addEventListener('click', () => selectSeoClient(button.dataset.clientId));
+    });
+}
+
+function selectSeoClient(clientId) {
+    const client = seoClientsCache.find(item => item.id === clientId);
+    if (!client) return;
+
+    $('#clientIdInput').value = client.id;
+    $('#clientNameInput').value = client.name || '';
+    $('#clientWebsiteInput').value = client.website_url || '';
+    $('#clientIndustryInput').value = client.industry || '';
+    $('#clientLocationsInput').value = Array.isArray(client.target_locations) ? client.target_locations.join(', ') : '';
+    $('#clientCompetitorsInput').value = Array.isArray(client.competitors) ? client.competitors.join(', ') : '';
+    $('#clientServicesInput').value = Array.isArray(client.services) ? client.services.join(', ') : '';
+    $('#clientAudienceInput').value = client.audience || '';
+    $('#clientGoalsInput').value = client.goals || '';
+    $('#projectClientSelect').value = client.id;
+    loadClientProjects(client.id);
+    showSuccess('Client loaded.');
+}
+
+async function saveSeoClient() {
+    const id = $('#clientIdInput')?.value || '';
+    const name = $('#clientNameInput')?.value.trim() || '';
+    if (!name) {
+        showError('Client name is required.');
+        return;
+    }
+
+    const payload = {
+        name,
+        websiteUrl: $('#clientWebsiteInput')?.value.trim() || '',
+        industry: $('#clientIndustryInput')?.value.trim() || '',
+        targetLocations: $('#clientLocationsInput')?.value.trim() || '',
+        competitors: $('#clientCompetitorsInput')?.value.trim() || '',
+        services: $('#clientServicesInput')?.value.trim() || '',
+        audience: $('#clientAudienceInput')?.value.trim() || '',
+        goals: $('#clientGoalsInput')?.value.trim() || '',
+    };
+
+    const endpoint = id ? `/api/clients/${id}` : '/api/clients';
+    const method = id ? 'PUT' : 'POST';
+    const data = await api(endpoint, { method, body: JSON.stringify(payload) });
+    if (!data.success) {
+        showError(data.error || 'Could not save client.');
+        return;
+    }
+
+    $('#clientIdInput').value = data.client.id;
+    showSuccess('Client saved.');
+    await loadClientWorkspace();
+}
+
+async function saveSeoProject() {
+    const clientId = $('#projectClientSelect')?.value || '';
+    const name = $('#projectNameInput')?.value.trim() || '';
+
+    if (!clientId) {
+        showError('Choose a client first.');
+        return;
+    }
+    if (!name) {
+        showError('Project name is required.');
+        return;
+    }
+
+    const payload = {
+        name,
+        projectType: $('#projectTypeInput')?.value || 'keyword-research',
+        targetLocation: $('#projectLocationInput')?.value.trim() || '',
+        goals: $('#projectGoalsInput')?.value.trim() || '',
+    };
+
+    const data = await api(`/api/clients/${clientId}/projects`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+
+    if (!data.success) {
+        showError(data.error || 'Could not save project.');
+        return;
+    }
+
+    $('#projectNameInput').value = '';
+    $('#projectGoalsInput').value = '';
+    showSuccess('Project added.');
+    await loadClientProjects(clientId);
+    await loadResearchProjects();
+}
+
+async function loadClientProjects(clientId) {
+    const container = $('#clientProjectsList');
+    if (!container) return;
+
+    if (!clientId) {
+        container.innerHTML = '<p class="text-muted">Select a client to view projects.</p>';
+        return;
+    }
+
+    try {
+        const data = await api(`/api/clients/${clientId}/projects`);
+        const projects = data.projects || [];
+
+        if (!projects.length) {
+            container.innerHTML = '<p class="text-muted">No projects yet for this client.</p>';
+            return;
+        }
+
+        container.innerHTML = projects.map(project => `
+            <div class="project-row">
+                <div>
+                    <strong>${escapeHtml(project.name)}</strong>
+                    <div class="project-row-meta">${escapeHtml(project.project_type || 'keyword-research')} · ${escapeHtml(project.target_location || 'No location')} · ${project.keyword_count || 0} keywords</div>
+                </div>
+                <div class="project-score">
+                    <span>${formatNumber(project.total_volume || 0)}</span>
+                    <small>total volume</small>
+                    <button class="btn btn-sm btn-outline pd-open-dashboard" data-project-id="${project.id}" style="margin-top:6px">
+                        <i class="fas fa-tachometer-alt"></i> Dashboard
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        $$('.pd-open-dashboard').forEach(btn => {
+            btn.addEventListener('click', () => openProjectDashboard(btn.dataset.projectId));
+        });
+    } catch (err) {
+        console.error('Failed to load projects:', err);
+        container.innerHTML = '<p class="text-muted">Could not load projects.</p>';
+    }
+}
+
+async function loadResearchProjects() {
+    const select = $('#researchProjectSelect');
+    if (!select) return;
+
+    try {
+        const data = await api('/api/projects');
+        seoProjectsCache = data.projects || [];
+        const current = select.value;
+        select.innerHTML = '<option value="">Do not attach to project</option>' + seoProjectsCache.map(project => `
+            <option value="${project.id}">${escapeHtml(project.client_name)} · ${escapeHtml(project.name)}</option>
+        `).join('');
+        if (current && seoProjectsCache.some(project => project.id === current)) select.value = current;
+    } catch (err) {
+        console.error('Failed to load research projects:', err);
     }
 }

@@ -38,8 +38,8 @@ module.exports = {
         },
         openRouter: {
             key: process.env.OPENROUTER_API_KEY,
-            url: 'https://openrouter.ai/api/v1/chat/completions',
-            model: 'stepfun/step-3.5-flash:free',
+            url: process.env.OPENROUTER_URL || 'https://openrouter.ai/api/v1/chat/completions',
+            model: process.env.OPENROUTER_MODEL || 'stepfun/step-3.5-flash:free',
         },
         groq: {
             key: process.env.GROQ_API_KEY,
@@ -62,6 +62,7 @@ module.exports = {
         rankDropThreshold: parseInt(process.env.RANK_DROP_THRESHOLD || '5'),
         rankImprovementThreshold: parseInt(process.env.RANK_IMPROVEMENT_THRESHOLD || '10'),
         rateLimitDelay: parseInt(process.env.RATE_LIMIT_DELAY || '3000'),
+        batchConcurrency: parseInt(process.env.BATCH_CONCURRENCY || '3'),
     },
 
     // ─── Search Settings ───

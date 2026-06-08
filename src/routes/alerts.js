@@ -180,13 +180,13 @@ async function alertRoutes(fastify, options) {
         const { domain, keywordId, days = 30, limit = 50, offset = 0 } = request.query;
 
         try {
+            const params = [parseInt(days) || 30];
             let query = `
                 SELECT rh.*, k.keyword
                 FROM rank_history rh
                 JOIN keywords k ON rh.keyword_id = k.id
-                WHERE rh.checked_at > NOW() - INTERVAL '${parseInt(days)} days'
+                WHERE rh.checked_at > NOW() - ($1 || ' days')::interval
             `;
-            const params = [];
 
             if (domain) {
                 query += ` AND rh.domain = $${params.length + 1}`;
@@ -442,6 +442,219 @@ async function alertRoutes(fastify, options) {
             return { success: true, message: `Stopped tracking ${domain}` };
         } catch (err) {
             log.error({ err: err.message, domain }, 'failed to delete domain');
+            return reply.code(500).send({ error: err.message });
+        }
+    });
+
+    // ─── Get Rank Trend (position over time) ───
+    fastify.get('/api/rankings/trend', async (request, reply) => {
+        const { domain, keywordId, days = 30 } = request.query;
+
+        if (!domain || !keywordId) {
+            return reply.code(400).send({ error: 'domain and keywordId are required' });
+        }
+
+        try {
+            const result = await db.query(
+                `SELECT rh.rank_position, rh.previous_rank, rh.change_direction, rh.checked_at,
+                        k.keyword
+                 FROM rank_history rh
+                 JOIN keywords k ON rh.keyword_id = k.id
+                 WHERE rh.domain = $1 AND rh.keyword_id = $2
+                   AND rh.checked_at > NOW() - ($3 || ' days')::interval
+                 ORDER BY rh.checked_at ASC`,
+                [domain, parseInt(keywordId), parseInt(days)]
+            );
+
+            const history = result.rows;
+            if (history.length === 0) {
+                return { domain, keywordId, trend: [], summary: null };
+            }
+
+            // Compute trend direction
+            const positions = history.map(h => h.rank_position).filter(p => p > 0);
+            const first = positions[0];
+            const last = positions[positions.length - 1];
+            const direction = last < first ? 'improving' : last > first ? 'declining' : 'stable';
+            const netChange = first - last;
+            const avgPosition = positions.length
+                ? Math.round(positions.reduce((a, b) => a + b, 0) / positions.length)
+                : 0;
+
+            return {
+                domain,
+                keywordId,
+                keyword: history[0].keyword,
+                trend: history.map(h => ({
+                    position: h.rank_position,
+                    change: h.change_direction,
+                    date: h.checked_at,
+                })),
+                summary: {
+                    direction,
+                    netChange,
+                    bestPosition: Math.min(...positions),
+                    worstPosition: Math.max(...positions),
+                    avgPosition,
+                    dataPoints: positions.length,
+                },
+            };
+        } catch (err) {
+            log.error({ err: err.message }, 'failed to get trend');
+            return reply.code(500).send({ error: err.message });
+        }
+    });
+
+    // ─── Get Rank Volatility Index ───
+    fastify.get('/api/rankings/volatility', async (request, reply) => {
+        const { domain, days = 30 } = request.query;
+
+        if (!domain) {
+            return reply.code(400).send({ error: 'domain is required' });
+        }
+
+        try {
+            // Get all keywords this domain ranks for
+            const keywordsResult = await db.query(
+                `SELECT DISTINCT k.id, k.keyword
+                 FROM domain_rankings dr
+                 JOIN keywords k ON dr.keyword_id = k.id
+                 WHERE dr.domain = $1`,
+                [domain]
+            );
+
+            const keywords = keywordsResult.rows;
+            if (keywords.length === 0) {
+                return { domain, volatilityIndex: 0, keywords: [] };
+            }
+
+            const perKeyword = [];
+            let totalVolatility = 0;
+
+            for (const kw of keywords) {
+                const history = await db.query(
+                    `SELECT rank_position
+                     FROM rank_history
+                     WHERE domain = $1 AND keyword_id = $2
+                       AND checked_at > NOW() - ($3 || ' days')::interval
+                       AND rank_position > 0
+                     ORDER BY checked_at ASC`,
+                    [domain, kw.id, parseInt(days)]
+                );
+
+                const positions = history.rows.map(r => r.rank_position);
+                if (positions.length < 2) {
+                    perKeyword.push({ keyword: kw.keyword, volatility: 0, dataPoints: positions.length });
+                    continue;
+                }
+
+                // Volatility = average absolute position change between consecutive checks
+                let totalChange = 0;
+                for (let i = 1; i < positions.length; i++) {
+                    totalChange += Math.abs(positions[i] - positions[i - 1]);
+                }
+                const volatility = Math.round((totalChange / (positions.length - 1)) * 100) / 100;
+                totalVolatility += volatility;
+
+                perKeyword.push({ keyword: kw.keyword, volatility, dataPoints: positions.length });
+            }
+
+            // Overall index: average volatility across all keywords (0-100 scale)
+            const volatilityIndex = Math.round((totalVolatility / keywords.length) * 100) / 100;
+
+            // Sort by most volatile first
+            perKeyword.sort((a, b) => b.volatility - a.volatility);
+
+            return {
+                domain,
+                volatilityIndex,
+                keywordCount: keywords.length,
+                periodDays: parseInt(days),
+                keywords: perKeyword,
+            };
+        } catch (err) {
+            log.error({ err: err.message }, 'failed to get volatility');
+            return reply.code(500).send({ error: err.message });
+        }
+    });
+
+    // ─── Compare Rank Periods (this week vs last week, etc.) ───
+    fastify.get('/api/rankings/compare-periods', async (request, reply) => {
+        const { domain, periodDays = 7 } = request.query;
+
+        if (!domain) {
+            return reply.code(400).send({ error: 'domain is required' });
+        }
+
+        try {
+            const days = parseInt(periodDays);
+
+            // Current period: last N days
+            const currentResult = await db.query(
+                `SELECT k.id as keyword_id, k.keyword,
+                        ROUND(AVG(rh.rank_position) FILTER (WHERE rh.rank_position > 0)::numeric, 1) AS avg_position,
+                        MIN(rh.rank_position) FILTER (WHERE rh.rank_position > 0) AS best_position,
+                        COUNT(*) FILTER (WHERE rh.change_direction = 'up') AS improvements,
+                        COUNT(*) FILTER (WHERE rh.change_direction = 'down') AS drops,
+                        COUNT(*) FILTER (WHERE rh.rank_position > 0) AS checks
+                 FROM rank_history rh
+                 JOIN keywords k ON rh.keyword_id = k.id
+                 WHERE rh.domain = $1
+                   AND rh.checked_at > NOW() - ($2 || ' days')::interval
+                 GROUP BY k.id, k.keyword`,
+                [domain, days]
+            );
+
+            // Previous period: N days before that
+            const previousResult = await db.query(
+                `SELECT k.id as keyword_id,
+                        ROUND(AVG(rh.rank_position) FILTER (WHERE rh.rank_position > 0)::numeric, 1) AS avg_position,
+                        COUNT(*) FILTER (WHERE rh.rank_position > 0) AS checks
+                 FROM rank_history rh
+                 JOIN keywords k ON rh.keyword_id = k.id
+                 WHERE rh.domain = $1
+                   AND rh.checked_at > NOW() - ($2 || ' days')::interval
+                   AND rh.checked_at <= NOW() - ($2 || ' days')::interval
+                 GROUP BY k.id`,
+                [domain, days]
+            );
+
+            // Build lookup for previous period
+            const prevMap = {};
+            for (const row of previousResult.rows) {
+                prevMap[row.keyword_id] = row;
+            }
+
+            const comparison = currentResult.rows.map(curr => {
+                const prev = prevMap[curr.keyword_id];
+                const prevAvg = prev ? parseFloat(prev.avg_position) : null;
+                const currAvg = parseFloat(curr.avg_position);
+                const change = prevAvg && currAvg ? Math.round((prevAvg - currAvg) * 10) / 10 : null;
+
+                return {
+                    keyword: curr.keyword,
+                    currentAvg: currAvg,
+                    previousAvg: prevAvg,
+                    positionChange: change,
+                    direction: change > 0 ? 'improved' : change < 0 ? 'dropped' : 'stable',
+                    improvements: curr.improvements,
+                    drops: curr.drops,
+                };
+            });
+
+            // Summary
+            const improved = comparison.filter(c => c.direction === 'improved').length;
+            const dropped = comparison.filter(c => c.direction === 'dropped').length;
+            const stable = comparison.filter(c => c.direction === 'stable').length;
+
+            return {
+                domain,
+                periodDays: days,
+                summary: { improved, dropped, stable, total: comparison.length },
+                keywords: comparison,
+            };
+        } catch (err) {
+            log.error({ err: err.message }, 'failed to compare periods');
             return reply.code(500).send({ error: err.message });
         }
     });

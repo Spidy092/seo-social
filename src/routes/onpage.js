@@ -1,15 +1,16 @@
 /**
- * 🔍 On-Page SEO Routes
+ * On-Page SEO Routes
  */
 
 const { analyzeOnPage } = require('../services/onpageService');
+const { resilientLlmRequest, extractJson } = require('../utils/aiHelper');
 const { createLogger }  = require('../utils/logger');
-const axios = require('axios');
+
 const log = createLogger('routes:onpage');
 
 async function onpageRoutes(fastify, options) {
 
-    // ── POST /api/onpage/analyze ──────────────────────────────────────────────
+    // POST /api/onpage/analyze
     fastify.post('/api/onpage/analyze', {
         schema: {
             body: {
@@ -43,7 +44,7 @@ async function onpageRoutes(fastify, options) {
         },
     });
 
-    // ── POST /api/onpage/ai-fix ───────────────────────────────────────────────
+    // POST /api/onpage/ai-fix
     fastify.post('/api/onpage/ai-fix', {
         schema: {
             body: {
@@ -59,73 +60,57 @@ async function onpageRoutes(fastify, options) {
             const { issue, context = {} } = request.body;
 
             try {
-                // MIGRATION: Change from Anthropic to OpenRouter
-                const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-                    model: 'anthropic/claude-3.5-sonnet',
-                    messages: [{
-                        role: 'user',
-                        content: buildFixPrompt(issue, context),
-                    }],
-                }, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                        'HTTP-Referer': 'http://localhost:4000',
-                        'X-Title': 'Keyword Analyzer',
-                    },
-                    timeout: 30000,
+                const text = await resilientLlmRequest({
+                    prompt: buildFixPrompt(issue, context),
+                    expectJson: true,
+                    timeoutMs: 12000,
+                    maxRetries: 1,
+                    maxTokens: 450,
                 });
 
-                const data = response.data;
-                const text = data.choices?.[0]?.message?.content || '';
-
-                let parsed;
-                try {
-                    const clean = text.replace(/```json|```/g, '').trim();
-                    parsed = JSON.parse(clean);
-                } catch {
-                    parsed = { explanation: text, fixCode: issue.fix, before: issue.current, after: '' };
-                }
-
-                return { success: true, fix: parsed };
+                return { success: true, fix: normalizeFixResponse(extractJson(text), issue) };
             } catch (err) {
                 log.error({ err: err.message }, 'AI fix generation failed');
-                // Fallback to the pre-built fix from the audit
-                return {
-                    success: true,
-                    fix: {
-                        explanation: issue.desc,
-                        fixCode: issue.fix,
-                        before: issue.current,
-                        after: issue.expected,
-                    },
-                };
+                return reply.code(502).send({
+                    success: false,
+                    error: 'AI fix generation failed: ' + err.message,
+                    fix: normalizeFixResponse({}, issue),
+                });
             }
         },
     });
 }
 
-function buildFixPrompt(issue, context) {
-    return `You are an expert SEO developer. A page has this SEO issue:
+function normalizeFixResponse(response, issue) {
+    return {
+        explanation: String(response?.explanation || issue.desc || '').trim(),
+        before: String(response?.before || issue.current || '').trim(),
+        after: String(response?.after || issue.expected || '').trim(),
+        fixCode: String(response?.fixCode || issue.fix || issue.expected || '').trim(),
+    };
+}
 
-Issue: ${issue.name}
-Category: ${issue.category}
-Severity: ${issue.severity}
-Problem: ${issue.desc}
-Current value: ${issue.current}
-Expected: ${issue.expected}
+function buildFixPrompt(issue, context) {
+    return `You are an expert SEO developer. Return ONLY valid JSON.
+
+Create a concise, ready-to-use fix for this on-page SEO issue.
+
+Issue: ${issue.name || 'SEO issue'}
+Category: ${issue.category || 'unknown'}
+Severity: ${issue.severity || 'unknown'}
+Problem: ${issue.desc || 'not specified'}
+Current: ${issue.current || 'not specified'}
+Expected: ${issue.expected || 'not specified'}
 Target keyword: ${context.keyword || 'not specified'}
 Page URL: ${context.url || 'not specified'}
 Page title: ${context.title || 'not specified'}
 
-Write a specific, actionable fix for THIS page. Be concrete — use the actual keyword, URL, and page details above.
-
-Return ONLY valid JSON (no markdown, no explanation outside JSON):
+JSON shape:
 {
-  "explanation": "One clear sentence explaining why this matters for SEO",
-  "before": "The current problematic code or value",
-  "after": "The exact fixed code or value",
-  "fixCode": "The complete ready-to-paste HTML/code snippet"
+  "explanation": "one short sentence",
+  "before": "current problematic value",
+  "after": "fixed value",
+  "fixCode": "ready-to-paste HTML/code"
 }`;
 }
 

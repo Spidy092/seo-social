@@ -27,6 +27,140 @@ async function getClient() {
     return pool.connect();
 }
 
+async function repairKeywordConflictIndexes() {
+    log.info('repairing keyword conflict indexes...');
+
+    await query(`
+        WITH ranked AS (
+            SELECT id,
+                   MIN(id) OVER (PARTITION BY keyword, location) AS keep_id
+            FROM keywords
+        )
+        UPDATE competitors c
+        SET keyword_id = ranked.keep_id
+        FROM ranked
+        WHERE c.keyword_id = ranked.id AND ranked.id <> ranked.keep_id
+    `);
+
+    await query(`
+        WITH ranked AS (
+            SELECT id,
+                   MIN(id) OVER (PARTITION BY keyword, location) AS keep_id
+            FROM keywords
+        )
+        UPDATE ranking_pages rp
+        SET keyword_id = ranked.keep_id
+        FROM ranked
+        WHERE rp.keyword_id = ranked.id AND ranked.id <> ranked.keep_id
+    `);
+
+    await query(`
+        WITH ranked AS (
+            SELECT id,
+                   MIN(id) OVER (PARTITION BY keyword, location) AS keep_id
+            FROM keywords
+        )
+        UPDATE domain_rankings dr
+        SET keyword_id = ranked.keep_id
+        FROM ranked
+        WHERE dr.keyword_id = ranked.id AND ranked.id <> ranked.keep_id
+    `);
+
+    await query(`
+        WITH ranked AS (
+            SELECT id,
+                   MIN(id) OVER (PARTITION BY keyword, location) AS keep_id
+            FROM keywords
+        )
+        UPDATE rank_history rh
+        SET keyword_id = ranked.keep_id
+        FROM ranked
+        WHERE rh.keyword_id = ranked.id AND ranked.id <> ranked.keep_id
+    `);
+
+    await query(`
+        WITH ranked AS (
+            SELECT id,
+                   MIN(id) OVER (PARTITION BY keyword, location) AS keep_id
+            FROM keywords
+        )
+        UPDATE alerts a
+        SET keyword_id = ranked.keep_id
+        FROM ranked
+        WHERE a.keyword_id = ranked.id AND ranked.id <> ranked.keep_id
+    `);
+
+    await query(`
+        WITH ranked AS (
+            SELECT id,
+                   MIN(id) OVER (PARTITION BY keyword, location) AS keep_id
+            FROM keywords
+        )
+        UPDATE analysis_reports ar
+        SET keyword_id = ranked.keep_id
+        FROM ranked
+        WHERE ar.keyword_id = ranked.id AND ranked.id <> ranked.keep_id
+    `);
+
+    await query(`
+        WITH ranked AS (
+            SELECT id,
+                   MIN(id) OVER (PARTITION BY keyword, location) AS keep_id
+            FROM keywords
+        )
+        UPDATE seo_project_keywords spk
+        SET keyword_id = ranked.keep_id
+        FROM ranked
+        WHERE spk.keyword_id = ranked.id AND ranked.id <> ranked.keep_id
+    `);
+
+    await query(`
+        DELETE FROM competitors a
+        USING competitors b
+        WHERE a.id > b.id
+          AND a.domain = b.domain
+          AND a.keyword_id = b.keyword_id
+    `);
+
+    await query(`
+        DELETE FROM ranking_pages a
+        USING ranking_pages b
+        WHERE a.id > b.id
+          AND a.domain = b.domain
+          AND a.keyword_id = b.keyword_id
+    `);
+
+    await query(`
+        DELETE FROM domain_rankings a
+        USING domain_rankings b
+        WHERE a.id > b.id
+          AND a.domain = b.domain
+          AND a.keyword_id = b.keyword_id
+    `);
+
+    await query(`
+        DELETE FROM seo_project_keywords a
+        USING seo_project_keywords b
+        WHERE a.created_at < b.created_at
+          AND a.project_id = b.project_id
+          AND a.keyword_id = b.keyword_id
+    `);
+
+    await query(`
+        DELETE FROM keywords k
+        USING keywords keep
+        WHERE k.id > keep.id
+          AND k.keyword = keep.keyword
+          AND k.location = keep.location
+    `);
+
+    await query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_keywords_keyword_location ON keywords(keyword, location)`);
+    await query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_competitors_domain_keyword ON competitors(domain, keyword_id)`);
+    await query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_ranking_pages_keyword_domain ON ranking_pages(keyword_id, domain)`);
+    await query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_domain_rankings_domain_keyword ON domain_rankings(domain, keyword_id)`);
+    await query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_seo_project_keywords_project_keyword ON seo_project_keywords(project_id, keyword_id)`);
+}
+
 /**
  * Initialize the database schema.
  */
@@ -247,6 +381,51 @@ async function initializeDatabase() {
     `);
 
     await query(`
+        CREATE TABLE IF NOT EXISTS seo_clients (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            website_url TEXT,
+            industry TEXT,
+            target_locations JSONB DEFAULT '[]'::jsonb,
+            competitors JSONB DEFAULT '[]'::jsonb,
+            audience TEXT,
+            services JSONB DEFAULT '[]'::jsonb,
+            goals TEXT,
+            notes TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS seo_projects (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            client_id UUID REFERENCES seo_clients(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            project_type TEXT DEFAULT 'keyword-research',
+            target_location TEXT,
+            goals TEXT,
+            status TEXT DEFAULT 'active',
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS seo_project_keywords (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES seo_projects(id) ON DELETE CASCADE,
+            keyword_id INTEGER REFERENCES keywords(id) ON DELETE CASCADE,
+            intent TEXT,
+            priority_score INTEGER DEFAULT 0,
+            notes TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE(project_id, keyword_id)
+        )
+    `);
+
+    await query(`
         CREATE TABLE IF NOT EXISTS technical_audits (
             id SERIAL PRIMARY KEY,
             user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -263,12 +442,88 @@ async function initializeDatabase() {
         )
     `);
 
+    await query(`
+        CREATE TABLE IF NOT EXISTS page_optimizations (
+            id SERIAL PRIMARY KEY,
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            url TEXT NOT NULL,
+            keyword TEXT NOT NULL,
+            location TEXT DEFAULT 'India',
+            my_score INTEGER DEFAULT 0,
+            avg_competitor_score INTEGER DEFAULT 0,
+            gaps JSONB DEFAULT '[]'::jsonb,
+            my_data JSONB DEFAULT '{}'::jsonb,
+            competitors JSONB DEFAULT '[]'::jsonb,
+            summary JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS content_briefs (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            project_id UUID REFERENCES seo_projects(id) ON DELETE SET NULL,
+            keyword TEXT NOT NULL,
+            location TEXT DEFAULT 'India',
+            brief JSONB NOT NULL,
+            source_metrics JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+
     await query(`ALTER TABLE content_rewrite_history ADD COLUMN IF NOT EXISTS primary_keyword TEXT`);
     await query(`ALTER TABLE content_rewrite_history ADD COLUMN IF NOT EXISTS related_keywords JSONB DEFAULT '[]'::jsonb`);
 
+
     await query(`CREATE INDEX IF NOT EXISTS idx_content_rewrite_history_user_created ON content_rewrite_history(user_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_content_briefs_user_created ON content_briefs(user_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_content_briefs_project_created ON content_briefs(project_id, created_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_technical_audits_site_created ON technical_audits(site_url, created_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_technical_audits_user_created ON technical_audits(user_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_seo_clients_user_created ON seo_clients(user_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_seo_projects_client_created ON seo_projects(client_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_seo_project_keywords_project ON seo_project_keywords(project_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_page_optimizations_user_created ON page_optimizations(user_id, created_at DESC)`);
+
+    // ─── SEO Reports Table ───
+    await query(`
+        CREATE TABLE IF NOT EXISTS seo_reports (
+            id SERIAL PRIMARY KEY,
+            title TEXT NOT NULL,
+            client_name TEXT,
+            domain TEXT,
+            period_days INTEGER DEFAULT 30,
+            report_data JSONB NOT NULL,
+            generated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_seo_reports_generated ON seo_reports(generated_at DESC)`);
+
+    // ─── SEO Tasks Table ───
+    await query(`
+        CREATE TABLE IF NOT EXISTS seo_tasks (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            client_id UUID REFERENCES seo_clients(id) ON DELETE CASCADE,
+            project_id UUID REFERENCES seo_projects(id) ON DELETE CASCADE,
+            title TEXT NOT NULL,
+            description TEXT,
+            category TEXT DEFAULT 'general',
+            impact TEXT DEFAULT 'medium',
+            effort TEXT DEFAULT 'medium',
+            priority TEXT DEFAULT 'medium',
+            status TEXT DEFAULT 'todo',
+            ai_notes JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+    await query(`ALTER TABLE seo_tasks ADD COLUMN IF NOT EXISTS ai_notes JSONB DEFAULT '{}'::jsonb`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_seo_tasks_project ON seo_tasks(project_id, status)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_seo_tasks_user ON seo_tasks(user_id, status)`);
+
+    await repairKeywordConflictIndexes();
 
     log.info('✅ database schema initialized');
 }

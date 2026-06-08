@@ -1,6 +1,7 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const config = require('../config');
+const { resilientLlmRequest } = require('../utils/aiHelper');
 const { createLogger } = require('../utils/logger');
 
 const log = createLogger('humanizer-service');
@@ -722,50 +723,17 @@ function shouldRetryRefinement(verification) {
 }
 
 async function requestRewrite(prompt) {
-    let response;
-
-    if (config.apis.openRouter && config.apis.openRouter.key) {
-        try {
-            response = await axios.post(config.apis.openRouter.url, {
-                model: config.apis.openRouter.model,
-                messages: [{ role: 'user', content: prompt }],
-            }, {
-                headers: {
-                    Authorization: `Bearer ${config.apis.openRouter.key}`,
-                    'HTTP-Referer': 'http://localhost:3000',
-                    'X-Title': 'Keyword Analyzer Content Humanizer',
-                    'Content-Type': 'application/json',
-                },
-                timeout: 30000,
-            });
-        } catch (err) {
-            log.warn({ err: err.message }, 'OpenRouter rewrite failed, trying Groq');
-        }
-    }
-
-    if (!response && config.apis.groq && config.apis.groq.key) {
-        response = await axios.post(config.apis.groq.url, {
-            model: config.apis.groq.model,
-            messages: [{ role: 'user', content: prompt }],
-        }, {
-            headers: {
-                Authorization: `Bearer ${config.apis.groq.key}`,
-                'Content-Type': 'application/json',
-            },
-            timeout: 30000,
+    try {
+        const content = await resilientLlmRequest({
+            prompt,
+            expectJson: true,
+            timeoutMs: 30000
         });
+        return parseModelResponse(content);
+    } catch (err) {
+        log.error({ err: err.message }, 'Content humanizer request rewrite failed');
+        throw new Error('Content humanizer failed: ' + err.message);
     }
-
-    if (!response) {
-        throw new Error('Configure OPENROUTER_API_KEY or GROQ_API_KEY to use the content humanizer.');
-    }
-
-    const content = response.data?.choices?.[0]?.message?.content;
-    if (!content) {
-        throw new Error('No rewrite content returned by the model.');
-    }
-
-    return parseModelResponse(content);
 }
 
 function normalizeSegmentRewriteResponse(response, expectedIds) {

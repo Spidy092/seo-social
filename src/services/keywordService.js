@@ -9,6 +9,7 @@ const cheerio = require('cheerio');
 const config = require('../config');
 const { createLogger } = require('../utils/logger');
 const googleAdsService = require('./googleAdsService');
+const db = require('../db');
 
 const log = createLogger('keyword-service');
 
@@ -21,6 +22,19 @@ const USER_AGENTS = [
 ];
 
 const getRandomUA = () => USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+
+/**
+ * Returns a pseudo-random float between 0 and 1, deterministic based on input string and optional seed.
+ */
+function getDeterministicRandom(str, seed = '') {
+    const combined = (str || '').toLowerCase() + seed;
+    let hash = 0;
+    for (let i = 0; i < combined.length; i++) {
+        hash = combined.charCodeAt(i) + ((hash << 5) - hash);
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash % 100000) / 100000;
+}
 
 // ─── Advanced Location Hierarchy ───
 const LOCATION_HIERARCHY = {
@@ -128,9 +142,42 @@ function getLocationConfig(location) {
     return LOCATION_MAP[key] || { gl: 'in', hl: 'en', google: 'google.co.in' };
 }
 
+/**
+ * Check database cache for keyword metrics.
+ */
+async function getCachedKeyword(keyword, location = 'India') {
+    try {
+        const res = await db.query(
+            'SELECT search_volume, competition, cpc, difficulty FROM keywords WHERE LOWER(keyword) = LOWER($1) AND LOWER(location) = LOWER($2)',
+            [keyword.trim(), location.trim()]
+        );
+        if (res.rows.length > 0) {
+            const row = res.rows[0];
+            return {
+                volume: row.search_volume,
+                competition: row.competition,
+                cpc: parseFloat(row.cpc),
+                difficulty: row.difficulty,
+                source: 'database_cache',
+                isReal: true,
+            };
+        }
+    } catch (err) {
+        log.warn({ err: err.message, keyword }, 'failed to get cached keyword from db');
+    }
+    return null;
+}
+
 // ─── Search Volume (Real Data First, then Estimation Fallback) ───
 async function estimateSearchVolume(keyword, location = 'India') {
     log.info({ keyword, location }, 'fetching search volume');
+
+    // ── Method 0: Check database cache first ──
+    const cached = await getCachedKeyword(keyword, location);
+    if (cached) {
+        log.info({ keyword, volume: cached.volume }, 'volume from database cache');
+        return cached;
+    }
 
     try {
         // ── Method 1: Google Ads Keyword Planner (REAL data) ──
@@ -200,12 +247,13 @@ async function estimateViaSerper(keyword, location) {
         
         // Rough estimation algorithm
         let estimatedVolume = 0;
+        const randVol = getDeterministicRandom(keyword, 'serper_volume');
         
-        if (resultCount > 10000000) estimatedVolume = 10000 + Math.floor(Math.random() * 5000);
-        else if (resultCount > 1000000) estimatedVolume = 5000 + Math.floor(Math.random() * 3000);
-        else if (resultCount > 100000) estimatedVolume = 1000 + Math.floor(Math.random() * 2000);
-        else if (resultCount > 10000) estimatedVolume = 500 + Math.floor(Math.random() * 500);
-        else estimatedVolume = 100 + Math.floor(Math.random() * 200);
+        if (resultCount > 10000000) estimatedVolume = 10000 + Math.floor(randVol * 5000);
+        else if (resultCount > 1000000) estimatedVolume = 5000 + Math.floor(randVol * 3000);
+        else if (resultCount > 100000) estimatedVolume = 1000 + Math.floor(randVol * 2000);
+        else if (resultCount > 10000) estimatedVolume = 500 + Math.floor(randVol * 500);
+        else estimatedVolume = 100 + Math.floor(randVol * 200);
 
         // Adjust based on keyword length (longer = less volume)
         const wordCount = keyword.split(' ').length;
@@ -230,10 +278,12 @@ async function estimateViaSerper(keyword, location) {
             avgDA = 30 + (highAuthCount * 15);
         }
 
+        const randCpc = getDeterministicRandom(keyword, 'serper_cpc');
+
         return {
             volume: estimatedVolume,
             competition,
-            cpc: ads.length > 0 ? (Math.random() * 2 + 0.5).toFixed(2) : 0,
+            cpc: ads.length > 0 ? (randCpc * 2 + 0.5).toFixed(2) : 0,
             difficulty: Math.min(100, avgDA),
             relatedSearches: relatedSearches.map(r => r.query).slice(0, 8),
             resultCount,
@@ -356,9 +406,10 @@ async function estimateViaGoogle(keyword, location) {
 
         // Estimate CPC based on competition
         let cpc = 0;
-        if (competition === 'high') cpc = (1.5 + Math.random() * 2).toFixed(2);
-        else if (competition === 'medium') cpc = (0.5 + Math.random() * 1).toFixed(2);
-        else if (adCount > 0) cpc = (0.1 + Math.random() * 0.4).toFixed(2);
+        const randCpc = getDeterministicRandom(keyword, 'google_cpc');
+        if (competition === 'high') cpc = (1.5 + randCpc * 2).toFixed(2);
+        else if (competition === 'medium') cpc = (0.5 + randCpc * 1).toFixed(2);
+        else if (adCount > 0) cpc = (0.1 + randCpc * 0.4).toFixed(2);
 
         // Estimate difficulty based on SERP analysis
         let difficulty = 30; // Base difficulty
@@ -394,19 +445,76 @@ async function estimateViaGoogle(keyword, location) {
 async function getSERPResults(keyword, location = 'India', numResults = 20) {
     log.info({ keyword, location, numResults }, 'fetching SERP results');
 
-    try {
-        if (config.apis.serper.key) {
-            try {
-                return await getSERPViaSerper(keyword, location, numResults);
-            } catch (err) {
-                log.warn({ err: err.message }, 'Serper SERP fetch failed, falling back to Google');
-            }
+    // Tier 1: Serper
+    if (config.apis.serper.key) {
+        try {
+            return await getSERPViaSerper(keyword, location, numResults);
+        } catch (err) {
+            log.warn({ err: err.message }, 'Serper SERP fetch failed, trying Google CSE');
         }
+    }
+
+    // Tier 2: Google Custom Search API
+    if (config.apis.googleCse.key && config.apis.googleCse.cx) {
+        try {
+            return await getSERPViaGoogleCse(keyword, location, numResults);
+        } catch (err) {
+            log.warn({ err: err.message }, 'Google CSE fetch failed, falling back to scraping');
+        }
+    }
+
+    // Tier 3: Google scraping (no API key needed)
+    try {
         return await getSERPViaGoogle(keyword, location, numResults);
     } catch (err) {
-        log.error({ err: err.message }, 'SERP fetch failed');
+        log.error({ err: err.message }, 'All SERP sources failed');
         return [];
     }
+}
+
+// ─── SERP via Google Custom Search API ───
+async function getSERPViaGoogleCse(keyword, location, numResults) {
+    const results = [];
+    const pages = Math.ceil(numResults / 10);
+    const loc = getLocationConfig(location);
+
+    for (let page = 0; page < pages; page++) {
+        try {
+            const start = page * 10 + 1; // CSE start is 1-based
+            const response = await axios.get(config.apis.googleCse.url, {
+                params: {
+                    key: config.apis.googleCse.key,
+                    cx: config.apis.googleCse.cx,
+                    q: keyword,
+                    gl: loc.gl,
+                    hl: loc.hl,
+                    num: 10,
+                    start,
+                },
+                timeout: 10000,
+            });
+
+            const items = response.data.items || [];
+            for (const item of items) {
+                results.push({
+                    position: results.length + 1,
+                    url: item.link,
+                    domain: extractDomain(item.link),
+                    title: item.title,
+                    description: item.snippet,
+                });
+            }
+
+            if (page < pages - 1) {
+                await new Promise(r => setTimeout(r, 1000));
+            }
+        } catch (err) {
+            log.error({ page, err: err.message }, 'google cse page fetch failed');
+            break;
+        }
+    }
+
+    return results.slice(0, numResults);
 }
 
 // ─── SERP via Serper.dev ───
@@ -1050,11 +1158,39 @@ async function enrichKeywordsWithMetrics(suggestions, location = 'India') {
     // 1. Try Google Ads bulk fetch first
     let googleAdsMap = new Map();
     try {
-        if (await googleAdsService.checkCredentials()) {
+        const creds = await googleAdsService.checkCredentials();
+        if (creds && creds.valid) {
             googleAdsMap = await googleAdsService.getBulkKeywordVolume(keywordsList, location);
         }
     } catch (err) {
         log.warn({ err: err.message }, 'Failed to fetch bulk volume from Google Ads, falling back to estimation');
+    }
+
+    // 1b. Try database cache bulk fetch
+    let dbCacheMap = new Map();
+    try {
+        if (keywordsList.length > 0) {
+            const placeholders = keywordsList.map((_, idx) => `$${idx + 2}`).join(', ');
+            const queryText = `
+                SELECT LOWER(keyword) as key, search_volume, competition, cpc, difficulty 
+                FROM keywords 
+                WHERE LOWER(location) = LOWER($1) AND LOWER(keyword) IN (${placeholders})
+            `;
+            const queryParams = [location, ...keywordsList.map(k => k.trim().toLowerCase())];
+            const res = await db.query(queryText, queryParams);
+            for (const row of res.rows) {
+                dbCacheMap.set(row.key, {
+                    volume: row.search_volume,
+                    competition: row.competition,
+                    cpc: parseFloat(row.cpc),
+                    difficulty: row.difficulty,
+                    source: 'database_cache',
+                    isReal: true
+                });
+            }
+        }
+    } catch (err) {
+        log.warn({ err: err.message }, 'Failed to fetch bulk cached keywords from database');
     }
 
     // 2. Iterate and enrich each suggestion
@@ -1078,6 +1214,21 @@ async function enrichKeywordsWithMetrics(suggestions, location = 'India') {
                 isReal: true,
                 source: 'google_ads'
             });
+        } else if (dbCacheMap && dbCacheMap.has(key)) {
+            const cacheData = dbCacheMap.get(key);
+            enriched.push({
+                ...suggestion,
+                volume: cacheData.volume || 0,
+                competition: cacheData.competition || 'unknown',
+                competitionIndex: 0,
+                cpc: cacheData.cpc || 0,
+                cpcRange: { low: cacheData.cpc || 0, high: cacheData.cpc || 0 },
+                difficulty: cacheData.difficulty || 0,
+                monthlyTrend: [],
+                intent: analyzeKeywordIntent(suggestion.keyword),
+                isReal: true,
+                source: 'database_cache'
+            });
         } else {
             missingKeywords.push(suggestion);
         }
@@ -1090,6 +1241,23 @@ async function enrichKeywordsWithMetrics(suggestions, location = 'India') {
         const chunkPromises = chunk.map(async (suggestion) => {
             try {
                 const est = await estimateSearchVolume(suggestion.keyword, location);
+                // Save to database cache
+                try {
+                    await db.query(
+                        `INSERT INTO keywords (keyword, location, search_volume, competition, cpc, difficulty)
+                         VALUES ($1, $2, $3, $4, $5, $6)
+                         ON CONFLICT (keyword, location) DO UPDATE SET
+                             search_volume = $3,
+                             competition = $4,
+                             cpc = $5,
+                             difficulty = $6,
+                             updated_at = NOW()`,
+                        [suggestion.keyword, location, est.volume || 0, est.competition || 'unknown', est.cpc || 0, est.difficulty || 0]
+                    );
+                } catch (dbErr) {
+                    log.warn({ err: dbErr.message, keyword: suggestion.keyword }, 'failed to save estimated keyword to cache');
+                }
+
                 return {
                     ...suggestion,
                     volume: est.volume || 0,
@@ -1326,14 +1494,16 @@ async function detectSERPFeatures(keyword, location, serpResults) {
     // People Also Ask
     if (lower.startsWith('how') || lower.startsWith('what') || lower.startsWith('why') || lower.startsWith('can')) {
         features.peopleAlsoAsk = true;
-        details.peopleAlsoAskCount = Math.floor(Math.random() * 5) + 3;
+        const randPaa = getDeterministicRandom(keyword, 'serp_paa');
+        details.peopleAlsoAskCount = Math.floor(randPaa * 5) + 3;
     }
     
     // Local pack indicators
     const localKeywords = ['near me', 'nearby', 'in bangalore', 'in mumbai', 'in delhi', 'in chennai', 'in hyderabad', 'in pune', 'best restaurant', 'restaurant near', 'hotel near', 'clinic', 'doctor', 'salon'];
     if (localKeywords.some(k => lower.includes(k))) {
         features.localPack = true;
-        details.localPackCount = Math.floor(Math.random() * 3) + 3;
+        const randLocal = getDeterministicRandom(keyword, 'serp_local');
+        details.localPackCount = Math.floor(randLocal * 3) + 3;
     }
     
     // Image pack
@@ -1346,14 +1516,16 @@ async function detectSERPFeatures(keyword, location, serpResults) {
     const videoKeywords = ['video', 'tutorial', 'how to', 'review', 'unboxing', 'trailer', 'movie'];
     if (videoKeywords.some(k => lower.includes(k))) {
         features.videoResults = true;
-        details.videoCount = Math.floor(Math.random() * 3) + 1;
+        const randVideo = getDeterministicRandom(keyword, 'serp_video');
+        details.videoCount = Math.floor(randVideo * 3) + 1;
     }
     
     // Shopping/Product
     const shopKeywords = ['buy', 'price', 'cost', 'best', 'top 10', 'review', 'amazon', 'flipkart'];
     if (shopKeywords.some(k => lower.includes(k))) {
         features.shoppingResults = true;
-        details.shoppingAds = Math.floor(Math.random() * 4) + 2;
+        const randShopping = getDeterministicRandom(keyword, 'serp_shopping');
+        details.shoppingAds = Math.floor(randShopping * 4) + 2;
     }
     
     // Knowledge graph

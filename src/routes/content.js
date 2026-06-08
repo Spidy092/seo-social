@@ -1,4 +1,5 @@
 const humanizerService = require('../services/humanizerService');
+const contentBriefRoutes = require('./contentBriefs');
 const { createLogger } = require('../utils/logger');
 
 const log = createLogger('routes:content');
@@ -85,6 +86,8 @@ async function contentRoutes(fastify, options) {
             }
         },
     });
+
+    await contentBriefRoutes(fastify, options);
 
     fastify.get('/api/content/history', async (request, reply) => {
         try {

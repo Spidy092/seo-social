@@ -1,0 +1,38 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Arial;}}
+\fs24
+\b Bhaviatech Keyword Analyzer - Google Ads API Design Documentation\b0\par
+\par
+\b 1. Tool Name\b0\par
+Bhaviatech Keyword Analyzer\par
+\par
+\b 2. Company and Business Model\b0\par
+Bhaviatech is a digital marketing and web development agency. We provide SEO research, content planning, website development, and digital marketing support for our own business and authorized agency clients. The Bhaviatech Keyword Analyzer is an internal tool used by the Bhaviatech team to improve keyword research workflows and marketing strategy planning.\par
+\par
+\b 3. Purpose of the Tool\b0\par
+The primary purpose of the tool is SEO and Google Ads research. The application helps internal users research keyword opportunities, estimate demand, compare keyword competitiveness, and support content planning decisions. The tool is used to identify relevant keyword ideas, average monthly search volume, competition level, and estimated CPC values.\par
+\par
+\b 4. Google Ads API Usage\b0\par
+Initially, the tool will use the Google Ads API KeywordPlanIdeaService for keyword research and planning. The tool will request keyword ideas and historical keyword planning metrics including average monthly searches, competition, and CPC estimates. These metrics will be displayed inside the internal dashboard for research and planning purposes.\par
+\par
+\b 5. Google Ads API Services Used\b0\par
+KeywordPlanIdeaService\par
+\par
+\b 6. Data Displayed to Users\b0\par
+The internal dashboard displays keyword ideas, average monthly search volume, competition, CPC estimates, keyword difficulty estimates, related keyword suggestions, and SEO opportunity scoring. The application may also show SERP competitors, content gaps, and planning recommendations generated from keyword and SEO analysis.\par
+\par
+\b 7. User Access\b0\par
+Access to the tool is limited to internal Bhaviatech team members and authorized contractors working on Bhaviatech projects. Clients do not directly access the Google Ads API integration. Internal users access the application through a secured login system.\par
+\par
+\b 8. Current Scope\b0\par
+The current implementation is read-only for Google Ads API data. It does not create, edit, delete, pause, or manage Google Ads campaigns, ad groups, ads, budgets, keywords, or billing settings. The initial scope is limited to keyword research and planning data.\par
+\par
+\b 9. Future Scope\b0\par
+In the future, Bhaviatech may extend the tool to support campaign monitoring and campaign management features for Bhaviatech-owned accounts and authorized client accounts. Any future campaign management features will only be used with proper account authorization, user permissions, and compliance with Google Ads API policies.\par
+\par
+\b 10. Data Handling and Security\b0\par
+Google Ads API credentials are stored as server-side environment variables and are not exposed to browser users. Internal users see only research outputs needed for SEO and marketing planning. The application uses authenticated access to protect dashboard pages and API routes.\par
+\par
+\b 11. Summary\b0\par
+Bhaviatech Keyword Analyzer is an internal SEO and digital marketing research tool. The initial Google Ads API use case is keyword research through KeywordPlanIdeaService, including keyword ideas, average monthly searches, competition, and CPC estimates. The tool supports internal planning workflows and does not initially perform campaign management actions.\par
+}

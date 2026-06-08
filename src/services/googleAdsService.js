@@ -228,13 +228,8 @@ async function checkCredentials() {
         });
         return { configured: true, valid: true, error: null };
     } catch (err) {
-        // Distinguish auth errors vs API-level errors
         const msg = err.message || '';
-        if (msg.includes('UNAUTHENTICATED') || msg.includes('invalid_client') || msg.includes('Token')) {
-            return { configured: true, valid: false, error: msg };
-        }
-        // If we got an API error (not auth), credentials are still valid
-        return { configured: true, valid: true, error: null, note: msg };
+        return { configured: true, valid: false, error: msg };
     }
 }
 

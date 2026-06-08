@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= report.meta.title %></title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --brand: #4f46e5;
+            --brand-light: #eef2ff;
+            --green: #10b981;
+            --green-light: #d1fae5;
+            --red: #ef4444;
+            --red-light: #fee2e2;
+            --orange: #f59e0b;
+            --orange-light: #fef3c7;
+            --text: #111827;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+            --bg: #f9fafb;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            color: var(--text);
+            background: white;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* ─── Print ─── */
+        @media print {
+            .no-print { display: none !important; }
+            .page-break { page-break-before: always; }
+            body { font-size: 12px; }
+            .report-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+
+        /* ─── Layout ─── */
+        .report-wrapper { max-width: 900px; margin: 0 auto; padding: 40px 30px; }
+
+        /* ─── Header ─── */
+        .report-header {
+            background: linear-gradient(135deg, var(--brand) 0%, #7c3aed 100%);
+            color: white;
+            padding: 48px 40px;
+            border-radius: 16px;
+            margin-bottom: 40px;
+            position: relative;
+            overflow: hidden;
+        }
+        .report-header::before {
+            content: '';
+            position: absolute;
+            top: -50px; right: -50px;
+            width: 200px; height: 200px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.08);
+        }
+        .report-header::after {
+            content: '';
+            position: absolute;
+            bottom: -30px; left: -30px;
+            width: 150px; height: 150px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.06);
+        }
+        .header-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+        .report-header h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; line-height: 1.2; }
+        .header-meta { opacity: 0.85; font-size: 13px; margin-top: 16px; display: flex; gap: 24px; flex-wrap: wrap; }
+        .header-meta span { display: flex; align-items: center; gap: 6px; }
+        .health-score-badge {
+            position: absolute;
+            top: 40px; right: 40px;
+            width: 90px; height: 90px;
+            background: rgba(255,255,255,0.15);
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            font-weight: 800;
+            z-index: 1;
+        }
+        .health-score-badge .score-num { font-size: 1.8rem; line-height: 1; }
+        .health-score-badge .score-label { font-size: 10px; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* ─── Section ─── */
+        .section { margin-bottom: 36px; }
+        .section-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--brand);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* ─── Cards ─── */
+        .card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 16px;
+        }
+        .card-title { font-size: 0.875rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+
+        /* ─── Stats Grid ─── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        .stat-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        .stat-card .stat-num { font-size: 2rem; font-weight: 800; color: var(--brand); line-height: 1; margin-bottom: 4px; }
+        .stat-card .stat-label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+        .stat-card.green .stat-num { color: var(--green); }
+        .stat-card.red .stat-num { color: var(--red); }
+        .stat-card.orange .stat-num { color: var(--orange); }
+
+        /* ─── Executive Summary ─── */
+        .exec-summary {
+            background: var(--brand-light);
+            border: 1px solid #c7d2fe;
+            border-radius: 12px;
+            padding: 20px 24px;
+            color: #3730a3;
+            font-size: 0.95rem;
+            line-height: 1.7;
+            margin-bottom: 24px;
+        }
+
+        /* ─── Lists ─── */
+        .check-list { list-style: none; }
+        .check-list li { 
+            padding: 8px 0; 
+            padding-left: 24px;
+            border-bottom: 1px solid var(--border);
+            position: relative;
+            font-size: 0.9rem;
+        }
+        .check-list li:last-child { border-bottom: none; }
+        .check-list li::before {
+            content: '✓';
+            position: absolute; left: 0;
+            color: var(--green); font-weight: 700;
+        }
+        .check-list.issues li::before {
+            content: '⚠';
+            color: var(--orange);
+        }
+        .check-list.fixes li::before {
+            content: '→';
+            color: var(--brand);
+        }
+
+        /* ─── Two Column ─── */
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+        /* ─── Table ─── */
+        .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .data-table th {
+            text-align: left;
+            padding: 8px 12px;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .data-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        .data-table tr:last-child td { border-bottom: none; }
+        .data-table tr:hover td { background: var(--bg); }
+
+        /* ─── Badges ─── */
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .badge.green { background: var(--green-light); color: #065f46; }
+        .badge.red { background: var(--red-light); color: #991b1b; }
+        .badge.blue { background: var(--brand-light); color: #3730a3; }
+        .badge.orange { background: var(--orange-light); color: #92400e; }
+
+        /* ─── Content Recs ─── */
+        .content-rec {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex; align-items: flex-start; gap: 12px;
+        }
+        .rec-icon {
+            width: 36px; height: 36px;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem; flex-shrink: 0;
+        }
+        .rec-icon.blog { background: var(--brand-light); }
+        .rec-icon.service { background: var(--green-light); }
+        .rec-icon.landing { background: var(--orange-light); }
+        .rec-title { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+        .rec-rationale { font-size: 12px; color: var(--text-muted); }
+
+        /* ─── Action Plan ─── */
+        .action-plan { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+        .week-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+        }
+        .week-label { font-size: 11px; font-weight: 700; color: var(--brand); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+        .week-action { font-size: 13px; color: var(--text); line-height: 1.5; }
+
+        /* ─── Print Button ─── */
+        .print-bar {
+            position: fixed;
+            bottom: 24px; right: 24px;
+            display: flex; gap: 10px;
+            z-index: 100;
+        }
+        .print-btn {
+            background: var(--brand);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex; align-items: center; gap: 8px;
+            box-shadow: 0 4px 12px rgba(79,70,229,0.4);
+            transition: all 0.2s;
+        }
+        .print-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(79,70,229,0.5); }
+        .print-btn.secondary { background: white; color: var(--text); border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+        /* ─── Footer ─── */
+        .report-footer {
+            border-top: 1px solid var(--border);
+            padding-top: 24px;
+            margin-top: 48px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+<div class="no-print print-bar">
+    <button class="print-btn secondary" onclick="window.close()">✕ Close</button>
+    <button class="print-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
+</div>
+
+<div class="report-wrapper">
+
+    <!-- ─── Header ─── -->
+    <div class="report-header">
+        <div class="health-score-badge">
+            <div class="score-num"><%= report.aiNarrative.overallHealthScore %>%</div>
+            <div class="score-label">Health</div>
+        </div>
+        <div class="header-badge">Monthly SEO Report</div>
+        <h1><%= report.meta.title %></h1>
+        <p style="opacity:0.9; margin-top:8px; font-size:15px;"><%= report.aiNarrative.executiveSummary %></p>
+        <div class="header-meta">
+            <span>📅 Period: <%= new Date(report.meta.periodStart).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) %> – <%= new Date(report.meta.periodEnd).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) %></span>
+            <% if (report.meta.domain) { %><span>🌐 <%= report.meta.domain %></span><% } %>
+            <span>🕐 Generated <%= new Date(report.meta.generatedAt).toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'}) %></span>
+        </div>
+    </div>
+
+    <!-- ─── Key Stats ─── -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-num"><%= report.summary.trackedKeywords %></div>
+            <div class="stat-label">Keywords Tracked</div>
+        </div>
+        <div class="stat-card green">
+            <div class="stat-num"><%= report.summary.top10 %></div>
+            <div class="stat-label">Top 10 Rankings</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-num"><%= report.summary.top3 %></div>
+            <div class="stat-label">Top 3 Positions</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-num"><%= report.summary.avgPosition || '—' %></div>
+            <div class="stat-label">Average Position</div>
+        </div>
+        <div class="stat-card green">
+            <div class="stat-num">+<%= report.summary.improved %></div>
+            <div class="stat-label">Keywords Improved</div>
+        </div>
+        <div class="stat-card red">
+            <div class="stat-num">-<%= report.summary.dropped %></div>
+            <div class="stat-label">Keywords Dropped</div>
+        </div>
+    </div>
+
+    <!-- ─── Traffic Estimate ─── -->
+    <div class="card" style="margin-bottom: 32px; border-left: 4px solid var(--brand);">
+        <div class="card-title">Estimated Monthly Organic Traffic</div>
+        <div style="font-size: 2.5rem; font-weight: 800; color: var(--brand); line-height:1;">
+            <%= report.summary.estimatedMonthlyTraffic.toLocaleString() %>
+            <span style="font-size: 1rem; color: var(--text-muted); font-weight: 400;">visits/month</span>
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">Based on current ranking positions and search volume CTR estimates</div>
+    </div>
+
+    <!-- ─── Wins & Issues ─── -->
+    <div class="section">
+        <div class="section-title">🏆 Performance Summary</div>
+        <div class="two-col">
+            <div class="card">
+                <div class="card-title" style="color: var(--green);">✓ Key Wins This Month</div>
+                <ul class="check-list">
+                    <% report.aiNarrative.keyWins.forEach(win => { %>
+                    <li><%= win %></li>
+                    <% }) %>
+                </ul>
+            </div>
+            <div class="card">
+                <div class="card-title" style="color: var(--orange);">⚠ Issues to Address</div>
+                <ul class="check-list issues">
+                    <% report.aiNarrative.keyIssues.forEach(issue => { %>
+                    <li><%= issue %></li>
+                    <% }) %>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── Keyword Movement ─── -->
+    <div class="section page-break">
+        <div class="section-title">📈 Keyword Movement</div>
+        <div class="two-col">
+            <div class="card">
+                <div class="card-title" style="color: var(--green);">Biggest Gains</div>
+                <% if (report.data.biggestGains && report.data.biggestGains.length > 0) { %>
+                <table class="data-table">
+                    <thead><tr><th>Keyword</th><th>Old</th><th>New</th><th>Change</th></tr></thead>
+                    <tbody>
+                    <% report.data.biggestGains.forEach(k => { %>
+                        <tr>
+                            <td><strong><%= k.keyword %></strong></td>
+                            <td>#<%= k.old_rank %></td>
+                            <td>#<%= k.new_rank %></td>
+                            <td><span class="badge green">↑ <%= Math.abs(k.rank_change) %></span></td>
+                        </tr>
+                    <% }) %>
+                    </tbody>
+                </table>
+                <% } else { %>
+                <p style="color: var(--text-muted); font-size: 13px; padding: 12px 0;">No ranking improvements recorded yet. Rankings improve as we build authority.</p>
+                <% } %>
+            </div>
+            <div class="card">
+                <div class="card-title" style="color: var(--red);">Notable Drops</div>
+                <% if (report.data.biggestDrops && report.data.biggestDrops.length > 0) { %>
+                <table class="data-table">
+                    <thead><tr><th>Keyword</th><th>Old</th><th>New</th><th>Change</th></tr></thead>
+                    <tbody>
+                    <% report.data.biggestDrops.forEach(k => { %>
+                        <tr>
+                            <td><strong><%= k.keyword %></strong></td>
+                            <td>#<%= k.old_rank %></td>
+                            <td>#<%= k.new_rank %></td>
+                            <td><span class="badge red">↓ <%= Math.abs(k.rank_change) %></span></td>
+                        </tr>
+                    <% }) %>
+                    </tbody>
+                </table>
+                <% } else { %>
+                <p style="color: var(--text-muted); font-size: 13px; padding: 12px 0;">No notable drops this period. 🎉</p>
+                <% } %>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── Current Rankings ─── -->
+    <% if (report.data.rankings && report.data.rankings.length > 0) { %>
+    <div class="section">
+        <div class="section-title">🏅 Current Rankings (Top 20)</div>
+        <div class="card" style="padding: 0; overflow: hidden;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Keyword</th>
+                        <th>Position</th>
+                        <th>Search Volume</th>
+                        <th>URL</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <% report.data.rankings.slice(0, 20).forEach((r, i) => { %>
+                    <tr>
+                        <td style="color: var(--text-muted); font-size: 12px;"><%= i + 1 %></td>
+                        <td><strong><%= r.keyword %></strong></td>
+                        <td>
+                            <span class="badge <%= r.rank_position <= 3 ? 'green' : r.rank_position <= 10 ? 'blue' : 'orange' %>">
+                                #<%= r.rank_position %>
+                            </span>
+                        </td>
+                        <td><%= r.search_volume ? Number(r.search_volume).toLocaleString() : '—' %>/mo</td>
+                        <td style="font-size: 11px; color: var(--text-muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            <%= r.url ? r.url.replace(/^https?:\/\//, '') : '—' %>
+                        </td>
+                    </tr>
+                <% }) %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <% } %>
+
+    <!-- ─── Competitor Landscape ─── -->
+    <% if (report.data.competitors && report.data.competitors.length > 0) { %>
+    <div class="section page-break">
+        <div class="section-title">⚔️ Competitor Landscape</div>
+        <div class="card" style="margin-bottom: 16px; border-left: 4px solid var(--orange);">
+            <div class="card-title">AI Competitive Intelligence</div>
+            <p style="font-size: 14px; line-height: 1.7;"><%= report.aiNarrative.competitorInsights %></p>
+        </div>
+        <div class="card" style="padding: 0; overflow: hidden;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Competitor Domain</th>
+                        <th>Overlapping Keywords</th>
+                        <th>Avg Position</th>
+                        <th>Best Position</th>
+                        <th>Threat Level</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <% report.data.competitors.forEach(c => { 
+                    const threat = c.keyword_count >= 20 ? 'High' : c.keyword_count >= 10 ? 'Medium' : 'Low';
+                    const threatClass = threat === 'High' ? 'red' : threat === 'Medium' ? 'orange' : 'green';
+                %>
+                    <tr>
+                        <td><strong><%= c.domain %></strong></td>
+                        <td><%= c.keyword_count %> keywords</td>
+                        <td>#<%= c.avg_position %></td>
+                        <td>#<%= c.best_position %></td>
+                        <td><span class="badge <%= threatClass %>"><%= threat %></span></td>
+                    </tr>
+                <% }) %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <% } %>
+
+    <!-- ─── Technical Fixes ─── -->
+    <div class="section">
+        <div class="section-title">🔧 Technical Fixes Completed / Recommended</div>
+        <div class="card">
+            <ul class="check-list fixes">
+                <% report.aiNarrative.technicalFixes.forEach(fix => { %>
+                <li><%= fix %></li>
+                <% }) %>
+            </ul>
+        </div>
+    </div>
+
+    <!-- ─── Content Recommendations ─── -->
+    <div class="section page-break">
+        <div class="section-title">✍️ Content Recommendations</div>
+        <% report.aiNarrative.contentRecommendations.forEach(rec => { 
+            const iconMap = { blog: '📝', 'service-page': '🛠️', 'landing-page': '🎯' };
+            const icon = iconMap[rec.type] || '📄';
+        %>
+        <div class="content-rec">
+            <div class="rec-icon <%= rec.type === 'blog' ? 'blog' : rec.type === 'service-page' ? 'service' : 'landing' %>">
+                <%= icon %>
+            </div>
+            <div>
+                <div class="rec-title"><%= rec.title %></div>
+                <div class="rec-rationale"><%= rec.rationale %></div>
+                <span class="badge blue" style="margin-top: 6px;"><%= rec.type %></span>
+            </div>
+        </div>
+        <% }) %>
+    </div>
+
+    <!-- ─── Next Month Plan ─── -->
+    <div class="section">
+        <div class="section-title">🗓️ Next Month Action Plan</div>
+        <div class="action-plan">
+            <% report.aiNarrative.nextMonthPlan.forEach(item => { %>
+            <div class="week-card">
+                <div class="week-label">Week <%= item.week %></div>
+                <div class="week-action"><%= item.action %></div>
+            </div>
+            <% }) %>
+        </div>
+    </div>
+
+    <!-- ─── Footer ─── -->
+    <div class="report-footer">
+        <p>Generated by <strong>Keyword Analyzer</strong> &mdash; <%= new Date(report.meta.generatedAt).toLocaleString() %></p>
+        <p style="margin-top: 4px;">This report is confidential and prepared exclusively for <strong><%= report.meta.clientName %></strong></p>
+    </div>
+
+</div>
+
+</body>
+</html>

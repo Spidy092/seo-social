@@ -5,8 +5,7 @@
  * expert analysis and intelligent comparisons.
  */
 
-const axios = require('axios');
-const config = require('../config');
+const { resilientLlmRequest, extractJson } = require('../utils/aiHelper');
 const { createLogger } = require('../utils/logger');
 
 const log = createLogger('ai-service');
@@ -51,70 +50,18 @@ async function analyzeComparison(comparisonData) {
     `;
 
     try {
-        let response;
-        
-        // Try OpenRouter first (Aggregator for free models)
-        if (config.apis.openRouter && config.apis.openRouter.key) {
-            try {
-                log.debug('attempting analysis via OpenRouter');
-                response = await axios.post(config.apis.openRouter.url, {
-                    model: config.apis.openRouter.model,
-                    messages: [{ role: 'user', content: prompt }]
-                    // Removed response_format for compatibility
-                }, {
-                    headers: {
-                        'Authorization': `Bearer ${config.apis.openRouter.key}`,
-                        'HTTP-Referer': 'http://localhost:4000',
-                        'X-Title': 'SEO Keyword Analyzer',
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 20000
-                });
-            } catch (err) {
-                const errorData = err.response?.data;
-                log.warn({ err: err.message, errorData }, 'OpenRouter failed, falling back to Groq');
-            }
+        const responseContent = await resilientLlmRequest({
+            prompt,
+            expectJson: true,
+            timeoutMs: 25000
+        });
+
+        try {
+            return extractJson(responseContent);
+        } catch (pErr) {
+            log.error({ pErr: pErr.message, responseContent }, 'failed to parse AI response as JSON');
+            throw new Error('Invalid JSON format from AI');
         }
-
-        // Fallback to Groq if OpenRouter failed
-        if (!response && config.apis.groq && config.apis.groq.key) {
-            try {
-                log.debug('attempting analysis via Groq');
-                response = await axios.post(config.apis.groq.url, {
-                    model: config.apis.groq.model,
-                    messages: [{ role: 'user', content: prompt }]
-                    // Removed response_format for compatibility
-                }, {
-                    headers: {
-                        'Authorization': `Bearer ${config.apis.groq.key}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 20000
-                });
-            } catch (err) {
-                const errorData = err.response?.data;
-                log.warn({ err: err.message, errorData }, 'Groq fallback failed');
-            }
-        }
-
-        if (response && response.data?.choices?.[0]?.message?.content) {
-            const content = response.data.choices[0].message.content.trim();
-            log.debug({ contentLength: content.length }, 'received AI response');
-
-            try {
-                // Find JSON block if model added conversational text
-                const jsonMatch = content.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                    return JSON.parse(jsonMatch[0]);
-                }
-                return JSON.parse(content);
-            } catch (pErr) {
-                log.error({ pErr: pErr.message, content }, 'failed to parse AI response as JSON');
-                throw new Error('Invalid JSON format from AI');
-            }
-        }
-
-        throw new Error('No AI response received from any provider');
     } catch (err) {
         log.error({ err: err.message }, 'AI analysis failed');
         return {

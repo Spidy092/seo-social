@@ -6,6 +6,8 @@
  */
 
 const { createLogger } = require('../utils/logger');
+const { syncGscPerformance, isoDate, buildSummary } = require('../services/gscService');
+const { getAgencyContext } = require('../utils/authHelper');
 
 const log = createLogger('routes:project-dashboard');
 
@@ -130,18 +132,19 @@ async function projectDashboardRoutes(fastify, options) {
     const { db } = options;
 
     fastify.get('/api/projects/:id/dashboard', async (request, reply) => {
-        const userId = request.session?.get('userId') || null;
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
         const { id } = request.params;
 
         try {
             const projectRes = await db.query(
                 `SELECT p.*, c.name AS client_name, c.website_url AS client_website,
                         c.industry, c.audience, c.competitors AS client_competitors,
-                        c.target_locations, c.goals AS client_goals
+                        c.target_locations, c.goals AS client_goals, c.gsc_site_url
                  FROM seo_projects p
                  JOIN seo_clients c ON c.id = p.client_id
-                 WHERE p.id = $1 AND (c.user_id = $2 OR c.user_id IS NULL)`,
-                [id, userId]
+                 WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`,
+                [id, ctx.agencyId]
             );
 
             if (!projectRes.rows.length) {
@@ -153,7 +156,7 @@ async function projectDashboardRoutes(fastify, options) {
 
             const targetDomain = normalizeDomain(project.client_website);
 
-            const [keywordsRes, ranksRes, historyRes, alertsRes, techRes, competitorRes] = await Promise.all([
+            const [keywordsRes, ranksRes, historyRes, alertsRes, techRes, competitorRes, gscRes] = await Promise.all([
                 db.query(
                     `SELECT pk.id AS link_id, pk.intent, pk.priority_score, pk.notes, pk.created_at AS linked_at,
                             k.id AS keyword_id, k.keyword, k.location, k.search_volume,
@@ -215,6 +218,15 @@ async function projectDashboardRoutes(fastify, options) {
                      LIMIT 10`,
                     [id]
                 ),
+                db.query(
+                    `SELECT *
+                     FROM gsc_search_analytics
+                     WHERE client_id = $1
+                       AND date_start = (SELECT MAX(date_start) FROM gsc_search_analytics WHERE client_id = $1)
+                     ORDER BY impressions DESC
+                     LIMIT 1200`,
+                    [project.client_id]
+                ).catch(() => ({ rows: [] })),
             ]);
 
             const rankByKeyword = new Map();
@@ -317,6 +329,24 @@ async function projectDashboardRoutes(fastify, options) {
 
             const unreadAlerts = recentAlerts.filter(a => !a.isRead).length;
 
+            const gscRows = gscRes.rows.map(row => ({
+                dateStart: row.date_start,
+                dateEnd: row.date_end,
+                dimensionType: row.dimension_type,
+                query: row.query,
+                page: row.page,
+                device: row.device,
+                country: row.country,
+                clicks: parseInt(row.clicks, 10) || 0,
+                impressions: parseInt(row.impressions, 10) || 0,
+                ctr: parseFloat(row.ctr) || 0,
+                position: parseFloat(row.position) || 0,
+            }));
+            const gscSummary = gscRows.length ? buildSummary(gscRows) : null;
+            const gscPerformanceScore = gscSummary
+                ? Math.max(0, Math.min(100, Math.round((gscSummary.ctr * 1000) + Math.max(0, 40 - (gscSummary.position || 40)))))
+                : null;
+
             const metrics = {
                 technicalScore,
                 droppedRankings,
@@ -327,6 +357,8 @@ async function projectDashboardRoutes(fastify, options) {
                 unreadAlerts,
                 unranked,
                 gapCount: contentGaps.length,
+                gscClicks: gscSummary?.clicks || 0,
+                lowCtrCount: gscSummary?.lowCtrPages?.length || 0,
             };
 
             const actions = deriveAction(project, metrics);
@@ -347,6 +379,7 @@ async function projectDashboardRoutes(fastify, options) {
                         name: project.client_name,
                         website: project.client_website,
                         domain: targetDomain,
+                        gscSiteUrl: project.gsc_site_url,
                         industry: project.industry,
                         audience: project.audience,
                         competitors: clientCompetitors,
@@ -366,10 +399,32 @@ async function projectDashboardRoutes(fastify, options) {
                     droppedRankings,
                     newRankings,
                     lostRankings,
+                    gscClicks: gscSummary?.clicks || 0,
+                    gscImpressions: gscSummary?.impressions || 0,
+                    gscCtr: gscSummary?.ctr || 0,
+                    gscPosition: gscSummary?.position || null,
+                    gscPerformanceScore,
+                    lowCtrOpportunities: gscSummary?.lowCtrPages?.length || 0,
+                    quickWinKeywords: gscSummary?.quickWinKeywords?.length || 0,
                 },
                 targetKeywords,
                 contentGaps,
                 topCompetitors,
+                gsc: gscSummary ? {
+                    siteUrl: project.gsc_site_url || project.client_website,
+                    dateStart: gscRows[0]?.dateStart,
+                    dateEnd: gscRows[0]?.dateEnd,
+                    clicks: gscSummary.clicks,
+                    impressions: gscSummary.impressions,
+                    ctr: gscSummary.ctr,
+                    position: gscSummary.position,
+                    performanceScore: gscPerformanceScore,
+                    topQueries: gscSummary.topQueries,
+                    topPages: gscSummary.topPages,
+                    lowCtrPages: gscSummary.lowCtrPages,
+                    quickWinKeywords: gscSummary.quickWinKeywords,
+                    pageOpportunities: gscSummary.pageOpportunities,
+                } : null,
                 technical: latestTech ? {
                     auditId: latestTech.id,
                     siteUrl: latestTech.site_url,
@@ -390,6 +445,38 @@ async function projectDashboardRoutes(fastify, options) {
             };
         } catch (err) {
             log.error({ err: err.message, projectId: id }, 'failed to build project dashboard');
+            return reply.code(500).send({ error: err.message });
+        }
+    });
+
+    fastify.post('/api/projects/:id/gsc/sync', async (request, reply) => {
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+        const { id } = request.params;
+        const body = request.body || {};
+
+        try {
+            const projectRes = await db.query(
+                `SELECT p.id, p.client_id, c.website_url, c.gsc_site_url
+                 FROM seo_projects p
+                 JOIN seo_clients c ON c.id = p.client_id
+                 WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`,
+                [id, ctx.agencyId]
+            );
+            if (!projectRes.rows.length) return reply.code(404).send({ error: 'Project not found' });
+            const project = projectRes.rows[0];
+            const siteUrl = body.siteUrl || project.gsc_site_url || project.website_url;
+            if (!siteUrl) return reply.code(400).send({ error: 'Add a client website or GSC site URL first' });
+
+            const result = await syncGscPerformance(db, {
+                clientId: project.client_id,
+                userId: ctx.userId,
+                siteUrl,
+                days: Number(body.days) || Number(process.env.GSC_SYNC_DAYS) || 30,
+            });
+            return { success: true, result };
+        } catch (err) {
+            log.error({ err: err.message, projectId: id }, 'failed to sync GSC performance');
             return reply.code(500).send({ error: err.message });
         }
     });

@@ -1,7 +1,11 @@
 const { generateCaptions } = require('../../services/openrouter');
+const { requireAgencyContext } = require('../../utils/authHelper');
 
 module.exports = async function (fastify, options) {
+    const { db } = options;
     fastify.post('/social/captions/generate', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         const { caption, platforms } = request.body;
       
         if (!caption) {

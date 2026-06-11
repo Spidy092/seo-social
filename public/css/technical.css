@@ -55,3 +55,51 @@
 @media (max-width: 980px) {
     .technical-top-grid { grid-template-columns: 1fr; }
 }
+
+
+.pagespeed-card .card-header h3 { display: flex; align-items: center; gap: 8px; }
+.pagespeed-score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.pagespeed-score-card { display: flex; align-items: center; gap: 12px; border: 1px solid var(--gray-light); border-radius: 10px; padding: 14px; background: white; }
+.pagespeed-score-card.green { border-color: rgba(16,185,129,0.22); background: rgba(16,185,129,0.04); }
+.pagespeed-score-card.orange { border-color: rgba(245,158,11,0.22); background: rgba(245,158,11,0.04); }
+.pagespeed-score-card.red { border-color: rgba(239,68,68,0.22); background: rgba(239,68,68,0.04); }
+.pagespeed-score-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: var(--light); color: var(--primary); flex-shrink: 0; }
+.pagespeed-score-value { font-size: 1.5rem; font-weight: 800; line-height: 1; color: var(--dark); }
+.pagespeed-score-label { margin-top: 4px; font-size: 0.78rem; color: var(--gray); }
+.pagespeed-metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.pagespeed-metric-card { border: 1px solid var(--gray-light); border-radius: 8px; padding: 12px; background: var(--light); min-height: 92px; }
+.pagespeed-metric-name { font-size: 0.76rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.04em; }
+.pagespeed-metric-value { margin-top: 6px; font-size: 1.05rem; font-weight: 700; color: var(--dark); }
+.pagespeed-metric-title { margin-top: 4px; font-size: 0.76rem; color: var(--gray); line-height: 1.35; }
+.pagespeed-suggestions h4,
+.pagespeed-opportunities h4 { margin: 0 0 10px; font-size: 0.9rem; color: var(--dark); }
+.pagespeed-suggestion { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--gray-light); font-size: 0.88rem; color: var(--gray); line-height: 1.5; }
+.pagespeed-suggestion i { color: #10b981; margin-top: 3px; }
+.pagespeed-opportunities { margin-top: 18px; }
+.pagespeed-opportunity { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--gray-light); font-size: 0.86rem; color: var(--dark); }
+.pagespeed-opportunity span { display: block; margin-top: 3px; font-size: 0.78rem; color: var(--gray); }
+.pagespeed-opportunity small { white-space: nowrap; color: var(--primary); font-weight: 600; }
+
+@media (max-width: 700px) {
+    .pagespeed-opportunity { display: block; }
+    .pagespeed-opportunity small { display: block; margin-top: 5px; white-space: normal; }
+}
+
+.pagespeed-history-card .card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pagespeed-history-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--gray-light); }
+.pagespeed-history-row:last-child { border-bottom: none; }
+
+/* CrUX Field Data */
+.pagespeed-crux { margin-bottom: 18px; }
+.pagespeed-crux h4 { margin: 0 0 10px; font-size: 0.9rem; color: var(--dark); }
+.pagespeed-crux h4 i { color: var(--primary); margin-right: 6px; }
+.pagespeed-history-row strong { display: block; font-size: 0.9rem; color: var(--dark); }
+.pagespeed-history-row span { display: block; margin-top: 3px; font-size: 0.8rem; color: var(--gray); }
+.pagespeed-history-scores { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.pagespeed-history-scores span { margin: 0; padding: 4px 8px; border-radius: 999px; background: rgba(99,102,241,0.08); color: var(--primary); font-size: 0.76rem; font-weight: 700; }
+.pagespeed-history-scores small { color: var(--gray); font-size: 0.76rem; }
+
+@media (max-width: 700px) {
+    .pagespeed-history-row { align-items: flex-start; flex-direction: column; }
+    .pagespeed-history-scores { justify-content: flex-start; }
+}

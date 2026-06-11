@@ -9,6 +9,7 @@
 
 const { createLogger } = require('../utils/logger');
 const { optimizePage } = require('../services/pageOptimizationService');
+const { getAgencyContext } = require('../utils/authHelper');
 
 const log = createLogger('routes:page-optimization');
 
@@ -29,14 +30,14 @@ async function pageOptimizationRoutes(fastify, options) {
         },
         handler: async (request, reply) => {
             const { url, keyword, location = 'India' } = request.body || {};
-            const userId = request.session?.get('userId') || null;
+            const ctx = await getAgencyContext(request, db);
 
             if (!url || !keyword) {
                 return reply.code(400).send({ error: 'Both URL and target keyword are required.' });
             }
 
             try {
-                log.info({ url, keyword, location, userId }, 'page optimization analyze started');
+                log.info({ url, keyword, location }, 'page optimization analyze started');
                 const result = await optimizePage({ url, keyword, location });
 
                 // Persist a summary for history view
@@ -44,11 +45,12 @@ async function pageOptimizationRoutes(fastify, options) {
                 try {
                     const insert = await db.query(
                         `INSERT INTO page_optimizations
-                         (user_id, url, keyword, location, my_score, avg_competitor_score, gaps, my_data, competitors, summary)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                         (user_id, agency_id, url, keyword, location, my_score, avg_competitor_score, gaps, my_data, competitors, summary)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                          RETURNING id`,
                         [
-                            userId,
+                            ctx?.userId || null,
+                            ctx?.agencyId || null,
                             result.url,
                             result.keyword,
                             result.location,
@@ -96,14 +98,15 @@ async function pageOptimizationRoutes(fastify, options) {
     });
 
     fastify.get('/api/page-optimization/history', async (request, reply) => {
-        const userId = request.session?.get('userId') || null;
+        const ctx = await getAgencyContext(request, db);
         const { limit = 20, offset = 0 } = request.query || {};
         try {
-            const params = [userId, parseInt(limit), parseInt(offset)];
+            const agencyId = ctx?.agencyId || null;
+            const params = [agencyId, parseInt(limit), parseInt(offset)];
             const result = await db.query(
                 `SELECT id, url, keyword, location, my_score, avg_competitor_score, summary, created_at
                  FROM page_optimizations
-                 WHERE user_id = $1 OR user_id IS NULL
+                 WHERE agency_id = $1 OR agency_id IS NULL
                  ORDER BY created_at DESC
                  LIMIT $2 OFFSET $3`,
                 params
@@ -112,8 +115,8 @@ async function pageOptimizationRoutes(fastify, options) {
             const totalResult = await db.query(
                 `SELECT COUNT(*) AS total
                  FROM page_optimizations
-                 WHERE user_id = $1 OR user_id IS NULL`,
-                [userId]
+                 WHERE agency_id = $1 OR agency_id IS NULL`,
+                [agencyId]
             );
 
             return {
@@ -127,15 +130,15 @@ async function pageOptimizationRoutes(fastify, options) {
     });
 
     fastify.get('/api/page-optimization/:id', async (request, reply) => {
-        const userId = request.session?.get('userId') || null;
+        const ctx = await getAgencyContext(request, db);
         const { id } = request.params;
         try {
             const result = await db.query(
                 `SELECT id, url, keyword, location, my_score, avg_competitor_score, gaps, my_data, competitors, summary, created_at
                  FROM page_optimizations
-                 WHERE id = $1 AND (user_id = $2 OR user_id IS NULL)
+                 WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL OR $2 IS NULL)
                  LIMIT 1`,
-                [id, userId]
+                [id, ctx?.agencyId || null]
             );
             if (!result.rows.length) {
                 return reply.code(404).send({ error: 'Optimization report not found' });
@@ -148,12 +151,12 @@ async function pageOptimizationRoutes(fastify, options) {
     });
 
     fastify.delete('/api/page-optimization/:id', async (request, reply) => {
-        const userId = request.session?.get('userId') || null;
+        const ctx = await getAgencyContext(request, db);
         const { id } = request.params;
         try {
             await db.query(
-                'DELETE FROM page_optimizations WHERE id = $1 AND (user_id = $2 OR user_id IS NULL)',
-                [id, userId]
+                'DELETE FROM page_optimizations WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL OR $2 IS NULL)',
+                [id, ctx?.agencyId || null]
             );
             return { success: true };
         } catch (err) {

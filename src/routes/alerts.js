@@ -4,6 +4,8 @@
 
 const { createLogger } = require('../utils/logger');
 const keywordService = require('../services/keywordService');
+const { extractDomain } = require('../utils/domainUtils');
+const { requireAgencyContext } = require('../utils/authHelper');
 
 const log = createLogger('routes:alerts');
 
@@ -22,14 +24,16 @@ async function alertRoutes(fastify, options) {
             },
         },
         handler: async (request, reply) => {
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
             const { domain } = request.body;
-            const normalizedDomain = keywordService.extractDomain(domain);
+            const normalizedDomain = extractDomain(domain);
             
             try {
                 await db.query(
-                    `INSERT INTO my_domains (domain) VALUES ($1)
-                     ON CONFLICT (domain) DO NOTHING`,
-                    [normalizedDomain]
+                    `INSERT INTO my_domains (agency_id, domain) VALUES ($1, $2)
+                     ON CONFLICT (agency_id, domain) DO NOTHING`,
+                    [ctx.agencyId, normalizedDomain]
                 );
 
                 return {
@@ -45,6 +49,8 @@ async function alertRoutes(fastify, options) {
 
     // ─── Get Tracked Domains with Stats ───
     fastify.get('/api/alerts/domains', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         try {
             const result = await db.query(`
                 SELECT d.*, 
@@ -56,8 +62,9 @@ async function alertRoutes(fastify, options) {
                      WHERE rh.domain = d.domain AND rh.change_direction = 'down' 
                      AND rh.checked_at > NOW() - INTERVAL '7 days') as dropped_count
                 FROM my_domains d
+                WHERE d.agency_id = $1 OR d.agency_id IS NULL OR $1 IS NULL
                 ORDER BY d.added_at DESC
-            `);
+            `, [ctx.agencyId]);
 
             return {
                 domains: result.rows,
@@ -71,9 +78,14 @@ async function alertRoutes(fastify, options) {
 
     // ─── Get Unread Count ─── (must be before /api/alerts to avoid any prefix matching issues)
     fastify.get('/api/alerts/unread-count', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         try {
             const result = await db.query(
-                'SELECT COUNT(*) as count FROM alerts WHERE is_read = FALSE'
+                `SELECT COUNT(*) as count FROM alerts a
+                 WHERE a.is_read = FALSE
+                   AND EXISTS (SELECT 1 FROM my_domains d WHERE d.domain = a.domain AND (d.agency_id = $1 OR d.agency_id IS NULL OR $1 IS NULL))`,
+                [ctx.agencyId]
             );
             return { count: parseInt(result.rows[0].count) };
         } catch (err) {
@@ -85,10 +97,12 @@ async function alertRoutes(fastify, options) {
     // ─── Get All Alerts ───
     fastify.get('/api/alerts', async (request, reply) => {
         const { domain, unreadOnly = false, limit = 20, offset = 0 } = request.query;
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
 
         try {
-            let baseConditions = [];
-            const params = [];
+            let baseConditions = [`EXISTS (SELECT 1 FROM my_domains d WHERE d.domain = a.domain AND (d.agency_id = $1 OR d.agency_id IS NULL OR $1 IS NULL))`];
+            const params = [ctx.agencyId];
 
             if (domain) {
                 baseConditions.push(`a.domain = $${params.length + 1}`);
@@ -110,7 +124,7 @@ async function alertRoutes(fastify, options) {
             let query = `
                 SELECT a.*, k.keyword
                 FROM alerts a
-                JOIN keywords k ON a.keyword_id = k.id
+                LEFT JOIN keywords k ON a.keyword_id = k.id
                 ${whereClause}
             `;
 
@@ -121,7 +135,8 @@ async function alertRoutes(fastify, options) {
 
             // Get unread count
             const unreadResult = await db.query(
-                'SELECT COUNT(*) as count FROM alerts WHERE is_read = FALSE'
+                `SELECT COUNT(*) as count FROM alerts a WHERE a.is_read = FALSE AND EXISTS (SELECT 1 FROM my_domains d WHERE d.domain = a.domain AND (d.agency_id = $1 OR d.agency_id IS NULL OR $1 IS NULL))`,
+                [ctx.agencyId]
             );
 
             return {
@@ -137,16 +152,18 @@ async function alertRoutes(fastify, options) {
 
     // ─── Mark All as Read ─── (must be BEFORE /:id/read to avoid Fastify matching "read-all" as :id)
     fastify.put('/api/alerts/read-all', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         const { domain } = request.body || {};
 
         try {
             if (domain) {
                 await db.query(
-                    'UPDATE alerts SET is_read = TRUE WHERE domain = $1',
-                    [domain]
+                    `UPDATE alerts a SET is_read = TRUE WHERE a.domain = $1 AND EXISTS (SELECT 1 FROM my_domains d WHERE d.domain = a.domain AND (d.agency_id = $2 OR d.agency_id IS NULL OR $2 IS NULL))`,
+                    [domain, ctx.agencyId]
                 );
             } else {
-                await db.query('UPDATE alerts SET is_read = TRUE');
+                await db.query(`UPDATE alerts a SET is_read = TRUE WHERE EXISTS (SELECT 1 FROM my_domains d WHERE d.domain = a.domain AND (d.agency_id = $1 OR d.agency_id IS NULL OR $1 IS NULL))`, [ctx.agencyId]);
             }
 
             return { success: true };
@@ -158,12 +175,14 @@ async function alertRoutes(fastify, options) {
 
     // ─── Mark Alert as Read ───
     fastify.put('/api/alerts/:id/read', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         const { id } = request.params;
 
         try {
             await db.query(
-                'UPDATE alerts SET is_read = TRUE WHERE id = $1',
-                [id]
+                `UPDATE alerts a SET is_read = TRUE WHERE a.id = $1 AND EXISTS (SELECT 1 FROM my_domains d WHERE d.domain = a.domain AND (d.agency_id = $2 OR d.agency_id IS NULL OR $2 IS NULL))`,
+                [id, ctx.agencyId]
             );
 
             return { success: true };
@@ -178,14 +197,17 @@ async function alertRoutes(fastify, options) {
     // ─── Get Rank History ───
     fastify.get('/api/alerts/rank-history', async (request, reply) => {
         const { domain, keywordId, days = 30, limit = 50, offset = 0 } = request.query;
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
 
         try {
-            const params = [parseInt(days) || 30];
+            const params = [parseInt(days) || 30, ctx.agencyId];
             let query = `
                 SELECT rh.*, k.keyword
                 FROM rank_history rh
                 JOIN keywords k ON rh.keyword_id = k.id
                 WHERE rh.checked_at > NOW() - ($1 || ' days')::interval
+                  AND EXISTS (SELECT 1 FROM my_domains d WHERE d.domain = rh.domain AND (d.agency_id = $2 OR d.agency_id IS NULL OR $2 IS NULL))
             `;
 
             if (domain) {
@@ -225,14 +247,16 @@ async function alertRoutes(fastify, options) {
     // ─── Get Current Rankings (deduplicated latest per domain+keyword) ───
     fastify.get('/api/rankings/current', async (request, reply) => {
         const { domain, limit = 100, offset = 0 } = request.query;
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
 
         try {
-            const params = [];
-            let whereClause = '';
+            const params = [ctx.agencyId];
+            let whereClause = `WHERE EXISTS (SELECT 1 FROM my_domains d WHERE d.domain = dr.domain AND (d.agency_id = $1 OR d.agency_id IS NULL OR $1 IS NULL))`;
 
             if (domain) {
                 params.push(domain);
-                whereClause = `WHERE dr.domain = $1`;
+                whereClause += ` AND dr.domain = ${params.length}`;
             }
 
             // Count total distinct keywords (case-insensitive and trimmed)
@@ -271,6 +295,8 @@ async function alertRoutes(fastify, options) {
 
     // ─── Get Rank Changes Summary ───
     fastify.get('/api/alerts/summary', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         const { domain } = request.query;
 
         try {
@@ -284,8 +310,9 @@ async function alertRoutes(fastify, options) {
                  FROM domain_rankings dr
                  JOIN keywords k ON dr.keyword_id = k.id
                  WHERE dr.domain = $1
+                   AND EXISTS (SELECT 1 FROM my_domains d WHERE d.domain = dr.domain AND (d.agency_id = $2 OR d.agency_id IS NULL OR $2 IS NULL))
                  ORDER BY dr.rank_position`,
-                [domain]
+                [domain, ctx.agencyId]
             );
 
             // Get recent changes
@@ -295,16 +322,20 @@ async function alertRoutes(fastify, options) {
                     COUNT(*) FILTER (WHERE change_direction = 'down') as dropped,
                     COUNT(*) FILTER (WHERE change_direction = 'same') as stable,
                     COUNT(*) FILTER (WHERE change_direction = 'new') as new_rankings
-                 FROM rank_history
-                 WHERE domain = $1 AND checked_at > NOW() - INTERVAL '7 days'`,
-                [domain]
+                 FROM rank_history rh
+                 WHERE rh.domain = $1
+                   AND rh.checked_at > NOW() - INTERVAL '7 days'
+                   AND EXISTS (SELECT 1 FROM my_domains d WHERE d.domain = rh.domain AND (d.agency_id = $2 OR d.agency_id IS NULL OR $2 IS NULL))`,
+                [domain, ctx.agencyId]
             );
 
             // Get alerts count
             const alertsCount = await db.query(
-                `SELECT COUNT(*) as count FROM alerts 
-                 WHERE domain = $1 AND is_read = FALSE`,
-                [domain]
+                `SELECT COUNT(*) as count FROM alerts a
+                 WHERE a.domain = $1
+                   AND a.is_read = FALSE
+                   AND EXISTS (SELECT 1 FROM my_domains d WHERE d.domain = a.domain AND (d.agency_id = $2 OR d.agency_id IS NULL OR $2 IS NULL))`,
+                [domain, ctx.agencyId]
             );
 
             return {
@@ -368,7 +399,7 @@ async function alertRoutes(fastify, options) {
         },
         handler: async (request, reply) => {
             const { domain } = request.body;
-            const normalizedDomain = keywordService.extractDomain(domain);
+            const normalizedDomain = extractDomain(domain);
             try {
                 await db.query(
                     `INSERT INTO my_domains (domain) VALUES ($1) ON CONFLICT (domain) DO NOTHING`,

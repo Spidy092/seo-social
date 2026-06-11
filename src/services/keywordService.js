@@ -8,8 +8,10 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const config = require('../config');
 const { createLogger } = require('../utils/logger');
+const { extractDomain } = require('../utils/domainUtils');
 const googleAdsService = require('./googleAdsService');
 const db = require('../db');
+const { KeyQuotaTracker } = require('../utils/keyQuota');
 
 const log = createLogger('keyword-service');
 
@@ -29,15 +31,25 @@ function getSerperKeys() {
         : [config.apis.serper.key].filter(Boolean);
 }
 
+// Per-key daily quota tracker for Serper keys
+const serperQuota = new KeyQuotaTracker(config.apis.serper.dailyLimit || 2500);
+
 function getSerperErrorMessage(data) {
     if (!data || typeof data !== 'object') return 'Serper request failed';
     return data.message || data.error || data.errorMessage || data.statusText || 'Serper request failed';
 }
 
 async function postSerperSearch(payload, context = {}) {
-    const keys = getSerperKeys();
-    if (!keys.length) {
+    const allKeys = getSerperKeys();
+    if (!allKeys.length) {
         throw new Error('SERPER_API_KEY or SERPER_API_KEYS is required');
+    }
+
+    // Filter to keys with remaining daily quota
+    const keys = allKeys.filter((k) => serperQuota.hasQuota(k));
+    if (!keys.length) {
+        log.warn({ ...context, totalKeys: allKeys.length }, 'All Serper keys exhausted daily quota');
+        throw new Error('All Serper API keys have exceeded their daily quota limit');
     }
 
     let lastError = null;
@@ -56,6 +68,8 @@ async function postSerperSearch(payload, context = {}) {
             if (data.message || data.error || data.errorMessage) {
                 throw new Error(getSerperErrorMessage(data));
             }
+
+            serperQuota.recordUsage(key);
 
             if (index > 0) {
                 log.info({ ...context, keyIndex: index + 1 }, 'Serper request succeeded with fallback key');
@@ -157,15 +171,12 @@ const LOCATION_HIERARCHY = {
     'juhu': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Maharashtra', city: 'Mumbai', area: 'Juhu' },
     'powai': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Maharashtra', city: 'Mumbai', area: 'Powai' },
     'malad': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Maharashtra', city: 'Mumbai', area: 'Malad' },
-    ' Goregaon': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Maharashtra', city: 'Mumbai', area: 'Goregaon' },
+    'goregaon': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Maharashtra', city: 'Mumbai', area: 'Goregaon' },
     'thane': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Maharashtra', city: 'Thane', area: 'Thane' },
     'vashi': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Maharashtra', city: 'Navi Mumbai', area: 'Vashi' },
     'navi mumbai': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Maharashtra', city: 'Navi Mumbai' },
     
     // Delhi/NCR Areas
-    'gurgaon': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Haryana', city: 'Gurugram', area: 'Gurugram' },
-    'gurugram': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Haryana', city: 'Gurugram', area: 'Gurugram' },
-    'noida': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Uttar Pradesh', city: 'Noida', area: 'Noida' },
     'greater noida': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Uttar Pradesh', city: 'Greater Noida', area: 'Greater Noida' },
     'dwarka': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Delhi', city: 'New Delhi', area: 'Dwarka' },
     'saket': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Delhi', city: 'New Delhi', area: 'Saket' },
@@ -178,7 +189,7 @@ const LOCATION_HIERARCHY = {
     'gachibowli': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Telangana', city: 'Hyderabad', area: 'Gachibowli' },
     'hitech city': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Telangana', city: 'Hyderabad', area: 'Hitech City' },
     'kukatpally': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Telangana', city: 'Hyderabad', area: 'Kukatpally' },
-    ' Jubilee Hills': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Telangana', city: 'Hyderabad', area: 'Jubilee Hills' },
+    'jubilee hills': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Telangana', city: 'Hyderabad', area: 'Jubilee Hills' },
     'banjara hills': { gl: 'in', hl: 'en', google: 'google.co.in', country: 'India', state: 'Telangana', city: 'Hyderabad', area: 'Banjara Hills' },
 };
 
@@ -788,10 +799,12 @@ function analyzeSchemaMarkup($) {
                 const normalizedTypes = Array.isArray(parsed) ? parsed : [parsed];
                 
                 normalizedTypes.forEach(item => {
+                    const itemTypes = [];
                     if (item['@type']) {
                         const types = Array.isArray(item['@type']) ? item['@type'] : [item['@type']];
                         types.forEach(type => {
                             const normalizedType = type.replace(/^https?:\/\/schema\.org\//, '');
+                            itemTypes.push(normalizedType);
                             if (!detectedTypes.includes(normalizedType)) {
                                 detectedTypes.push(normalizedType);
                             }
@@ -804,6 +817,7 @@ function analyzeSchemaMarkup($) {
                                 const types = Array.isArray(graphItem['@type']) ? graphItem['@type'] : [graphItem['@type']];
                                 types.forEach(type => {
                                     const normalizedType = type.replace(/^https?:\/\/schema\.org\//, '');
+                                    itemTypes.push(normalizedType);
                                     if (!detectedTypes.includes(normalizedType)) {
                                         detectedTypes.push(normalizedType);
                                     }
@@ -815,7 +829,7 @@ function analyzeSchemaMarkup($) {
                     schemaData.push({
                         index: i,
                         valid: true,
-                        types: types,
+                        types: itemTypes,
                     });
                 });
             }
@@ -1019,28 +1033,6 @@ async function getDomainAuthority(domain) {
     }
 }
 
-// ─── Extract Domain from URL ───
-function extractDomain(url) {
-    if (!url) return '';
-    try {
-        let cleanUrl = url.trim().toLowerCase();
-        if (!cleanUrl.startsWith('http')) {
-            cleanUrl = 'https://' + cleanUrl;
-        }
-        const urlObj = new URL(cleanUrl);
-        let host = urlObj.hostname;
-        if (host.startsWith('www.')) host = host.substring(4);
-        
-        // Basic validation: ensure host has at least one dot and no trailing colon
-        if (host.includes('.') && !host.endsWith(':')) {
-            return host;
-        }
-        return url; // fallback to original if weird
-    } catch {
-        // Fallback for non-URL strings like "example.com"
-        return url.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0];
-    }
-}
 
 // ─── Get Keyword Suggestions ───
 async function getKeywordSuggestions(seed, location = 'India', enrich = true) {
@@ -1861,7 +1853,7 @@ module.exports = {
     getSERPResults,
     analyzePageContent,
     getDomainAuthority,
-    extractDomain,
+
     getKeywordSuggestions,
     advancedKeywordResearch,
     analyzeKeywordIntent,

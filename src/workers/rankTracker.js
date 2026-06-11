@@ -10,6 +10,7 @@ const axios = require('axios');
 const config = require('../config');
 const { createLogger } = require('../utils/logger');
 const keywordService = require('../services/keywordService');
+const { extractDomain } = require('../utils/domainUtils');
 
 const log = createLogger('rank-tracker');
 
@@ -27,44 +28,63 @@ async function checkAllRankings(db) {
             return;
         }
 
-        // Get all keywords
-        const keywordsResult = await db.query('SELECT * FROM keywords');
-        const keywords = keywordsResult.rows;
-
-        log.info({ domains: domains.length, keywords: keywords.length }, 'checking rankings');
-
-        // Build work items
-        const tasks = [];
-        for (const domain of domains) {
-            for (const keyword of keywords) {
-                tasks.push({ domain, keyword });
-            }
-        }
-
-        // Process with concurrency limit
+        // Process one domain at a time, fetching keywords in pages to avoid OOM
+        const PAGE_SIZE = 100;
         const concurrency = config.rankTracking.batchConcurrency || 3;
-        let index = 0;
-        let succeeded = 0;
-        let failed = 0;
+        let totalSucceeded = 0;
+        let totalFailed = 0;
 
-        async function worker() {
-            while (index < tasks.length) {
-                const task = tasks[index++];
-                try {
-                    await checkDomainRanking(db, task.domain, task.keyword);
-                    succeeded++;
-                } catch (err) {
-                    failed++;
-                    log.error({ domain: task.domain, keyword: task.keyword.keyword, err: err.message }, 'rank check failed');
+        for (const domain of domains) {
+            let offset = 0;
+            let hasMore = true;
+
+            while (hasMore) {
+                const keywordsResult = await db.query(
+                    'SELECT * FROM keywords ORDER BY id LIMIT $1 OFFSET $2',
+                    [PAGE_SIZE, offset]
+                );
+                const keywords = keywordsResult.rows;
+
+                if (keywords.length === 0) {
+                    hasMore = false;
+                    break;
                 }
-                await new Promise(r => setTimeout(r, config.rankTracking.rateLimitDelay));
+
+                log.info({ domain, keywordsInPage: keywords.length, offset }, 'processing keyword page');
+
+                let index = 0;
+                let succeeded = 0;
+                let failed = 0;
+
+                async function worker() {
+                    while (index < keywords.length) {
+                        const keyword = keywords[index++];
+                        try {
+                            await checkDomainRanking(db, domain, keyword);
+                            succeeded++;
+                        } catch (err) {
+                            failed++;
+                            log.error({ domain, keyword: keyword.keyword, err: err.message }, 'rank check failed');
+                        }
+                        await new Promise(r => setTimeout(r, config.rankTracking.rateLimitDelay));
+                    }
+                }
+
+                const workers = Array.from({ length: Math.min(concurrency, keywords.length) }, () => worker());
+                await Promise.all(workers);
+
+                totalSucceeded += succeeded;
+                totalFailed += failed;
+
+                if (keywords.length < PAGE_SIZE) {
+                    hasMore = false;
+                } else {
+                    offset += PAGE_SIZE;
+                }
             }
         }
 
-        const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker());
-        await Promise.all(workers);
-
-        log.info({ succeeded, failed, total: tasks.length }, '✅ rank check complete');
+        log.info({ succeeded: totalSucceeded, failed: totalFailed }, '✅ rank check complete');
     } catch (err) {
         log.error({ err: err.message }, 'rank check failed');
     }
@@ -83,7 +103,7 @@ async function checkDomainRanking(db, domain, keyword) {
         );
 
         // Find domain in results (normalize both)
-        const targetDomain = keywordService.extractDomain(domain);
+        const targetDomain = extractDomain(domain);
         const result = serpResults.find(r => r.domain === targetDomain || r.domain.endsWith('.' + targetDomain));
         const newPosition = result ? result.position : 0;
 
@@ -241,7 +261,6 @@ async function sendWebhookNotification(data) {
 function startRankTracker(db) {
     const { checkInterval } = config.rankTracking;
     const intervalHours = checkInterval / 3600;
-    const intervalMinutes = checkInterval / 60;
     
     log.info({ intervalHours }, 'starting rank tracker');
 
@@ -254,35 +273,48 @@ function startRankTracker(db) {
 
     // Schedule periodic checks using configured interval
     const cronExpression = getCronExpression(checkInterval);
+    const timezone = process.env.TZ || process.env.RANK_CHECK_TIMEZONE || undefined;
+
+    const cronOptions = {};
+    if (timezone) {
+        cronOptions.timezone = timezone;
+    }
+
     cron.schedule(cronExpression, () => {
         log.info('scheduled rank check starting');
         checkAllRankings(db).catch(err => {
             log.error({ err: err.message }, 'scheduled rank check failed');
         });
-    });
+    }, cronOptions);
 
-    log.info(`✅ rank tracker started (every ${formatInterval(checkInterval)})`);
+    log.info(`✅ rank tracker started (every ${formatInterval(checkInterval)}, cron: ${cronExpression}${timezone ? `, tz: ${timezone}` : ''})`);
 }
 
 // ─── Generate Cron Expression from Interval ───
 function getCronExpression(intervalSeconds) {
-    const hours = Math.floor(intervalSeconds / 3600);
-    
-    if (hours === 1) {
-        return '0 * * * *'; // Every hour
-    } else if (hours >= 24) {
-        return '0 3 * * *'; // Daily at 3 AM for 24+ hours
-    } else if (hours >= 12) {
-        return '0 */12 * * *'; // Every 12 hours
-    } else if (hours >= 6) {
-        return '0 */6 * * *'; // Every 6 hours
-    } else if (hours >= 4) {
-        return '0 */4 * * *'; // Every 4 hours
-    } else if (hours >= 2) {
-        return '0 */2 * * *'; // Every 2 hours
-    } else {
-        return '0 * * * *'; // Every hour as fallback
+    const totalMinutes = Math.round(intervalSeconds / 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    // Daily or longer → run at configurable hour (default 3 AM)
+    if (hours >= 24) {
+        const runHour = parseInt(process.env.RANK_CHECK_HOUR || '3', 10) % 24;
+        return `0 ${runHour} * * *`;
     }
+
+    // Evenly divides into 24 hours
+    if (hours >= 1 && 24 % hours === 0 && minutes === 0) {
+        return `0 */${hours} * * *`;
+    }
+
+    // Hours with a remainder — use minute-level cron
+    if (hours >= 1) {
+        return `*/${totalMinutes} * * * *`;
+    }
+
+    // Sub-hour intervals
+    const clampedMinutes = Math.max(1, minutes);
+    return `*/${clampedMinutes} * * * *`;
 }
 
 // ─── Format Interval for Display ───

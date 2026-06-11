@@ -1,10 +1,11 @@
 /**
- * 📊 Agency Report Routes
+ * 📊 Agency Report Routes — Agency-scoped
  * Generates PDF/HTML reports for client SEO work.
  */
 
 const { buildReport } = require('../services/reportService');
 const { createLogger } = require('../utils/logger');
+const { getAgencyContext } = require('../utils/authHelper');
 
 const log = createLogger('routes:reports');
 
@@ -13,15 +14,18 @@ async function reportRoutes(fastify, options) {
 
     // ─── Generate Report Data (JSON) ───
     fastify.post('/api/reports/generate', async (request, reply) => {
-        const { clientId, domain, periodDays = 30, reportTitle } = request.body || {};
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
+        const { clientId, domain, periodDays = 30, reportTitle, includePageSpeed = true } = request.body || {};
 
         if (!domain && !clientId) {
             return reply.code(400).send({ error: 'Provide a domain or clientId to generate a report' });
         }
 
         try {
-            log.info({ clientId, domain, periodDays }, 'Generating report');
-            const report = await buildReport(db, { clientId, domain, periodDays, reportTitle });
+            log.info({ clientId, domain, periodDays, includePageSpeed }, 'Generating report');
+            const report = await buildReport(db, { clientId, domain, periodDays, reportTitle, includePageSpeed });
             return { success: true, report };
         } catch (err) {
             log.error({ err: err.message }, 'Failed to generate report');
@@ -29,14 +33,19 @@ async function reportRoutes(fastify, options) {
         }
     });
 
-    // ─── Get Saved Reports List ───
+    // ─── Get Saved Reports List (agency-scoped) ───
     fastify.get('/api/reports', async (request, reply) => {
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         try {
             const result = await db.query(
                 `SELECT id, title, client_name, domain, period_days, generated_at
                  FROM seo_reports
+                 WHERE agency_id = $1 OR agency_id IS NULL
                  ORDER BY generated_at DESC
-                 LIMIT 50`
+                 LIMIT 50`,
+                [ctx.agencyId]
             );
             return { reports: result.rows };
         } catch (err) {
@@ -46,15 +55,18 @@ async function reportRoutes(fastify, options) {
         }
     });
 
-    // ─── Save a Report ───
+    // ─── Save a Report (agency-scoped) ───
     fastify.post('/api/reports/save', async (request, reply) => {
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         const { report } = request.body || {};
         if (!report) return reply.code(400).send({ error: 'No report data provided' });
 
         try {
             const result = await db.query(
-                `INSERT INTO seo_reports (title, client_name, domain, period_days, report_data, generated_at)
-                 VALUES ($1, $2, $3, $4, $5::jsonb, NOW())
+                `INSERT INTO seo_reports (title, client_name, domain, period_days, report_data, agency_id, generated_at)
+                 VALUES ($1, $2, $3, $4, $5::jsonb, $6, NOW())
                  RETURNING id`,
                 [
                     report.meta.title,
@@ -62,6 +74,7 @@ async function reportRoutes(fastify, options) {
                     report.meta.domain,
                     report.meta.periodDays,
                     JSON.stringify(report),
+                    ctx.agencyId,
                 ]
             );
             return { success: true, reportId: result.rows[0].id };
@@ -73,11 +86,14 @@ async function reportRoutes(fastify, options) {
 
     // ─── Get a Saved Report ───
     fastify.get('/api/reports/:id', async (request, reply) => {
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         const { id } = request.params;
         try {
             const result = await db.query(
-                'SELECT * FROM seo_reports WHERE id = $1',
-                [id]
+                `SELECT * FROM seo_reports WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL)`,
+                [id, ctx.agencyId]
             );
             if (!result.rows.length) return reply.code(404).send({ error: 'Report not found' });
             return { report: result.rows[0].report_data };
@@ -87,11 +103,18 @@ async function reportRoutes(fastify, options) {
         }
     });
 
-    // ─── Delete a Report ───
+    // ─── Delete a Report (agency-scoped) ───
     fastify.delete('/api/reports/:id', async (request, reply) => {
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         const { id } = request.params;
         try {
-            await db.query('DELETE FROM seo_reports WHERE id = $1', [id]);
+            const result = await db.query(
+                `DELETE FROM seo_reports WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL) RETURNING id`,
+                [id, ctx.agencyId]
+            );
+            if (!result.rows.length) return reply.code(404).send({ error: 'Report not found' });
             return { success: true };
         } catch (err) {
             log.error({ err: err.message }, 'Failed to delete report');
@@ -101,11 +124,14 @@ async function reportRoutes(fastify, options) {
 
     // ─── Render HTML Report (for printing / PDF export) ───
     fastify.get('/reports/:id/html', async (request, reply) => {
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         const { id } = request.params;
         try {
             const result = await db.query(
-                'SELECT report_data FROM seo_reports WHERE id = $1',
-                [id]
+                `SELECT report_data FROM seo_reports WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL)`,
+                [id, ctx.agencyId]
             );
             if (!result.rows.length) return reply.code(404).send({ error: 'Report not found' });
             const report = result.rows[0].report_data;

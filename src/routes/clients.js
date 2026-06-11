@@ -1,8 +1,9 @@
 /**
- * SEO Client Workspace Routes
+ * SEO Client Workspace Routes — Agency-scoped
  */
 
 const { createLogger } = require('../utils/logger');
+const { getAgencyContext } = require('../utils/authHelper');
 
 const log = createLogger('routes:clients');
 
@@ -14,31 +15,13 @@ function splitList(value) {
         .filter(Boolean);
 }
 
-function getUserId(request) {
-    return request.session?.get('userId') || null;
-}
-
-/**
- * Ownership check — permissive for single-tenant / demo setups.
- * Allows access when:
- *   - user_id matches the session user
- *   - user_id is NULL (unowned)
- *   - user_id is the nil UUID (seeded/placeholder record)
- *   - userId itself is null (unauthenticated — let route decide)
- */
-function ownershipClause(alias = 'user_id') {
-    return `(${alias} = $2 OR ${alias} IS NULL OR ${alias} = '00000000-0000-0000-0000-000000000000')`;
-}
-
-async function ensureProjectAccess(db, projectId, userId) {
-    // In single-tenant setups any authenticated user can access any project.
-    // We still verify the project exists.
+async function ensureProjectAccess(db, projectId, agencyId) {
     const result = await db.query(
         `SELECT p.id, p.client_id
          FROM seo_projects p
          JOIN seo_clients c ON c.id = p.client_id
-         WHERE p.id = $1`,
-        [projectId]
+         WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL)`,
+        [projectId, agencyId]
     );
     return result.rows[0] || null;
 }
@@ -47,24 +30,34 @@ async function clientRoutes(fastify, options) {
     const { db } = options;
 
     fastify.get('/api/clients/stats', async (request, reply) => {
-        const userId = getUserId(request);
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         try {
+            const agentFilter = ctx.role === 'agent'
+                ? `AND (c.assigned_to = $2 OR c.assigned_to IS NULL)`
+                : '';
+            const params = ctx.role === 'agent' ? [ctx.agencyId, ctx.userId] : [ctx.agencyId];
+
             const [clients, projects, linkedKeywords] = await Promise.all([
-                db.query('SELECT COUNT(*) AS total FROM seo_clients WHERE user_id = $1 OR user_id IS NULL', [userId]),
+                db.query(
+                    `SELECT COUNT(*) AS total FROM seo_clients c WHERE (c.agency_id = $1 OR c.agency_id IS NULL) ${agentFilter}`,
+                    params
+                ),
                 db.query(
                     `SELECT COUNT(*) AS total
                      FROM seo_projects p
                      JOIN seo_clients c ON c.id = p.client_id
-                     WHERE c.user_id = $1 OR c.user_id IS NULL`,
-                    [userId]
+                     WHERE (c.agency_id = $1 OR c.agency_id IS NULL) ${agentFilter}`,
+                    params
                 ),
                 db.query(
                     `SELECT COUNT(*) AS total
                      FROM seo_project_keywords pk
                      JOIN seo_projects p ON p.id = pk.project_id
                      JOIN seo_clients c ON c.id = p.client_id
-                     WHERE c.user_id = $1 OR c.user_id IS NULL`,
-                    [userId]
+                     WHERE (c.agency_id = $1 OR c.agency_id IS NULL) ${agentFilter}`,
+                    params
                 ),
             ]);
 
@@ -80,19 +73,29 @@ async function clientRoutes(fastify, options) {
     });
 
     fastify.get('/api/clients', async (request, reply) => {
-        const userId = getUserId(request);
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         try {
+            // Agents only see clients assigned to them + unassigned
+            const agentFilter = ctx.role === 'agent'
+                ? `AND (c.assigned_to = $2 OR c.assigned_to IS NULL)`
+                : '';
+            const params = ctx.role === 'agent' ? [ctx.agencyId, ctx.userId] : [ctx.agencyId];
+
             const result = await db.query(
                 `SELECT c.*,
                         COUNT(DISTINCT p.id) AS project_count,
-                        COUNT(DISTINCT pk.keyword_id) AS keyword_count
+                        COUNT(DISTINCT pk.keyword_id) AS keyword_count,
+                        u.email AS assigned_email
                  FROM seo_clients c
                  LEFT JOIN seo_projects p ON p.client_id = c.id
                  LEFT JOIN seo_project_keywords pk ON pk.project_id = p.id
-                 WHERE c.user_id = $1 OR c.user_id IS NULL
-                 GROUP BY c.id
+                 LEFT JOIN users u ON u.id = c.assigned_to
+                 WHERE (c.agency_id = $1 OR c.agency_id IS NULL) ${agentFilter}
+                 GROUP BY c.id, u.email
                  ORDER BY c.updated_at DESC`,
-                [userId]
+                params
             );
 
             return { clients: result.rows };
@@ -103,7 +106,9 @@ async function clientRoutes(fastify, options) {
     });
 
     fastify.post('/api/clients', async (request, reply) => {
-        const userId = getUserId(request);
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         const body = request.body || {};
         const name = String(body.name || '').trim();
 
@@ -114,11 +119,12 @@ async function clientRoutes(fastify, options) {
         try {
             const result = await db.query(
                 `INSERT INTO seo_clients
-                 (user_id, name, website_url, industry, target_locations, competitors, audience, services, goals, notes)
-                 VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8::jsonb, $9, $10)
+                 (user_id, agency_id, name, website_url, industry, target_locations, competitors, audience, services, goals, notes)
+                 VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9::jsonb, $10, $11)
                  RETURNING *`,
                 [
-                    userId,
+                    ctx.userId,
+                    ctx.agencyId,
                     name,
                     body.websiteUrl || null,
                     body.industry || null,
@@ -139,7 +145,9 @@ async function clientRoutes(fastify, options) {
     });
 
     fastify.put('/api/clients/:id', async (request, reply) => {
-        const userId = getUserId(request);
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         const { id } = request.params;
         const body = request.body || {};
         const name = String(body.name || '').trim();
@@ -160,19 +168,13 @@ async function clientRoutes(fastify, options) {
                     services = $9::jsonb,
                     goals = $10,
                     notes = $11,
-                    -- Claim the record for the current user if it was unowned or seeded
-                    user_id = COALESCE($2, user_id),
                     updated_at = NOW()
                  WHERE id = $1
-                   AND (
-                       user_id = $2
-                       OR user_id IS NULL
-                       OR user_id = '00000000-0000-0000-0000-000000000000'
-                   )
+                   AND (agency_id = $2 OR agency_id IS NULL)
                  RETURNING *`,
                 [
                     id,
-                    userId,
+                    ctx.agencyId,
                     name,
                     body.websiteUrl || null,
                     body.industry || null,
@@ -185,43 +187,7 @@ async function clientRoutes(fastify, options) {
                 ]
             );
 
-            // If still not found, the client exists but belongs to a different user — try a
-            // soft ownership transfer for single-tenant / demo setups where the seeded
-            // user_id doesn't match any real session (e.g. placeholder 11111111-…)
-            if (!result.rows.length) {
-                const fallback = await db.query(
-                    `UPDATE seo_clients SET
-                        name = $3,
-                        website_url = $4,
-                        industry = $5,
-                        target_locations = $6::jsonb,
-                        competitors = $7::jsonb,
-                        audience = $8,
-                        services = $9::jsonb,
-                        goals = $10,
-                        notes = $11,
-                        user_id = $2,
-                        updated_at = NOW()
-                     WHERE id = $1
-                     RETURNING *`,
-                    [
-                        id,
-                        userId,
-                        name,
-                        body.websiteUrl || null,
-                        body.industry || null,
-                        JSON.stringify(splitList(body.targetLocations)),
-                        JSON.stringify(splitList(body.competitors)),
-                        body.audience || null,
-                        JSON.stringify(splitList(body.services)),
-                        body.goals || null,
-                        body.notes || null,
-                    ]
-                );
-                if (!fallback.rows.length) return reply.code(404).send({ error: 'Client not found' });
-                log.info({ clientId: id, userId }, 'client ownership claimed by current user');
-                return { success: true, client: fallback.rows[0] };
-            }
+            if (!result.rows.length) return reply.code(404).send({ error: 'Client not found' });
             return { success: true, client: result.rows[0] };
         } catch (err) {
             log.error({ err: err.message }, 'failed to update client');
@@ -230,7 +196,9 @@ async function clientRoutes(fastify, options) {
     });
 
     fastify.get('/api/clients/:id/projects', async (request, reply) => {
-        const userId = getUserId(request);
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         const { id } = request.params;
 
         try {
@@ -243,10 +211,10 @@ async function clientRoutes(fastify, options) {
                  JOIN seo_clients c ON c.id = p.client_id
                  LEFT JOIN seo_project_keywords pk ON pk.project_id = p.id
                  LEFT JOIN keywords k ON k.id = pk.keyword_id
-                 WHERE p.client_id = $1 AND (c.user_id = $2 OR c.user_id IS NULL)
+                 WHERE p.client_id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL)
                  GROUP BY p.id
                  ORDER BY p.updated_at DESC`,
-                [id, userId]
+                [id, ctx.agencyId]
             );
 
             return { projects: result.rows };
@@ -257,7 +225,9 @@ async function clientRoutes(fastify, options) {
     });
 
     fastify.post('/api/clients/:id/projects', async (request, reply) => {
-        const userId = getUserId(request);
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         const { id } = request.params;
         const body = request.body || {};
         const name = String(body.name || '').trim();
@@ -268,8 +238,8 @@ async function clientRoutes(fastify, options) {
 
         try {
             const access = await db.query(
-                'SELECT id FROM seo_clients WHERE id = $1',
-                [id]
+                'SELECT id FROM seo_clients WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL)',
+                [id, ctx.agencyId]
             );
             if (!access.rows.length) return reply.code(404).send({ error: 'Client not found' });
 
@@ -288,15 +258,22 @@ async function clientRoutes(fastify, options) {
     });
 
     fastify.get('/api/projects', async (request, reply) => {
-        const userId = getUserId(request);
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         try {
+            const agentFilter = ctx.role === 'agent'
+                ? `AND (c.assigned_to = $2 OR c.assigned_to IS NULL)`
+                : '';
+            const params = ctx.role === 'agent' ? [ctx.agencyId, ctx.userId] : [ctx.agencyId];
+
             const result = await db.query(
                 `SELECT p.id, p.name, p.project_type, p.target_location, p.client_id, c.name AS client_name
                  FROM seo_projects p
                  JOIN seo_clients c ON c.id = p.client_id
-                 WHERE c.user_id = $1 OR c.user_id IS NULL
+                 WHERE (c.agency_id = $1 OR c.agency_id IS NULL) ${agentFilter}
                  ORDER BY c.name ASC, p.name ASC`,
-                [userId]
+                params
             );
             return { projects: result.rows };
         } catch (err) {
@@ -306,14 +283,16 @@ async function clientRoutes(fastify, options) {
     });
 
     fastify.post('/api/projects/:id/keywords', async (request, reply) => {
-        const userId = getUserId(request);
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         const { id } = request.params;
         const { keywordId, intent, priorityScore = 0, notes } = request.body || {};
 
         if (!keywordId) return reply.code(400).send({ error: 'keywordId is required' });
 
         try {
-            const project = await ensureProjectAccess(db, id, userId);
+            const project = await ensureProjectAccess(db, id, ctx.agencyId);
             if (!project) return reply.code(404).send({ error: 'Project not found' });
 
             await db.query(
@@ -337,11 +316,13 @@ async function clientRoutes(fastify, options) {
     });
 
     fastify.get('/api/projects/:id/keywords', async (request, reply) => {
-        const userId = getUserId(request);
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         const { id } = request.params;
 
         try {
-            const project = await ensureProjectAccess(db, id, userId);
+            const project = await ensureProjectAccess(db, id, ctx.agencyId);
             if (!project) return reply.code(404).send({ error: 'Project not found' });
 
             const result = await db.query(
@@ -356,6 +337,74 @@ async function clientRoutes(fastify, options) {
             return { keywords: result.rows };
         } catch (err) {
             log.error({ err: err.message }, 'failed to list project keywords');
+            return reply.code(500).send({ error: err.message });
+        }
+    });
+
+    // ─── Assign a client to a team member ───
+    // PUT /api/clients/:id/assign — body: { userId } or { userId: null } to unassign
+    fastify.put('/api/clients/:id/assign', async (request, reply) => {
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
+        // Only owner/manager can assign clients
+        if (ctx.role === 'agent') {
+            return reply.code(403).send({ error: 'Only owners and managers can assign clients' });
+        }
+
+        const { id } = request.params;
+        const { userId } = request.body || {};
+
+        try {
+            // Verify client belongs to this agency
+            const clientCheck = await db.query(
+                `SELECT id FROM seo_clients WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL)`,
+                [id, ctx.agencyId]
+            );
+            if (!clientCheck.rows.length) {
+                return reply.code(404).send({ error: 'Client not found' });
+            }
+
+            // If userId provided, verify they're a member of this agency
+            if (userId) {
+                const memberCheck = await db.query(
+                    `SELECT user_id FROM agency_members WHERE agency_id = $1 AND user_id = $2`,
+                    [ctx.agencyId, userId]
+                );
+                if (!memberCheck.rows.length) {
+                    return reply.code(400).send({ error: 'User is not a member of this agency' });
+                }
+            }
+
+            const result = await db.query(
+                `UPDATE seo_clients SET assigned_to = $1, updated_at = NOW() WHERE id = $2 RETURNING id, assigned_to`,
+                [userId || null, id]
+            );
+
+            return { success: true, client: result.rows[0] };
+        } catch (err) {
+            log.error({ err: err.message }, 'failed to assign client');
+            return reply.code(500).send({ error: err.message });
+        }
+    });
+
+    // ─── Get agency members (for assignment dropdowns) ───
+    fastify.get('/api/clients/members', async (request, reply) => {
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
+        try {
+            const result = await db.query(
+                `SELECT u.id, u.email, am.role
+                 FROM agency_members am
+                 JOIN users u ON u.id = am.user_id
+                 WHERE am.agency_id = $1
+                 ORDER BY am.role, u.email`,
+                [ctx.agencyId]
+            );
+            return { members: result.rows };
+        } catch (err) {
+            log.error({ err: err.message }, 'failed to list members');
             return reply.code(500).send({ error: err.message });
         }
     });

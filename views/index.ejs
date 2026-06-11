@@ -22,119 +22,223 @@
         <div class="sidebar-header">
             <div class="logo">
                 <i class="fas fa-search-dollar"></i>
-                <span>Keyword Analyzer</span>
+                <span class="logo-text">Keyword Analyzer</span>
             </div>
+            <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Collapse sidebar">
+                <i class="fas fa-angles-left"></i>
+            </button>
         </div>
         <ul class="nav-menu">
-            <li class="nav-item active" data-page="dashboard">
-                <i class="fas fa-chart-line"></i>
-                <span>Dashboard</span>
+            <!-- Overview -->
+            <li class="nav-group">
+                <div class="nav-group-header" data-group="overview">
+                    <span class="nav-group-label">Overview</span>
+                    <i class="fas fa-chevron-down nav-group-arrow"></i>
+                </div>
+                <ul class="nav-group-items">
+                    <li class="nav-item active" data-page="dashboard" data-tooltip="Dashboard">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Dashboard</span>
+                    </li>
+                    <li class="nav-item" data-page="clients" data-tooltip="Clients">
+                        <i class="fas fa-briefcase"></i>
+                        <span>Clients</span>
+                    </li>
+                    <li class="nav-item" data-page="project-dashboard" data-tooltip="Project Dashboard">
+                        <i class="fas fa-tachometer-alt"></i>
+                        <span>Project Dashboard</span>
+                    </li>
+                </ul>
             </li>
-                        <li class="nav-item" data-page="clients">
-                <i class="fas fa-briefcase"></i>
-                <span>Clients</span>
+            <!-- Research & Analysis -->
+            <li class="nav-group">
+                <div class="nav-group-header" data-group="research">
+                    <span class="nav-group-label">Research & Analysis</span>
+                    <i class="fas fa-chevron-down nav-group-arrow"></i>
+                </div>
+                <ul class="nav-group-items">
+                    <li class="nav-item" data-page="research" data-tooltip="Keyword Research">
+                        <i class="fas fa-search"></i>
+                        <span>Keyword Research</span>
+                    </li>
+                    <li class="nav-item" data-page="competitors" data-tooltip="Competitors">
+                        <i class="fas fa-users"></i>
+                        <span>Competitors</span>
+                    </li>
+                    <li class="nav-item" data-page="analysis" data-tooltip="Compare & Analyze">
+                        <i class="fas fa-balance-scale"></i>
+                        <span>Compare & Analyze</span>
+                    </li>
+                    <li class="nav-item" data-page="tracking" data-tooltip="Rank Tracking">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Rank Tracking</span>
+                    </li>
+                    <li class="nav-item" data-page="gsc" data-tooltip="Search Console">
+                        <i class="fas fa-chart-column"></i>
+                        <span>Search Console</span>
+                    </li>
+                    <li class="nav-item" data-page="seo-performance" data-tooltip="SEO Performance">
+                        <i class="fas fa-chart-line"></i>
+                        <span>SEO Performance</span>
+                    </li>
+                    <li class="nav-item" data-page="alerts" data-tooltip="Alerts">
+                        <i class="fas fa-bell"></i>
+                        <span>Alerts</span>
+                        <span class="badge" id="alertBadge">0</span>
+                    </li>
+                </ul>
             </li>
-            <li class="nav-item" data-page="project-dashboard">
-                <i class="fas fa-tachometer-alt"></i>
-                <span>Project Dashboard</span>
+            <!-- Audit -->
+            <li class="nav-group">
+                <div class="nav-group-header" data-group="audit">
+                    <span class="nav-group-label">Audit</span>
+                    <i class="fas fa-chevron-down nav-group-arrow"></i>
+                </div>
+                <ul class="nav-group-items">
+                    <li class="nav-item" data-page="onpage" data-tooltip="On-Page SEO">
+                        <i class="fas fa-file-invoice"></i>
+                        <span>On-Page SEO</span>
+                    </li>
+                    <li class="nav-item" data-page="page-optimization" data-tooltip="Page Optimization">
+                        <i class="fas fa-bullseye"></i>
+                        <span>Page Optimization</span>
+                    </li>
+                    <li class="nav-item" data-page="page-speed" data-tooltip="PageSpeed">
+                        <i class="fas fa-bolt"></i>
+                        <span>PageSpeed</span>
+                    </li>
+                    <li class="nav-item" data-page="technical" data-tooltip="Technical SEO">
+                        <i class="fas fa-spider"></i>
+                        <span>Technical SEO</span>
+                    </li>
+                </ul>
             </li>
-            <li class="nav-item" data-page="research">
-                <i class="fas fa-search"></i>
-                <span>Keyword Research</span>
+            <!-- Content -->
+            <li class="nav-group">
+                <div class="nav-group-header" data-group="content">
+                    <span class="nav-group-label">Content</span>
+                    <i class="fas fa-chevron-down nav-group-arrow"></i>
+                </div>
+                <ul class="nav-group-items">
+                    <li class="nav-item" data-page="humanizer" data-tooltip="Content Humanizer">
+                        <i class="fas fa-pen-nib"></i>
+                        <span>Content Humanizer</span>
+                    </li>
+                    <li class="nav-item" data-page="content-brief" data-tooltip="Content Brief">
+                        <i class="fas fa-file-lines"></i>
+                        <span>Content Brief</span>
+                    </li>
+                    <li class="nav-item" data-page="reports" data-tooltip="Agency Reports">
+                        <i class="fas fa-file-pdf"></i>
+                        <span>Agency Reports</span>
+                    </li>
+                    <li class="nav-item" data-page="tasks" data-tooltip="SEO Tasks">
+                        <i class="fas fa-tasks"></i>
+                        <span>SEO Tasks</span>
+                    </li>
+                </ul>
             </li>
-            <li class="nav-item" data-page="competitors">
-                <i class="fas fa-users"></i>
-                <span>Competitors</span>
+            <!-- Agency Settings -->
+            <li class="nav-group">
+                <div class="nav-group-header" data-group="agency">
+                    <span class="nav-group-label">Agency</span>
+                    <i class="fas fa-chevron-down nav-group-arrow"></i>
+                </div>
+                <ul class="nav-group-items">
+                    <li class="nav-item" data-page="agency-settings" data-tooltip="Agency Settings">
+                        <i class="fas fa-building"></i>
+                        <span>Agency Settings</span>
+                    </li>
+                    <li class="nav-item" data-page="agency-members" data-tooltip="Team Members">
+                        <i class="fas fa-user-group"></i>
+                        <span>Team Members</span>
+                    </li>
+                </ul>
             </li>
-            <li class="nav-item" data-page="analysis">
-                <i class="fas fa-balance-scale"></i>
-                <span>Compare & Analyze</span>
-            </li>
-            <li class="nav-item" data-page="tracking">
-                <i class="fas fa-chart-bar"></i>
-                <span>Rank Tracking</span>
-            </li>
-            <li class="nav-item" data-page="alerts">
-                <i class="fas fa-bell"></i>
-                <span>Alerts</span>
-                <span class="badge" id="alertBadge">0</span>
-            </li>
-            <li class="nav-item" data-page="onpage">
-                <i class="fas fa-file-invoice"></i>
-                <span>On-Page SEO</span>
-            </li>
-            <li class="nav-item" data-page="page-optimization">
-                <i class="fas fa-bullseye"></i>
-                <span>Page Optimization</span>
-            </li>
-            <li class="nav-item" data-page="technical">
-                <i class="fas fa-spider"></i>
-                <span>Technical SEO</span>
-            </li>
-            <li class="nav-item" data-page="humanizer">
-                <i class="fas fa-pen-nib"></i>
-                <span>Content Humanizer</span>
-            </li>
-            <li class="nav-item" data-page="content-brief">
-                <i class="fas fa-file-lines"></i>
-                <span>Content Brief</span>
-            </li>
-            <li class="nav-item" data-page="reports">
-                <i class="fas fa-file-pdf"></i>
-                <span>Agency Reports</span>
-            </li>
-            <li class="nav-item" data-page="tasks">
-                <i class="fas fa-tasks"></i>
-                <span>SEO Tasks</span>
-            </li>
-            <!-- Social Tools -->
-            <li class="nav-item-header" style="padding: 15px 20px 5px; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; letter-spacing: 0.5px; opacity: 0.7;">
-                Social Poster
-            </li>
-            <li class="nav-item" data-page="social-upload">
-                <i class="fas fa-upload"></i>
-                <span>Upload</span>
-            </li>
-            <li class="nav-item" data-page="social-schedule">
-                <i class="fas fa-calendar-alt"></i>
-                <span>Schedule</span>
-            </li>
-            <li class="nav-item" data-page="social-platforms">
-                <i class="fas fa-hashtag"></i>
-                <span>Platforms</span>
-            </li>
-            <li class="nav-item" data-page="social-analytics">
-                <i class="fas fa-chart-pie"></i>
-                <span>Analytics</span>
-            </li>
-            <li class="nav-item-header" style="padding: 15px 20px 5px; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; letter-spacing: 0.5px; opacity: 0.7;">
-                Account
-            </li>
-            <li class="nav-item logout-button">
-                <i class="fas fa-sign-out-alt"></i>
-                <span>Logout</span>
+            <!-- Social Poster -->
+            <li class="nav-group">
+                <div class="nav-group-header" data-group="social">
+                    <span class="nav-group-label">Social Poster</span>
+                    <i class="fas fa-chevron-down nav-group-arrow"></i>
+                </div>
+                <ul class="nav-group-items">
+                    <li class="nav-item" data-page="social-upload" data-tooltip="Upload">
+                        <i class="fas fa-upload"></i>
+                        <span>Upload</span>
+                    </li>
+                    <li class="nav-item" data-page="social-schedule" data-tooltip="Schedule">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Schedule</span>
+                    </li>
+                    <li class="nav-item" data-page="social-platforms" data-tooltip="Platforms">
+                        <i class="fas fa-hashtag"></i>
+                        <span>Platforms</span>
+                    </li>
+                    <li class="nav-item" data-page="social-analytics" data-tooltip="Analytics">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Analytics</span>
+                    </li>
+                </ul>
             </li>
         </ul>
         <div class="sidebar-footer">
             <div class="version">v<%= version %></div>
+            <div class="nav-item logout-button">
+                <i class="fas fa-sign-out-alt"></i>
+                <span class="logo-text">Logout</span>
+            </div>
         </div>
     </nav>
+
+    <!-- Command Palette Modal -->
+    <div class="command-palette-overlay" id="commandPalette">
+        <div class="command-palette">
+            <div class="command-palette-input-wrap">
+                <i class="fas fa-search"></i>
+                <input type="text" id="commandPaletteInput" placeholder="Search pages, keywords, commands..." autocomplete="off">
+                <kbd>ESC</kbd>
+            </div>
+            <div class="command-palette-results" id="commandPaletteResults"></div>
+            <div class="command-palette-footer">
+                <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> navigate</span>
+                <span><kbd>Enter</kbd> select</span>
+                <span><kbd>Esc</kbd> close</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar Overlay for Mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Back to Top Button -->
+    <button class="back-to-top" id="backToTop" title="Back to top">
+        <i class="fas fa-arrow-up"></i>
+    </button>
 
     <!-- Main Content -->
     <main class="main-content">
         <!-- Header -->
         <header class="header">
             <div class="header-left">
-                <button class="menu-toggle">
+                <button class="menu-toggle" id="menuToggle">
                     <i class="fas fa-bars"></i>
                 </button>
-                <h1 id="pageTitle">Dashboard</h1>
+                <div class="header-title-area">
+                    <nav class="breadcrumbs" id="breadcrumbs">
+                        <span class="breadcrumb-item"><i class="fas fa-home"></i></span>
+                    </nav>
+                    <h1 id="pageTitle">Dashboard</h1>
+                </div>
             </div>
             <div class="header-right">
-                <div class="search-box">
+                <button class="header-action-btn command-palette-trigger" id="commandPaletteTrigger" title="Search (Ctrl+K)">
                     <i class="fas fa-search"></i>
-                    <input type="text" placeholder="Search keywords..." id="globalSearch">
-                </div>
+                    <span class="search-hint">Search...</span>
+                    <kbd>Ctrl+K</kbd>
+                </button>
+                <button class="header-action-btn" id="themeToggle" title="Toggle dark mode">
+                    <i class="fas fa-moon"></i>
+                </button>
             </div>
         </header>
 
@@ -142,6 +246,40 @@
         <div class="content">
             <!-- Dashboard Page -->
             <div class="page active" id="page-dashboard">
+                <!-- Quick Actions -->
+                <div class="quick-actions">
+                    <button class="quick-action-btn" data-page="research">
+                        <i class="fas fa-search blue"></i>
+                        <span>New Research</span>
+                    </button>
+                    <button class="quick-action-btn" data-page="onpage">
+                        <i class="fas fa-spider green"></i>
+                        <span>Run Audit</span>
+                    </button>
+                    <button class="quick-action-btn" data-page="reports">
+                        <i class="fas fa-file-pdf purple"></i>
+                        <span>Generate Report</span>
+                    </button>
+                    <button class="quick-action-btn" data-page="tasks">
+                        <i class="fas fa-tasks blue"></i>
+                        <span>View Tasks</span>
+                    </button>
+                </div>
+
+                <!-- Onboarding Checklist (shown until dismissed) -->
+                <div id="onboardingChecklist" class="card" style="display:none; margin-bottom: 20px; border-left: 4px solid #6366f1;">
+                    <div class="card-body" style="padding: 20px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <span style="font-size:1.3rem;">🚀</span>
+                                <h3 style="margin:0; font-size:1rem; font-weight:700;">Welcome! Here's how to get started</h3>
+                            </div>
+                            <button id="dismissOnboarding" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1.2rem;padding:4px;" title="Dismiss">&times;</button>
+                        </div>
+                        <div id="checklistItems" style="display:flex;flex-direction:column;gap:10px;"></div>
+                    </div>
+                </div>
+
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="stat-icon blue">
@@ -150,6 +288,7 @@
                         <div class="stat-info">
                             <h3 id="totalKeywords">0</h3>
                             <p>Keywords Tracked</p>
+                            <div class="stat-trend neutral" id="keywordsTrend"></div>
                         </div>
                     </div>
                     <div class="stat-card">
@@ -159,6 +298,7 @@
                         <div class="stat-info">
                             <h3 id="topRankings">0</h3>
                             <p>Top 10 Rankings</p>
+                            <div class="stat-trend neutral" id="rankingsTrend"></div>
                         </div>
                     </div>
                     <div class="stat-card">
@@ -243,27 +383,54 @@
                             </div>
                             <div class="card-body">
                                 <input type="hidden" id="clientIdInput">
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label>Client Name</label>
-                                        <input type="text" id="clientNameInput" placeholder="e.g. Acme Dental Clinic">
+                                <!-- Wizard Steps Indicator -->
+                                <div class="wizard-steps">
+                                    <div class="wizard-step active" data-step="1">
+                                        <span class="wizard-step-num">1</span>
+                                        <span class="wizard-step-label">Basic Info</span>
                                     </div>
-                                    <div class="form-group">
-                                        <label>Website URL</label>
-                                        <input type="text" id="clientWebsiteInput" placeholder="https://example.com">
+                                    <div class="wizard-step-line"></div>
+                                    <div class="wizard-step" data-step="2">
+                                        <span class="wizard-step-num">2</span>
+                                        <span class="wizard-step-label">Market</span>
+                                    </div>
+                                    <div class="wizard-step-line"></div>
+                                    <div class="wizard-step" data-step="3">
+                                        <span class="wizard-step-num">3</span>
+                                        <span class="wizard-step-label">Goals</span>
                                     </div>
                                 </div>
-                                <div class="form-row">
+
+                                <!-- Step 1: Basic Info -->
+                                <div class="wizard-panel active" data-panel="1">
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Client Name <span class="required">*</span></label>
+                                            <input type="text" id="clientNameInput" placeholder="e.g. Acme Dental Clinic" required>
+                                            <div class="field-error"><i class="fas fa-exclamation-circle"></i> <span></span></div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Website URL <span class="required">*</span></label>
+                                            <input type="text" id="clientWebsiteInput" placeholder="https://example.com" required>
+                                            <div class="field-error"><i class="fas fa-exclamation-circle"></i> <span></span></div>
+                                        </div>
+                                    </div>
                                     <div class="form-group">
                                         <label>Industry/Niche</label>
                                         <input type="text" id="clientIndustryInput" placeholder="e.g. Local dental clinic">
                                     </div>
+                                    <div class="wizard-nav">
+                                        <span></span>
+                                        <button class="btn btn-primary wizard-next" data-next="2">Next <i class="fas fa-arrow-right"></i></button>
+                                    </div>
+                                </div>
+
+                                <!-- Step 2: Market -->
+                                <div class="wizard-panel" data-panel="2">
                                     <div class="form-group">
                                         <label>Target Locations</label>
                                         <input type="text" id="clientLocationsInput" placeholder="Bangalore, Whitefield, India">
                                     </div>
-                                </div>
-                                <div class="form-row">
                                     <div class="form-group">
                                         <label>Competitors</label>
                                         <input type="text" id="clientCompetitorsInput" placeholder="competitor1.com, competitor2.com">
@@ -272,16 +439,27 @@
                                         <label>Services/Products</label>
                                         <input type="text" id="clientServicesInput" placeholder="SEO, web design, PPC">
                                     </div>
+                                    <div class="wizard-nav">
+                                        <button class="btn btn-outline wizard-prev" data-prev="1"><i class="fas fa-arrow-left"></i> Back</button>
+                                        <button class="btn btn-primary wizard-next" data-next="3">Next <i class="fas fa-arrow-right"></i></button>
+                                    </div>
                                 </div>
-                                <div class="form-group">
-                                    <label>Audience</label>
-                                    <input type="text" id="clientAudienceInput" placeholder="e.g. homeowners, startup founders, local patients">
+
+                                <!-- Step 3: Goals -->
+                                <div class="wizard-panel" data-panel="3">
+                                    <div class="form-group">
+                                        <label>Audience</label>
+                                        <input type="text" id="clientAudienceInput" placeholder="e.g. homeowners, startup founders, local patients">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>SEO Goals</label>
+                                        <textarea id="clientGoalsInput" placeholder="Rank service pages, grow local leads, build blog topical authority"></textarea>
+                                    </div>
+                                    <div class="wizard-nav">
+                                        <button class="btn btn-outline wizard-prev" data-prev="2"><i class="fas fa-arrow-left"></i> Back</button>
+                                        <button class="btn btn-primary" id="saveClientBtn"><i class="fas fa-save"></i> Save Client</button>
+                                    </div>
                                 </div>
-                                <div class="form-group">
-                                    <label>SEO Goals</label>
-                                    <textarea id="clientGoalsInput" placeholder="Rank service pages, grow local leads, build blog topical authority"></textarea>
-                                </div>
-                                <button class="btn btn-primary" id="saveClientBtn"><i class="fas fa-save"></i> Save Client</button>
                             </div>
                         </div>
 
@@ -416,6 +594,31 @@
                                     <p>Unread alerts</p>
                                 </div>
                             </div>
+                            <div class="pd-stat">
+                                <div class="pd-stat-icon teal"><i class="fas fa-magnifying-glass-chart"></i></div>
+                                <div class="pd-stat-info">
+                                    <h3 id="pdStatGscClicks">—</h3>
+                                    <p>GSC clicks</p>
+                                </div>
+                            </div>
+                            <div class="pd-stat">
+                                <div class="pd-stat-icon purple"><i class="fas fa-bolt"></i></div>
+                                <div class="pd-stat-info">
+                                    <h3 id="pdStatGscScore">—</h3>
+                                    <p>GSC score</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card pd-gsc-card" id="pdGscCard">
+                            <div class="card-header">
+                                <h3><i class="fas fa-magnifying-glass-chart"></i> GSC Performance</h3>
+                                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                    <span class="header-hint">Real Google clicks, impressions, CTR, and opportunity data</span>
+                                    <button class="btn btn-sm btn-outline" id="pdGscSyncBtn"><i class="fas fa-cloud-arrow-down"></i> Sync GSC</button>
+                                </div>
+                            </div>
+                            <div class="card-body" id="pdGscBlock"></div>
                         </div>
 
                         <!-- Movement strip -->
@@ -560,26 +763,34 @@
                             </select>
                         </div>
 
-                                                <div class="form-group">
-                            <label>Save research to project</label>
-                            <select id="researchProjectSelect">
-                                <option value="">Do not attach to project</option>
-                            </select>
-                        </div>
-
-                        <div class="checkbox-row">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="includeIntent" checked>
-                                <span>Intent Analysis</span>
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="includeSerpFeatures" checked>
-                                <span>SERP Features</span>
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="includeContentGap" checked>
-                                <span>Content Gap Analysis</span>
-                            </label>
+                        <!-- Collapsible Advanced Options -->
+                        <div class="collapsible-section">
+                            <div class="collapsible-header" id="researchAdvancedToggle">
+                                <h4><i class="fas fa-sliders"></i> Advanced Options</h4>
+                                <i class="fas fa-chevron-down chevron"></i>
+                            </div>
+                            <div class="collapsible-body" id="researchAdvancedBody">
+                                <div class="form-group">
+                                    <label>Save research to project</label>
+                                    <select id="researchProjectSelect">
+                                        <option value="">Do not attach to project</option>
+                                    </select>
+                                </div>
+                                <div class="checkbox-row">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="includeIntent" checked>
+                                        <span>Intent Analysis</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="includeSerpFeatures" checked>
+                                        <span>SERP Features</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="includeContentGap" checked>
+                                        <span>Content Gap Analysis</span>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
                         
                         <button class="btn btn-primary" id="researchBtn" style="width: 200px; justify-content: center; height: 50px; font-weight: 600;">
@@ -1266,6 +1477,56 @@
                 </div>
             </div>
 
+            <div class="page" id="page-page-speed">
+                <div class="technical-container">
+                    <div class="card onpage-form-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-bolt"></i> PageSpeed</h3>
+                            <span class="header-hint">Check mobile speed, Core Web Vitals, Lighthouse scores, and priority performance fixes</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="technical-input-row">
+                                <select id="pagespeed-client-select">
+                                    <option value="">No client selected</option>
+                                </select>
+                                <input type="text" id="pagespeed-url-input" placeholder="https://example.com">
+                                <select id="pagespeed-strategy-input">
+                                    <option value="mobile" selected>Mobile</option>
+                                    <option value="desktop">Desktop</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary" id="pagespeed-check-btn">
+                                <i class="fas fa-bolt"></i> Run PageSpeed
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card pagespeed-history-card" style="margin-bottom:20px;">
+                        <div class="card-header">
+                            <h3><i class="fas fa-clock-rotate-left"></i> Recent PageSpeed Checks</h3>
+                            <button class="btn btn-sm btn-outline" id="pagespeed-refresh-history-btn"><i class="fas fa-rotate-right"></i> Refresh</button>
+                        </div>
+                        <div class="card-body" id="pagespeed-history-list">
+                            <p class="text-muted">Select a client or run a check to see recent PageSpeed history.</p>
+                        </div>
+                    </div>
+
+                    <div class="card pagespeed-card" id="pagespeed-results" style="display:none;margin-bottom:20px;">
+                        <div class="card-header">
+                            <h3><i class="fas fa-bolt"></i> PageSpeed & Core Web Vitals</h3>
+                            <span class="header-hint" id="pagespeed-source-label">Mobile lab data from Google PageSpeed Insights</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="pagespeed-score-grid" id="pagespeed-score-grid"></div>
+                            <div class="pagespeed-metric-grid" id="pagespeed-metric-grid"></div>
+                            <div class="pagespeed-crux" id="pagespeed-crux-grid"></div>
+                            <div class="pagespeed-suggestions" id="pagespeed-suggestions"></div>
+                            <div class="pagespeed-opportunities" id="pagespeed-opportunities"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="page" id="page-technical">
                 <div class="technical-container">
                     <div class="card onpage-form-card">
@@ -1288,6 +1549,7 @@
                             </button>
                         </div>
                     </div>
+
 
                     <div id="technical-results" style="display:none">
                         <div class="technical-top-grid">
@@ -1420,6 +1682,26 @@
                                     </select>
                                 </div>
                             </div>
+                            <div class="form-row" style="margin-top: 10px; margin-bottom: 15px;">
+                                <div class="form-group">
+                                    <label>Saved Voice Profiles</label>
+                                    <div style="display:flex; gap:10px;">
+                                        <select id="voiceProfileSelect" style="flex-grow:1;">
+                                            <option value="">-- Select Saved Profile --</option>
+                                        </select>
+                                        <button class="btn btn-sm btn-outline" id="saveVoiceProfileBtn" title="Save Current Voice & Audience as Profile">
+                                            <i class="fas fa-save"></i> Save Profile
+                                        </button>
+                                        <button class="btn btn-sm btn-outline" id="deleteVoiceProfileBtn" title="Delete Selected Profile" style="border-color:#ef4444; color:#ef4444;">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label>Writing Sample (Optional for Voice Calibration)</label>
+                                <textarea id="humanizerSample" placeholder="Paste a sample of your own writing (100-500 words). The humanizer will analyze its sentence structure, vocabulary complexity, paragraph openers, and punctuation habits to calibrate the output to your voice." style="min-height: 80px; width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; font-family: inherit; font-size: 13px; resize: vertical; background: transparent; color: inherit;"></textarea>
+                            </div>
                             <div class="form-group">
                                 <label>Preserve keywords / phrases</label>
                                 <input type="text" id="humanizerKeywords" placeholder="Comma-separated phrases to keep, e.g. web design company, Bangalore, 24/7 support">
@@ -1464,14 +1746,14 @@
                         <div class="metrics-grid" style="margin-bottom:20px;">
                             <div class="metric-card">
                                 <div class="metric-header">
-                                    <span class="metric-label">Original Naturalness</span>
+                                    <span class="metric-label">Original AI Estimate</span>
                                     <span class="metric-icon"><i class="fas fa-file-alt"></i></span>
                                 </div>
                                 <div class="metric-value" id="humanizerOriginalScore">-</div>
                             </div>
                             <div class="metric-card">
                                 <div class="metric-header">
-                                    <span class="metric-label">Refined Naturalness</span>
+                                    <span class="metric-label">Refined AI Estimate</span>
                                     <span class="metric-icon"><i class="fas fa-feather"></i></span>
                                 </div>
                                 <div class="metric-value" id="humanizerRefinedScore">-</div>
@@ -1505,13 +1787,34 @@
 
                         <div class="card" style="margin-bottom:20px;">
                             <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-                                <h3>Refined Copy</h3>
+                                <div style="display:flex; align-items:center; gap:15px;">
+                                    <h3 style="margin:0;">Refined Copy</h3>
+                                    <div class="btn-group" style="display:flex; background:#f3f4f6; padding:2px; border-radius:8px;">
+                                        <button class="btn btn-sm" id="btnModeEdit" style="background:#fff; border-radius:6px; font-weight:600; padding:4px 10px; border:none; box-shadow:0 1px 2px rgba(0,0,0,0.05); color:#111827;">Edit Text</button>
+                                        <button class="btn btn-sm" id="btnModeDiff" style="background:transparent; border-radius:6px; font-weight:500; padding:4px 10px; border:none; color:#4b5563;">View Diff</button>
+                                    </div>
+                                </div>
                                 <button class="btn btn-sm btn-outline" id="copyHumanizedBtn">
                                     <i class="fas fa-copy"></i> Copy
                                 </button>
                             </div>
                             <div class="card-body">
+                                <div id="toneAdjustersContainer" style="display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+                                    <button class="btn btn-sm btn-outline tone-adjust-btn" data-adj="punchier">
+                                        <i class="fas fa-bolt" style="color:#eab308; margin-right:4px;"></i> Make it punchier
+                                    </button>
+                                    <button class="btn btn-sm btn-outline tone-adjust-btn" data-adj="simpler">
+                                        <i class="fas fa-feather" style="color:#3b82f6; margin-right:4px;"></i> Make it simpler
+                                    </button>
+                                    <button class="btn btn-sm btn-outline tone-adjust-btn" data-adj="more-casual">
+                                        <i class="fas fa-mug-hot" style="color:#10b981; margin-right:4px;"></i> More casual
+                                    </button>
+                                    <button class="btn btn-sm btn-outline tone-adjust-btn" data-adj="more-professional">
+                                        <i class="fas fa-briefcase" style="color:#6b7280; margin-right:4px;"></i> More professional
+                                    </button>
+                                </div>
                                 <textarea id="humanizerOutput" style="min-height:260px;width:100%;padding:16px;border:1px solid #e5e7eb;border-radius:12px;resize:vertical;font-family:inherit;"></textarea>
+                                <div id="humanizerDiffContainer" style="display:none; min-height:260px; width:100%; padding:16px; border:1px solid #e5e7eb; border-radius:12px; background:#fafafa; overflow-y:auto; white-space:pre-wrap; font-family:inherit; font-size:14px; line-height:1.6; color:#1f2937;"></div>
                             </div>
                         </div>
 
@@ -1820,6 +2123,264 @@
                 </div>
             </div>
 
+            <!-- ─── Search Console (GSC) Page ─── -->
+            <div class="page" id="page-gsc">
+              <div style="max-width:1200px;margin:0 auto;padding:0 4px;">
+
+                <!-- Header -->
+                <div style="background:linear-gradient(135deg,#0f9d58 0%,#34a853 100%);border-radius:16px;padding:32px 36px;margin-bottom:28px;color:#fff;position:relative;overflow:hidden;">
+                  <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,0.07);"></div>
+                  <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
+                    <div style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;">🔍</div>
+                    <div>
+                      <h2 style="font-size:1.4rem;font-weight:800;margin:0;">Google Search Console</h2>
+                      <p style="margin:2px 0 0;opacity:.8;font-size:.9rem;">Service Account — live data from your client's GSC property</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Setup warning (shown if not configured) -->
+                <div id="gscSetupWarning" style="display:none;background:#1e293b;border:1px solid #f59e0b;border-radius:12px;padding:20px 24px;margin-bottom:24px;">
+                  <div style="display:flex;align-items:flex-start;gap:12px;">
+                    <span style="font-size:1.4rem;">⚠️</span>
+                    <div>
+                      <p style="font-weight:700;color:#f59e0b;margin:0 0 6px;">GSC not configured</p>
+                      <p style="color:#94a3b8;margin:0;font-size:.9rem;">
+                        Add <code style="background:#0f172a;padding:2px 6px;border-radius:4px;">GSC_SERVICE_ACCOUNT_JSON</code> to your <code style="background:#0f172a;padding:2px 6px;border-radius:4px;">.env</code> file.
+                        See <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" style="color:#60a5fa;">Google Cloud → Service Accounts</a> to create a key.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Client selector + Connect + Sync controls -->
+                <div style="background:#1e293b;border-radius:12px;padding:20px 24px;margin-bottom:24px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+                  <div style="flex:1;min-width:200px;">
+                    <label style="font-size:.8rem;color:#94a3b8;display:block;margin-bottom:6px;">Client</label>
+                    <select id="gscClientSelect" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;padding:10px 14px;font-size:.9rem;">
+                      <option value="">— select a client —</option>
+                    </select>
+                  </div>
+                  <div style="flex:1;min-width:220px;">
+                    <label style="font-size:.8rem;color:#94a3b8;display:block;margin-bottom:6px;">GSC Property URL</label>
+                    <input id="gscSiteUrlInput" type="text" placeholder="https://example.com/ or sc-domain:example.com"
+                      style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;padding:10px 14px;font-size:.9rem;box-sizing:border-box;">
+                  </div>
+                  <div style="display:flex;gap:8px;flex-shrink:0;">
+                    <button onclick="gscConnect()" style="padding:10px 18px;background:#0f9d58;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.85rem;">
+                      <i class="fas fa-link"></i> Connect
+                    </button>
+                    <button onclick="gscSync()" style="padding:10px 18px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.85rem;">
+                      <i class="fas fa-sync"></i> Sync Now
+                    </button>
+                    <button onclick="gscLoad()" style="padding:10px 18px;background:#334155;color:#e2e8f0;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.85rem;">
+                      <i class="fas fa-chart-line"></i> Load Data
+                    </button>
+                    <button onclick="gscGenerateClientReport()" style="padding:10px 18px;background:#7c3aed;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.85rem;">
+                      <i class="fas fa-file-lines"></i> Client Report
+                    </button>
+                  </div>
+                </div>
+
+
+                <!-- Client-wise GSC connection manager -->
+                <div style="background:#1e293b;border-radius:12px;padding:20px 24px;margin-bottom:24px;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+                    <div>
+                      <h3 style="font-size:1rem;font-weight:700;margin:0;color:#e2e8f0;">Client GSC Connections</h3>
+                      <p style="color:#94a3b8;margin:4px 0 0;font-size:.84rem;">One service account can manage many client properties. Add the service account email to each client's Search Console, then connect that client's exact property here.</p>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                      <button onclick="gscSyncAllClients()" style="padding:9px 14px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.82rem;">
+                        <i class="fas fa-cloud-arrow-down"></i> Sync All Connected
+                      </button>
+                      <button onclick="gscRefreshClientManager()" style="padding:9px 14px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:8px;cursor:pointer;font-weight:600;font-size:.82rem;">
+                        <i class="fas fa-rotate"></i> Refresh
+                      </button>
+                    </div>
+                  </div>
+                  <div id="gscClientManagerList">
+                    <p style="color:#64748b;font-size:.85rem;margin:0;">Loading client GSC connections...</p>
+                  </div>
+                </div>
+
+
+                <!-- GSC sync history -->
+                <div style="background:#1e293b;border-radius:12px;padding:20px 24px;margin-bottom:24px;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+                    <div>
+                      <h3 style="font-size:1rem;font-weight:700;margin:0;color:#e2e8f0;">Recent GSC Syncs</h3>
+                      <p style="color:#94a3b8;margin:4px 0 0;font-size:.84rem;">Track manual, bulk, and daily sync results for every connected client.</p>
+                    </div>
+                  </div>
+                  <div id="gscSyncLogList">
+                    <p style="color:#64748b;font-size:.85rem;margin:0;">Loading sync history...</p>
+                  </div>
+                </div>
+
+                <!-- Overview stat cards -->
+                <div id="gscOverviewCards" style="display:none;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px;">
+                  <div style="background:#1e293b;border-radius:12px;padding:20px;text-align:center;">
+                    <div style="font-size:2rem;font-weight:800;color:#0f9d58;" id="gscStatClicks">—</div>
+                    <div style="font-size:.8rem;color:#94a3b8;margin-top:4px;">Total Clicks</div>
+                  </div>
+                  <div style="background:#1e293b;border-radius:12px;padding:20px;text-align:center;">
+                    <div style="font-size:2rem;font-weight:800;color:#6366f1;" id="gscStatImpressions">—</div>
+                    <div style="font-size:.8rem;color:#94a3b8;margin-top:4px;">Impressions</div>
+                  </div>
+                  <div style="background:#1e293b;border-radius:12px;padding:20px;text-align:center;">
+                    <div style="font-size:2rem;font-weight:800;color:#f59e0b;" id="gscStatCtr">—</div>
+                    <div style="font-size:.8rem;color:#94a3b8;margin-top:4px;">Avg CTR</div>
+                  </div>
+                  <div style="background:#1e293b;border-radius:12px;padding:20px;text-align:center;">
+                    <div style="font-size:2rem;font-weight:800;color:#e2e8f0;" id="gscStatPosition">—</div>
+                    <div style="font-size:.8rem;color:#94a3b8;margin-top:4px;">Avg Position</div>
+                  </div>
+                </div>
+
+                <!-- Two-column layout: Top Queries + Quick Wins -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;" id="gscMainGrid">
+
+                  <!-- Top Queries -->
+                  <div style="background:#1e293b;border-radius:12px;padding:20px;">
+                    <h3 style="font-size:1rem;font-weight:700;margin:0 0 16px;color:#e2e8f0;display:flex;align-items:center;gap:8px;">
+                      <span style="background:#0f9d58;width:8px;height:8px;border-radius:50%;display:inline-block;"></span> Top Queries
+                    </h3>
+                    <div id="gscTopQueriesTable"><p style="color:#64748b;font-size:.85rem;">Load data to see top queries.</p></div>
+                  </div>
+
+                  <!-- Quick Win Keywords (pos 8–20) -->
+                  <div style="background:#1e293b;border-radius:12px;padding:20px;">
+                    <h3 style="font-size:1rem;font-weight:700;margin:0 0 16px;color:#e2e8f0;display:flex;align-items:center;gap:8px;">
+                      <span style="background:#f59e0b;width:8px;height:8px;border-radius:50%;display:inline-block;"></span> Quick Win Keywords
+                      <span style="font-size:.75rem;font-weight:400;color:#94a3b8;">Position 8–20</span>
+                    </h3>
+                    <div id="gscOpportunitiesTable"><p style="color:#64748b;font-size:.85rem;">Load data to see opportunities.</p></div>
+                  </div>
+                </div>
+
+                <!-- Low CTR Pages -->
+                <div style="background:#1e293b;border-radius:12px;padding:20px;margin-bottom:20px;">
+                  <h3 style="font-size:1rem;font-weight:700;margin:0 0 16px;color:#e2e8f0;display:flex;align-items:center;gap:8px;">
+                    <span style="background:#ef4444;width:8px;height:8px;border-radius:50%;display:inline-block;"></span> Low CTR Pages
+                    <span style="font-size:.75rem;font-weight:400;color:#94a3b8;">High impressions, CTR &lt; 2% — fix meta titles/descriptions</span>
+                  </h3>
+                  <div id="gscLowCtrTable"><p style="color:#64748b;font-size:.85rem;">Load data to see low CTR pages.</p></div>
+                </div>
+
+                <!-- Top Pages -->
+                <div style="background:#1e293b;border-radius:12px;padding:20px;margin-bottom:20px;">
+                  <h3 style="font-size:1rem;font-weight:700;margin:0 0 16px;color:#e2e8f0;display:flex;align-items:center;gap:8px;">
+                    <span style="background:#6366f1;width:8px;height:8px;border-radius:50%;display:inline-block;"></span> Top Pages by Clicks
+                  </h3>
+                  <div id="gscTopPagesTable"><p style="color:#64748b;font-size:.85rem;">Load data to see top pages.</p></div>
+                </div>
+
+              </div>
+            </div><!-- end #page-gsc -->
+
+            <div class="page" id="page-seo-performance">
+                <div class="content-section">
+                    <div class="card" style="margin-bottom:18px;">
+                        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                            <div>
+                                <h2 style="font-size:1.35rem;font-weight:800;margin:0;">SEO Performance</h2>
+                                <p style="color:var(--text-muted);margin:4px 0 0;font-size:.86rem;">Connect GSC pages with GA4 landing-page behavior to find conversion and CTR opportunities.</p>
+                            </div>
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                <select id="seoPerfClientSelect" class="form-control" style="min-width:260px;"></select>
+                                <button class="btn btn-primary" id="seoPerfRefreshBtn"><i class="fas fa-rotate-right"></i> Refresh</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metrics-grid" id="seoPerfKpis" style="margin-bottom:18px;"></div>
+
+                    <div class="card" style="margin-bottom:18px;">
+                        <div class="card-header"><h3>High-Impact Opportunities</h3></div>
+                        <div class="card-body" id="seoPerfOpportunities"></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header"><h3>Keyword -> Page -> Behavior</h3></div>
+                        <div class="card-body" id="seoPerfKeywordPages"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── Agency Settings Page ─── -->
+            <div class="page" id="page-agency-settings">
+                <div style="max-width: 900px; margin: 0 auto; padding: 0 4px;">
+                    <div class="card" style="margin-bottom: 24px;">
+                        <div class="card-header">
+                            <h3><i class="fas fa-building"></i> Agency Settings</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>Agency Name</label>
+                                <input type="text" id="agencyNameInput" placeholder="Your Agency Name" style="width: 100%;">
+                            </div>
+                            <div style="display: flex; gap: 12px; align-items: center; margin-top: 16px;">
+                                <button class="btn btn-primary" id="saveAgencyNameBtn">
+                                    <i class="fas fa-save"></i> Save Changes
+                                </button>
+                                <span id="agencySettingsStatus" style="font-size: 13px; color: var(--text-muted);"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-bottom: 24px;">
+                        <div class="card-header">
+                            <h3><i class="fas fa-user-plus"></i> Invite Team Member</h3>
+                        </div>
+                        <div class="card-body">
+                            <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
+                                <div class="form-group" style="flex: 1; min-width: 250px; margin: 0;">
+                                    <label>Email Address</label>
+                                    <input type="email" id="inviteEmailInput" placeholder="colleague@example.com" style="width: 100%;">
+                                </div>
+                                <div class="form-group" style="min-width: 150px; margin: 0;">
+                                    <label>Role</label>
+                                    <select id="inviteRoleSelect" style="width: 100%;">
+                                        <option value="agent">Agent</option>
+                                        <option value="manager">Manager</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-primary" id="sendInviteBtn">
+                                    <i class="fas fa-paper-plane"></i> Send Invite
+                                </button>
+                            </div>
+                            <div id="inviteResult" style="margin-top: 12px; font-size: 13px;"></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-envelope"></i> Pending Invites</h3>
+                            <button class="btn btn-sm btn-outline" id="refreshInvitesBtn"><i class="fas fa-rotate-right"></i> Refresh</button>
+                        </div>
+                        <div class="card-body" id="pendingInvitesList">
+                            <p class="text-muted">Loading invites...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── Agency Members Page ─── -->
+            <div class="page" id="page-agency-members">
+                <div style="max-width: 900px; margin: 0 auto; padding: 0 4px;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-user-group"></i> Team Members</h3>
+                            <button class="btn btn-sm btn-outline" id="refreshMembersBtn"><i class="fas fa-rotate-right"></i> Refresh</button>
+                        </div>
+                        <div class="card-body" id="agencyMembersList">
+                            <p class="text-muted">Loading members...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- ─── Reports Page ─── -->
             <div class="page" id="page-reports">
                 <div style="max-width: 1100px; margin: 0 auto; padding: 0 4px;">
@@ -1838,6 +2399,7 @@
                             <span>📄 Monthly SEO Report</span>
                             <span>📈 Keyword Movement</span>
                             <span>🔧 Technical Fixes</span>
+                            <span>⚡ PageSpeed & Core Web Vitals</span>
                             <span>✍️ Content Recommendations</span>
                             <span>⚔️ Competitor Changes</span>
                             <span>🗓️ Next Month Plan</span>
@@ -1876,12 +2438,16 @@
                                         <option value="7">Last 7 days</option>
                                     </select>
                                 </div>
+                                <label style="display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);font-size:13px;color:var(--text);margin-bottom:12px;">
+                                    <input type="checkbox" id="reportIncludePageSpeed" checked style="margin-top:2px;">
+                                    <span><strong>Include PageSpeed</strong><br><span style="font-size:12px;color:var(--text-muted);">Adds mobile PageSpeed and Core Web Vitals metrics when available.</span></span>
+                                </label>
                                 <button class="btn btn-primary" id="generateReportBtn" style="width:100%;justify-content:center;height:48px;font-size:0.95rem;font-weight:700;margin-top:8px;">
                                     <i class="fas fa-magic"></i> Generate Report
                                 </button>
                                 <div id="reportGenerating" style="display:none;text-align:center;padding:16px;color:var(--text-muted);font-size:13px;">
                                     <div style="display:inline-block;width:20px;height:20px;border:2px solid var(--brand);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;"></div>
-                                    Generating report with AI analysis...
+                                    Generating full client report with PageSpeed and AI analysis...
                                 </div>
                             </div>
                         </div>
@@ -1908,6 +2474,58 @@
                                 </div>
                                 <div id="savedReportsList">
                                     <p style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">No saved reports yet. Generate your first report above.</p>
+                                </div>
+                            </div>
+
+                            <!-- Scheduled Email Reports -->
+                            <div class="card" style="margin-top:20px;">
+                                <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+                                    <h3 style="margin:0;font-size:1rem;"><i class="fas fa-envelope"></i> Scheduled Email Reports</h3>
+                                    <button class="btn btn-sm btn-outline" onclick="loadScheduledReports()"><i class="fas fa-rotate-right"></i> Refresh</button>
+                                </div>
+                                <div class="card-body">
+                                    <div id="scheduledReportsSmtpStatus" style="margin-bottom:12px;"></div>
+
+                                    <!-- Create form -->
+                                    <div style="background:var(--bg);border-radius:10px;padding:16px;margin-bottom:16px;">
+                                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                                            <div>
+                                                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Domain</label>
+                                                <input type="text" id="schedDomain" placeholder="example.com" class="form-input" style="width:100%;">
+                                            </div>
+                                            <div>
+                                                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Report Title</label>
+                                                <input type="text" id="schedTitle" placeholder="Monthly SEO Report" class="form-input" style="width:100%;">
+                                            </div>
+                                            <div>
+                                                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Recipients (comma-separated)</label>
+                                                <input type="text" id="schedRecipients" placeholder="client@example.com, manager@example.com" class="form-input" style="width:100%;">
+                                            </div>
+                                            <div>
+                                                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Frequency</label>
+                                                <select id="schedFrequency" class="form-input" style="width:100%;">
+                                                    <option value="weekly">Weekly</option>
+                                                    <option value="biweekly">Biweekly</option>
+                                                    <option value="monthly" selected>Monthly</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Send at Hour (0-23)</label>
+                                                <input type="number" id="schedHour" value="8" min="0" max="23" class="form-input" style="width:100%;">
+                                            </div>
+                                            <div>
+                                                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Day of Month (1-28)</label>
+                                                <input type="number" id="schedDayOfMonth" value="1" min="1" max="28" class="form-input" style="width:100%;">
+                                            </div>
+                                        </div>
+                                        <div style="display:flex;gap:8px;margin-top:12px;">
+                                            <button class="btn btn-primary" onclick="createScheduledReport()" style="flex:1;"><i class="fas fa-plus"></i> Create Schedule</button>
+                                            <button class="btn btn-outline" onclick="sendTestEmail()"><i class="fas fa-paper-plane"></i> Send Test</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- List -->
+                                    <div id="scheduledReportsList"></div>
                                 </div>
                             </div>
                         </div>
@@ -1939,6 +2557,7 @@
     <!-- Toast Notifications -->
     <div class="toast-container" id="toastContainer"></div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js"></script>
     <script src="/public/js/app.js"></script>
     <script src="/public/js/onpage.js"></script>
     <script src="/public/js/technical.js"></script>
@@ -1946,7 +2565,9 @@
     <script src="/public/js/project-dashboard.js"></script>
     <script src="/public/js/page-optimization.js"></script>
     <script src="/public/js/reports.js"></script>
+    <script src="/public/js/seo-performance.js"></script>
     <script src="/public/js/tasks.js"></script>
+    <script src="/public/js/agency.js"></script>
 
 </body>
 </html>

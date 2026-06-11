@@ -132,6 +132,8 @@ function renderPdSummary(data) {
     pdSetText('#pdStatTech', tech && tech.score !== null && tech.score !== undefined ? `${tech.score}` : '—');
     pdSetText('#pdStatVolume', pdFormatNumber(s.totalSearchVolume));
     pdSetText('#pdStatAlerts', pdFormatNumber(data.alerts?.unreadCount || 0));
+    pdSetText('#pdStatGscClicks', data.gsc ? pdFormatNumber(data.gsc.clicks || 0) : '—');
+    pdSetText('#pdStatGscScore', data.gsc?.performanceScore !== null && data.gsc?.performanceScore !== undefined ? data.gsc.performanceScore : '—');
 
     pdSetText('#pdMoveUp', pdFormatNumber(s.improvedRankings));
     pdSetText('#pdMoveDown', pdFormatNumber(s.droppedRankings));
@@ -250,6 +252,92 @@ function renderPdTechnical(data) {
     `;
 }
 
+
+function renderPdGsc(data) {
+    const container = $('#pdGscBlock');
+    if (!container) return;
+    const gsc = data.gsc;
+    if (!gsc) {
+        container.innerHTML = `
+            <div class="pd-gsc-empty">
+                <div>${pdEmpty('No Google Search Console data synced yet. Add the service account JSON, connect the client property, then sync this project.', 'fa-magnifying-glass-chart')}</div>
+                <div class="pd-gsc-env-note">Requires GSC_SERVICE_ACCOUNT_JSON and GSC user access for the client property.</div>
+            </div>
+        `;
+        return;
+    }
+
+    const ctr = gsc.ctr === null || gsc.ctr === undefined ? '—' : `${(Number(gsc.ctr) * 100).toFixed(1)}%`;
+    const position = gsc.position === null || gsc.position === undefined ? '—' : Number(gsc.position).toFixed(1);
+    const quickWins = gsc.quickWinKeywords || [];
+    const lowCtr = gsc.lowCtrPages || [];
+    const topPages = gsc.topPages || [];
+
+    container.innerHTML = `
+        <div class="pd-gsc-summary">
+            <div><span>Clicks</span><strong>${pdFormatNumber(gsc.clicks || 0)}</strong></div>
+            <div><span>Impressions</span><strong>${pdFormatNumber(gsc.impressions || 0)}</strong></div>
+            <div><span>CTR</span><strong>${ctr}</strong></div>
+            <div><span>Avg position</span><strong>${position}</strong></div>
+        </div>
+        <div class="pd-gsc-grid">
+            <div>
+                <h4>Quick-win keywords</h4>
+                ${quickWins.length ? quickWins.slice(0, 6).map(row => `
+                    <div class="pd-gsc-row">
+                        <span>${pdEscape(row.query)}</span>
+                        <strong>#${Number(row.position).toFixed(1)}</strong>
+                        <small>${pdFormatNumber(row.impressions)} impr.</small>
+                    </div>
+                `).join('') : pdEmpty('No keywords in positions 8-20 yet.', 'fa-key')}
+            </div>
+            <div>
+                <h4>Low CTR pages</h4>
+                ${lowCtr.length ? lowCtr.slice(0, 6).map(row => `
+                    <div class="pd-gsc-row">
+                        <span title="${pdEscape(row.page)}">${pdEscape((row.page || '').replace(/^https?:\/\//, ''))}</span>
+                        <strong>${(Number(row.ctr) * 100).toFixed(1)}%</strong>
+                        <small>${pdFormatNumber(row.impressions)} impr.</small>
+                    </div>
+                `).join('') : pdEmpty('No low-CTR page opportunities yet.', 'fa-bullseye')}
+            </div>
+            <div>
+                <h4>Top pages</h4>
+                ${topPages.length ? topPages.slice(0, 6).map(row => `
+                    <div class="pd-gsc-row">
+                        <span title="${pdEscape(row.page)}">${pdEscape((row.page || '').replace(/^https?:\/\//, ''))}</span>
+                        <strong>${pdFormatNumber(row.clicks)}</strong>
+                        <small>clicks</small>
+                    </div>
+                `).join('') : pdEmpty('No page data synced yet.', 'fa-file-lines')}
+            </div>
+        </div>
+    `;
+}
+
+async function syncPdGsc() {
+    if (!PD.currentProjectId) return;
+    const btn = document.querySelector('#pdGscSyncBtn');
+    const original = btn?.innerHTML;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+    }
+    try {
+        const data = await api(`/api/projects/${PD.currentProjectId}/gsc/sync`, { method: 'POST', body: JSON.stringify({}) });
+        showSuccess(`GSC synced: ${pdFormatNumber(data.result?.rows || 0)} rows`);
+        PD.cache.delete(PD.currentProjectId);
+        await loadProjectDashboard(PD.currentProjectId, { force: true });
+    } catch (err) {
+        showError(err.message || 'Could not sync GSC data');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
+    }
+}
+
 function renderPdContentGaps(data) {
     const container = $('#pdContentGaps');
     if (!container) return;
@@ -339,6 +427,7 @@ function renderPdDashboard(data) {
     renderPdKeywords(data);
     renderPdCompetitors(data);
     renderPdTechnical(data);
+    renderPdGsc(data);
     renderPdContentGaps(data);
     renderPdAlerts(data);
     renderPdActions(data);
@@ -377,6 +466,9 @@ async function loadProjectDashboard(projectId, { force = false } = {}) {
         if (body) body.style.display = '';
         if (empty) empty.style.display = 'none';
         const data = await api(`/api/projects/${projectId}/dashboard`);
+        if (data && data.error) {
+            throw new Error(data.error);
+        }
         PD.cache.set(projectId, data);
         renderPdDashboard(data);
     } catch (err) {
@@ -422,6 +514,12 @@ async function initProjectDashboard() {
                 pdShowEmpty();
             }
         });
+    }
+
+    const gscSyncBtn = document.querySelector('#pdGscSyncBtn');
+    if (gscSyncBtn && !gscSyncBtn.dataset.bound) {
+        gscSyncBtn.dataset.bound = '1';
+        gscSyncBtn.addEventListener('click', syncPdGsc);
     }
 
     const refreshBtn = document.querySelector('#pdRefreshBtn');

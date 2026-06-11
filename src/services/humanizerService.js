@@ -7,6 +7,21 @@ const { createLogger } = require('../utils/logger');
 const log = createLogger('humanizer-service');
 
 const ROBOTIC_PHRASES = [
+    'delve',
+    'tapestry',
+    'testament to',
+    'transformative potential',
+    'pivotal moment',
+    'rapidly evolving landscape',
+    'at its core',
+    'not just',
+    'serves as a catalyst',
+    'multifaceted',
+    'paramount',
+    'underscore',
+    'seamless',
+    'foster',
+    'unlocking creativity at scale',
     'furthermore',
     'moreover',
     'thus',
@@ -14,29 +29,91 @@ const ROBOTIC_PHRASES = [
     'facilitates',
     'in conclusion',
     'additionally',
+    'crucial',
+    'vital',
+    'stands as',
+    'serves as',
+    'boasts',
+    'features',
+    'offers a',
+    'breathtaking',
+    'cutting-edge',
+    'vibrant',
+    'experts argue',
+    'industry observers note',
+    'it is important to note',
+    'relic',
+    'avenues',
+    'not only',
+    'in summary',
+    'lastly',
+    'indeed',
+    'revolutionize',
+    'harnessing',
+    'demystify',
+    'embark on a journey',
+    'look no further',
+    'game changer',
+    'pave the way',
+    'nestled',
+    'tapestry of',
+    'in this digital age',
+    'driving force',
+    'beacon of hope',
+    'removes the guesswork',
+    'one-size-fits-all',
+    'shatters the boundaries',
+    'overall',
+    'notably',
+    'importantly',
+    'rich cultural heritage',
+    'enduring legacy',
+    'must-visit',
+    'must-see',
+    'stunning'
 ];
 
 const NATURAL_TRANSITIONS = [
     'That said',
-    'The interesting part is',
-    'What really matters is',
-    'In most cases',
-    'That’s the thing',
-    'Honestly',
-    'In reality',
-    'That’s where things get interesting',
-    'The bigger point is',
+    'For instance',
+    'Because of this',
+    'The truth is',
+    'To be fair',
 ];
 
 const EXPRESSIVE_MARKERS = [
-    'honestly',
-    'in reality',
-    'that’s where things get interesting',
-    "that's where things get interesting",
-    'what really matters is',
-    'the bigger point is',
+    'i genuinely',
+    'i feel',
+    'the truth is',
+    'i keep thinking',
+    'i suspect',
+    'to be fair',
     'that said',
-    'the interesting part is',
+    'for instance',
+    'because of this',
+];
+
+const TARGET_AI_DETECTION_PERCENT = 10;
+
+const AI_PATTERN_RULES = [
+    { label: 'inflated significance language', regex: /\b(?:testament to|transformative potential|pivotal moment|crucial role|vital role|rich cultural heritage|enduring legacy)\b/gi, weight: 7 },
+    { label: 'AI transition words', regex: /\b(?:additionally|furthermore|moreover|therefore|thus|overall|in conclusion|in summary|lastly|notably|importantly)\b/gi, weight: 5 },
+    { label: 'promotional padding', regex: /\b(?:breathtaking|cutting-edge|vibrant|must-visit|must-see|stunning|game changer|look no further)\b/gi, weight: 6 },
+    { label: 'copula avoidance', regex: /\b(?:serves as|stands as|boasts|features|offers a|facilitates|showcases|underscores)\b/gi, weight: 6 },
+    { label: 'negative parallelism', regex: /\b(?:not just|not only)\b[\s\S]{0,90}\b(?:but|it's about|also)\b/gi, weight: 7 },
+    { label: 'generic authority phrase', regex: /\b(?:experts (?:argue|believe|say)|industry observers (?:note|have noted)|it is important to note)\b/gi, weight: 6 },
+    { label: 'signposting phrase', regex: /\b(?:let's dive in|here's what you need to know|in this article|in this guide|at its core|the truth is)\b/gi, weight: 5 },
+    { label: 'filler phrase', regex: /\b(?:in order to|due to the fact that|it could potentially be argued|could potentially|might have some)\b/gi, weight: 5 },
+    { label: 'textbook definition opener', regex: /\b(?:is a set of|is defined as|refers to|can be described as|is the process of|is an approach that)\b/gi, weight: 8 },
+    { label: 'encyclopedic example framing', regex: /\b(?:examples include|types include|common .* include|modern .* include|key .* include)\b/gi, weight: 7 },
+    { label: 'stacked category explanation', regex: /\b(?:procedural programming|object-oriented programming|functional programming|declarative programming|system software|application software|cloud-native applications|microservices)\b/gi, weight: 3 },
+    { label: 'software category template', regex: /\b(?:system software|application software|programming software|embedded software)\b.{0,90}\b(?:handles|interact|built for|runs on|use to|includes?|like)\b/gi, weight: 9 },
+    { label: 'example pile-up', regex: /\b(?:like|such as|including|plus)\b[^.]{20,160}\b(?:and|plus)\b[^.]{10,120}\b(?:and|plus)\b/gi, weight: 8 },
+    { label: 'generic explainer sentence', regex: /\b(?:is what|is basically|gives .* a place to run|day to day|big names here|middle ground between)\b/gi, weight: 7 },
+    { label: 'generic positive conclusion', regex: /\b(?:the future looks bright|exciting times lie ahead|continues to thrive|pave the way)\b/gi, weight: 7 },
+    { label: 'chatbot artifact', regex: /\b(?:i hope this helps|let me know if|certainly!|great question)\b/gi, weight: 8 },
+    { label: 'em dash or en dash', regex: /[—–]/g, weight: 5 },
+    { label: 'emoji or heavy symbol', regex: /[\u{1F300}-\u{1FAFF}✅✨🚀]/gu, weight: 5 },
 ];
 
 const MODE_GUIDANCE = {
@@ -200,6 +277,42 @@ function countRepeatedPhrases(words, size) {
     return [...counts.values()].filter(count => count > 1).length;
 }
 
+function getPatternMatches(text) {
+    const source = String(text || '');
+
+    return AI_PATTERN_RULES
+        .map(rule => {
+            const matches = source.match(rule.regex) || [];
+            return {
+                label: rule.label,
+                count: matches.length,
+                weight: rule.weight,
+            };
+        })
+        .filter(rule => rule.count > 0);
+}
+
+function estimateAiDetectionPercent({ text, humanScore, repeatedBigrams, repeatedTrigrams, sentenceVariance, averageSentenceLength, contractions, readability }) {
+    const patternMatches = getPatternMatches(text);
+    const patternRisk = patternMatches.reduce((total, rule) => total + Math.min(18, rule.count * rule.weight), 0);
+    let risk = 100 - humanScore;
+
+    risk += Math.min(35, patternRisk);
+    if (patternMatches.length >= 3) risk += 12;
+    risk += Math.min(12, repeatedBigrams + repeatedTrigrams * 2);
+    if (sentenceVariance < 5) risk += 10;
+    if (averageSentenceLength > 28) risk += 8;
+    if (averageSentenceLength > 0 && averageSentenceLength < 6) risk += 5;
+    if (contractions === 0) risk += 4;
+    if (readability?.label === 'dense') risk += 6;
+    if (!String(text || '').includes(',')) risk += 3;
+
+    return {
+        score: Math.max(1, Math.min(99, Math.round(risk))),
+        patternMatches,
+    };
+}
+
 function analyzeText(text) {
     const source = String(text || '').trim();
     const sentences = splitSentences(source);
@@ -228,6 +341,18 @@ function analyzeText(text) {
     if (averageSentenceLength > 30) humanScore -= 8;
     if (!source.includes(',')) humanScore -= 4;
 
+    const boundedHumanScore = Math.max(1, Math.min(100, Math.round(humanScore)));
+    const aiDetection = estimateAiDetectionPercent({
+        text: source,
+        humanScore: boundedHumanScore,
+        repeatedBigrams,
+        repeatedTrigrams,
+        sentenceVariance,
+        averageSentenceLength,
+        contractions,
+        readability,
+    });
+
     return {
         wordCount: words.length,
         sentenceCount: sentences.length,
@@ -238,7 +363,9 @@ function analyzeText(text) {
         repeatedBigrams,
         repeatedTrigrams,
         readability,
-        estimatedHumanScore: Math.max(1, Math.min(100, Math.round(humanScore))),
+        estimatedHumanScore: boundedHumanScore,
+        estimatedAiDetectionPercent: aiDetection.score,
+        aiPatternMatches: aiDetection.patternMatches,
     };
 }
 
@@ -251,8 +378,9 @@ function analyzeToneMix(text) {
         const normalized = sentence.toLowerCase();
         const wordCount = extractWords(sentence).length;
         const isExpressive = EXPRESSIVE_MARKERS.some(marker => normalized.includes(marker))
-            || /[—:;]/.test(sentence)
-            || sentence.includes('!');
+            || /[:;]/.test(sentence)
+            || sentence.includes('!')
+            || sentence.includes('?');
         const isPlain = !isExpressive && wordCount >= 5 && wordCount <= 14;
 
         if (isExpressive) expressiveSentences.push(sentence);
@@ -372,6 +500,18 @@ function verifyRefinement(originalText, refinedText, preserveKeywords) {
         warnings.push(`Still contains stiff phrasing: ${remainingRoboticPhrases.join(', ')}`);
     }
 
+    if (refinedAnalysis.estimatedAiDetectionPercent > TARGET_AI_DETECTION_PERCENT) {
+        warnings.push('Estimated AI detection is ' + refinedAnalysis.estimatedAiDetectionPercent + '%. Target is ' + TARGET_AI_DETECTION_PERCENT + '% or lower.');
+    }
+
+    if (refinedAnalysis.aiPatternMatches.length > 0) {
+        warnings.push('Detector-risk patterns remain: ' + refinedAnalysis.aiPatternMatches.map(item => item.label).join(', '));
+    }
+
+    if (/[—–]/.test(refinedText)) {
+        warnings.push('The rewrite contains em dashes (—) or en dashes (–). Replace them with commas, periods, or parentheses.');
+    }
+
     if (refinedAnalysis.sentenceVariance < 5) {
         warnings.push('Sentence rhythm is still fairly uniform. A little more variation may help it read more naturally.');
     }
@@ -419,6 +559,102 @@ function verifySeoRefinement(refinedText, primaryKeyword, relatedKeywords, inten
     };
 }
 
+async function auditRewriteWithLlm(originalText, refinedText) {
+    const prompt = `You are a strict editor auditing a rewritten text draft for lingering AI-writing tells and stylistic predictability.
+
+Here is the original text:
+"""
+${originalText}
+"""
+
+Here is the current rewritten draft:
+"""
+${refinedText}
+"""
+
+Instructions:
+1. Scan the rewritten draft carefully for any AI writing tells, such as:
+   - Stiff, formulaic transitions or endings (e.g., "In summary", "Overall", "moreover").
+   - Manufactured punchlines, staccato drama, or aphorisms (e.g., "X is the Y of Z").
+   - Vague attributions, sycophantic/servile phrasing.
+   - Em dashes, en dashes, curly quotation marks, or excessive bolding/emojis.
+   - Copula avoidance (using complex verbs like "boasts" or "serves as" instead of simple is/are/has).
+2. Determine if the draft is obviously AI-generated or still contains stiff, unnatural phrasing.
+3. List the specific tells/phrases that need correction.
+
+Return ONLY a valid JSON object with the following shape:
+{
+  "isObviouslyAi": true,
+  "lingeringTells": ["found tell/phrase 1", "found tell/phrase 2"]
+}
+`;
+    try {
+        const response = await resilientLlmRequest({
+            prompt,
+            expectJson: true,
+            timeoutMs: 15000
+        });
+        const parsed = parseModelResponse(response);
+        return {
+            isObviouslyAi: !!parsed?.isObviouslyAi,
+            lingeringTells: Array.isArray(parsed?.lingeringTells) ? parsed.lingeringTells : []
+        };
+    } catch (err) {
+        log.warn({ err: err.message }, 'LLM audit pass failed, skipping');
+        return { isObviouslyAi: false, lingeringTells: [] };
+    }
+}
+
+async function adjustContentTone({ text, adjustment }) {
+    let instruction = '';
+    const adjLower = String(adjustment || '').toLowerCase().trim();
+    if (adjLower === 'punchier') {
+        instruction = 'Make the text punchier, crisper, and more direct. Cut unnecessary words, use strong active verbs, and shorten sentences.';
+    } else if (adjLower === 'simpler') {
+        instruction = 'Make the text simpler and easier to understand. Use clear, everyday language and avoid complex sentence structures.';
+    } else if (adjLower === 'more-casual') {
+        instruction = 'Make the text more casual and conversational, as if speaking to a colleague or friend naturally.';
+    } else if (adjLower === 'more-professional') {
+        instruction = 'Make the text more professional, authoritative, and polished, while keeping it human and natural.';
+    } else {
+        instruction = `Adjust the text following this instruction: ${adjustment}`;
+    }
+
+    const prompt = `You are an editor adjusting the tone of the provided text.
+
+Instruction: ${instruction}
+
+Important Rules:
+- Keep all factual details, numbers, and meaning intact.
+- Maintain a natural, human flow. Do not add AI tells or robotic clichés.
+- Return ONLY the adjusted text with no introductory or concluding remarks.
+
+Return ONLY valid JSON with this shape:
+{
+  "refinedText": "adjusted text"
+}
+
+Text to adjust:
+"""
+${text}
+"""`;
+
+    try {
+        const response = await resilientLlmRequest({
+            prompt,
+            expectJson: true,
+            timeoutMs: 20000
+        });
+        const parsed = parseModelResponse(response);
+        return {
+            refinedText: String(parsed?.refinedText || text).trim()
+        };
+    } catch (err) {
+        log.error({ err: err.message }, 'adjustContentTone failed');
+        throw new Error('Tone adjustment failed: ' + err.message);
+    }
+}
+
 function parseModelResponse(content) {
     const trimmed = String(content || '').trim();
     const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
@@ -426,7 +662,18 @@ function parseModelResponse(content) {
     return JSON.parse(payload);
 }
 
-function buildPrompt({ text, tone, audience, brandVoice, preserveKeywords, maxChange, mode, primaryKeyword, relatedKeywords }) {
+function getCalibrationInstructions(sample) {
+    if (!sample || !sample.trim()) return '';
+    return `
+
+## Voice Calibration (CRITICAL DIRECTIVE):
+You must analyze this user-provided writing sample to calibrate the voice of the rewrite. Mimic its sentence length distribution, vocabulary complexity level, paragraph openers, punctuation habits, transitions, and style patterns. Ensure that the rewritten text matches this voice:
+"""
+${sample.trim()}
+"""`;
+}
+
+function buildPrompt({ text, tone, audience, brandVoice, preserveKeywords, maxChange, mode, primaryKeyword, relatedKeywords, sample = '' }) {
     const keywordsText = preserveKeywords.length > 0 ? preserveKeywords.join(', ') : 'none';
     const bannedWordsText = ROBOTIC_PHRASES.join(', ');
     const preferredTransitionsText = NATURAL_TRANSITIONS.join(', ');
@@ -435,38 +682,53 @@ function buildPrompt({ text, tone, audience, brandVoice, preserveKeywords, maxCh
     const seoKeywordGuidance = mode === 'seo-blog'
         ? getSeoKeywordGuidance(primaryKeyword, relatedKeywords)
         : 'Ignore any SEO keyword placement strategy unless the mode is SEO Blog.';
+    const calibrationPrompt = getCalibrationInstructions(sample);
 
-    return `You are an expert editor improving draft content so it reads naturally, with believable human rhythm and voice, while staying technically accurate.
-
-Your job:
-- Rewrite the text so it sounds natural and human-written.
-- Preserve the original meaning, facts, numbers, entities, and intent.
-- Keep any required keywords present.
-- Remove robotic phrasing, repetition, stiffness, and obvious template language.
-- Do not invent claims, statistics, testimonials, or personal experience.
-- Do not mention AI, detectors, or that the text was rewritten.
+    const systemPrompt = `You are an expert editor improving draft content so it reads naturally, with believable human rhythm and voice, while staying technically accurate.
 
 Transformation rules you must follow:
-- Break predictable structure. Do not force a rigid sequence like definition -> explanation -> example -> conclusion.
-- Reorder ideas slightly when it improves natural flow, but keep the meaning intact.
-- Break structural predictability further when possible. Do not make the passage read like clean documentation or a neatly staged article.
-- Occasionally let explanations arrive a little out of order, or circle back to a point after a brief shift, as long as the meaning stays clear enough.
-- Slight topic shifts inside a paragraph are acceptable if they feel natural and human rather than messy.
-- Vary sentence rhythm. Mix short, medium, and long sentences. A fragment is okay once in a while.
-- Reduce formal tone. Prefer natural wording over academic or robotic phrasing.
-- Avoid these words or transitions unless the source truly requires them: ${bannedWordsText}.
+- Identify and remove signs of AI-generated text. Replace them with natural alternatives.
+- Remove inflated symbolism ("testament to", "transformative", "pivotal").
+- Remove promotional or subjective padding ("breathtaking", "vibrant", "cutting-edge").
+- Remove superficial "-ing" analyses (tacking on phrases like "highlighting...", "ensuring...").
+- Drop vague attributions ("Experts argue", "Industry observers note").
+- Break predictable structures like "Challenges and Future Prospects" or formulaic conclusions.
+- For textbook or encyclopedia-style passages, do not keep the definition-example-category rhythm. Rewrite the section as practical explanation with uneven paragraph lengths, a few grounded specifics, and less perfect sequencing.
+- Replace generic openers like "Software is...", "Examples include...", and "Modern trends include..." with more natural context-led phrasing.
+- Do not write category paragraphs that follow "System software handles...", "Application software is...", or "Programming software is..." patterns. Merge, vary, or recast those details so they do not read like a generated study note.
+- Avoid long example pile-ups. Use one or two examples only when they add context, and do not stack brand/tool names in the same sentence.
+- NEVER use these AI-vocabulary words: ${bannedWordsText}.
+- Avoid copula avoidance. Use simple "is/are/has" instead of "serves as/stands as/boasts/features".
+- Do not use negative parallelisms like "It's not just about X, it's about Y".
+- Do not force the Rule of Three (listing exactly three items to sound comprehensive).
+- Avoid elegant variation (excessive synonym cycling).
+- Fix false ranges like "from the Big Bang to dark matter" if not an actual scale.
+- Use active voice. Avoid subjectless fragments.
+- Cut ALL em dashes (—) and en dashes (–). Replace with commas, periods, or parentheses.
+- Do not use excessive boldface, inline-header vertical lists, emojis, or Title Case in headings.
+- Convert curly quotes (“ ”) to straight quotes (" ").
+- Remove collaborative communication artifacts ("I hope this helps", "Certainly!").
+- Remove speculative gap-filling or knowledge-cutoff disclaimers.
+- Avoid sycophantic tone, filler phrases, excessive hedging, and generic positive conclusions.
+- Drop hyphens in compound words when they follow the noun (e.g. "the report is high quality", not "high-quality").
+- Remove persuasive authority tropes ("at its core", "what really matters", "fundamentally").
+- Remove signposting and announcements ("Let's dive in", "Here's what you need to know").
+- Remove fragmented headers (a heading followed by a one-line restatement).
+- Do not use diff-anchored writing (narrating a change) unless specifically requested.
+- Avoid manufactured punchlines, staccato drama, and aphorism formulas ("X is the Y of Z").
+- Do not use conversational rhetorical openers ("Honestly?", "Look,", "Here's the thing").
 - Replace generic transitions with more natural ones where appropriate, such as: ${preferredTransitionsText}.
-- Add human texture when it fits: light conversational cues, mild perspective, gentle emphasis, and small opinion-like phrases such as "honestly," "in reality," "that’s where things get interesting," "what really matters is," or "the bigger point is."
-- Do not over-optimize the prose into something too polished or too symmetrical.
-- Avoid making every sentence perfectly balanced or perfectly structured. A little irregularity is good if it still reads naturally.
-- The result should not sound like documentation, a textbook, or an overly finished article.
-- Introduce controlled imperfection. Slight redundancy is fine now and then. Slightly informal phrasing is fine too.
-- Do not make every sentence stylistically strong. Mix expressive lines with plain, neutral ones.
-- Reduce rhetorical density. Do not use a hook, dramatic transition, or emphasis phrase in every paragraph.
-- Keep tone humanly inconsistent in a natural way: some parts can feel expressive, while others stay simple and matter-of-fact.
-- Preserve technical correctness strictly. Do not add new facts. Do not distort intent.
-- Keep formatting simple. Do not introduce bullet points unless the source genuinely needs them.
 - The final rewritten passage itself should be plain readable prose only.
+
+Naturalness + detector-risk reduction target (aim for an estimated AI-detection score below 10%):
+- Vary sentence lengths radically: Mix extremely short sentences (3-5 words) with longer ones to maximize sentence length variance (burstiness).
+- Avoid predictable sentence openers: Do not start consecutive sentences with the same word, pronoun, or grammatical structure. Banish conversational AI openers starting with "While...", "Through...", "By...".
+- Use contractions: Use common English contractions ("don't", "can't", "it's", "you're") to sound authentic.
+- Lower vocabulary complexity: Use lower-tier, conversational, everyday words. Avoid pretentious or academic terms ("help" instead of "facilitate", "use" instead of "utilize", "show" instead of "demonstrate", "also" instead of "additionally").
+- Do not introduce lists: Do not convert paragraph blocks into bulleted or numbered lists unless they were list items in the original text. AI loves lists; humans prefer paragraph flow.
+- Mix expressive parts with plain, matter-of-fact statements. Do not make every sentence sound highly polished or poetic.
+- Allow slight irregularity and mild redundancy when it sounds natural.
+- After drafting, do a strict audit pass using the pattern checklist above. Rewrite again before returning JSON if the draft still feels likely to score above 10% AI-detected.${calibrationPrompt}
 
 Rewrite settings:
 - Mode: ${modeConfig.label}
@@ -490,22 +752,26 @@ ${mode === 'seo-blog' ? 'If forced to choose, always prefer natural tone first, 
 
 Return ONLY valid JSON with this shape:
 {
-    "refinedText": "only the rewritten text, with no explanation around it",
+  "draftText": "your first draft rewrite here",
+  "auditTells": ["list any AI tells or stiffness found in draftText during self-audit"],
+  "refinedText": "the final rewrite, correcting all tells identified in auditTells",
   "summary": "one sentence describing what changed",
   "changes": ["short bullet", "short bullet"],
   "alternatives": [
-        { "label": "warmer", "text": "alternate rewrite following the same rules" },
-        { "label": "sharper", "text": "alternate rewrite following the same rules" }
+        { "label": "warmer", "text": "alternate final rewrite following the same rules" },
+        { "label": "sharper", "text": "alternate final rewrite following the same rules" }
   ]
-}
+}`;
 
-Original text:
+    const userPrompt = `Original text to rewrite:
 """
 ${text}
 """`;
+
+    return { systemPrompt, prompt: userPrompt };
 }
 
-function buildHtmlPrompt({ template, segments, tone, audience, brandVoice, preserveKeywords, maxChange, mode, primaryKeyword, relatedKeywords }) {
+function buildHtmlPrompt({ template, segments, tone, audience, brandVoice, preserveKeywords, maxChange, mode, primaryKeyword, relatedKeywords, sample = '' }) {
     const keywordsText = preserveKeywords.length > 0 ? preserveKeywords.join(', ') : 'none';
     const bannedWordsText = ROBOTIC_PHRASES.join(', ');
     const preferredTransitionsText = NATURAL_TRANSITIONS.join(', ');
@@ -515,8 +781,9 @@ function buildHtmlPrompt({ template, segments, tone, audience, brandVoice, prese
     const seoKeywordGuidance = mode === 'seo-blog'
         ? getSeoKeywordGuidance(primaryKeyword, relatedKeywords)
         : 'Ignore any SEO keyword placement strategy unless the mode is SEO Blog.';
+    const calibrationPrompt = getCalibrationInstructions(sample);
 
-    return `You are rewriting HTML content while preserving its formatting exactly.
+    const systemPrompt = `You are rewriting HTML content while preserving its formatting exactly.
 
 You will receive:
 1. An HTML template containing placeholders like [[seg_1]]
@@ -529,15 +796,29 @@ Rules:
 - Preserve the meaning, facts, numbers, entities, and intent.
 - Keep required keywords present where appropriate.
 - Preserve technical correctness strictly.
-- Make the language feel natural and human, following these same writing rules:
+- Make the language feel natural and human, following these exact writing rules:
     - Break predictable structure and avoid a documentation-like feel.
-    - Vary sentence rhythm.
-    - Reduce formal tone.
-    - Avoid these words unless truly necessary: ${bannedWordsText}.
+    - Remove inflated symbolism, promotional padding, and superficial "-ing" analyses.
+    - Avoid copula avoidance (use simple "is/are/has").
+    - Cut ALL em dashes (—) and en dashes (–). Replace with commas, periods, or parentheses.
+    - Convert curly quotes (“ ”) to straight quotes (" ").
+    - Avoid negative parallelisms, Rule of Three, false ranges, and elegant variation.
+    - Remove speculative gap-filling, sycophantic tone, filler phrases, and generic upbeat conclusions.
+    - Remove persuasive authority tropes, signposting, fragmented headers, and aphorism formulas.
+    - Drop hyphens in compound words when they follow the noun.
+    - Do not use conversational rhetorical openers or manufactured punchlines.
+    - NEVER use these AI-vocabulary words: ${bannedWordsText}.
     - Prefer natural transitions such as: ${preferredTransitionsText}.
-    - Mix expressive sentences with plain, neutral ones.
-    - Allow slight irregularity and mild redundancy when it sounds natural.
-    - Avoid rhetorical density and over-polishing.
+
+Naturalness + detector-risk reduction target (aim for an estimated AI-detection score below 10%):
+- Vary sentence lengths radically: Mix extremely short sentences (3-5 words) with longer ones to maximize sentence length variance (burstiness).
+- Avoid predictable sentence openers: Do not start consecutive sentences with the same word, pronoun, or grammatical structure. Banish conversational AI openers starting with "While...", "Through...", "By...".
+- Use contractions: Use common English contractions ("don't", "can't", "it's", "you're") to sound authentic.
+- Lower vocabulary complexity: Use lower-tier, conversational, everyday words. Avoid pretentious or academic terms ("help" instead of "facilitate", "use" instead of "utilize", "show" instead of "demonstrate", "also" instead of "additionally").
+- Do not introduce lists: Do not convert paragraph blocks into bulleted or numbered lists unless they were list items in the original text. AI loves lists; humans prefer paragraph flow.
+- Mix expressive sentences with plain, neutral ones.
+- Allow slight irregularity and mild redundancy when it sounds natural.
+- After drafting, do a strict audit pass using the pattern checklist above. Rewrite again before returning JSON if the draft still feels likely to score above 10% AI-detected.${calibrationPrompt}
 
 Settings:
 - Mode: ${modeConfig.label}
@@ -567,28 +848,31 @@ Return ONLY valid JSON in this shape:
     },
     "summary": "one sentence describing what changed",
     "changes": ["short bullet", "short bullet"]
-}
+}`;
 
-HTML template:
+    const userPrompt = `HTML template:
 """
 ${template}
 """
 
 Segments:
 ${serializedSegments}`;
+
+    return { systemPrompt, prompt: userPrompt };
 }
 
-function buildRetryPrompt({ originalText, currentDraft, tone, audience, brandVoice, preserveKeywords, maxChange, warnings, mode, primaryKeyword, relatedKeywords }) {
+function buildRetryPrompt({ originalText, currentDraft, tone, audience, brandVoice, preserveKeywords, maxChange, warnings, mode, primaryKeyword, relatedKeywords, sample = '' }) {
     const keywordsText = preserveKeywords.length > 0 ? preserveKeywords.join(', ') : 'none';
     const modeConfig = getModeConfig(mode);
     const searchIntent = detectSearchIntent(primaryKeyword || preserveKeywords[0] || originalText.slice(0, 120));
     const seoKeywordGuidance = mode === 'seo-blog'
         ? getSeoKeywordGuidance(primaryKeyword, relatedKeywords)
         : 'Ignore any SEO keyword placement strategy unless the mode is SEO Blog.';
+    const calibrationPrompt = getCalibrationInstructions(sample);
 
-    return `Revise this rewritten draft so it feels more naturally human and less over-produced.
+    const systemPrompt = `Revise this rewritten draft so it feels completely human, passes AI detectors, and feels less over-produced.
 
-Fix these specific problems:
+Fix these specific problems identified in the previous draft:
 - ${warnings.join('\n- ')}
 
 Requirements:
@@ -596,8 +880,18 @@ Requirements:
 - Keep the writing natural, but less polished and less uniformly expressive.
 - Add a better mix of plain sentences and expressive ones.
 - Reduce rhetorical density.
-- Keep a little irregularity and mild redundancy if it helps.
+- If the draft still sounds like a textbook, restructure it. Avoid definition-example-category sequencing, category-label paragraphs, and long example pile-ups. Use more natural context-led phrasing.
 - Do not explain the changes.
+
+Naturalness + detector-risk reduction target (aim for an estimated AI-detection score below 10%):
+- Vary sentence lengths radically: Mix extremely short sentences (3-5 words) with longer ones to maximize sentence length variance (burstiness).
+- Avoid predictable sentence openers: Do not start consecutive sentences with the same word, pronoun, or grammatical structure. Banish conversational AI openers starting with "While...", "Through...", "By...".
+- Use contractions: Use common English contractions ("don't", "can't", "it's", "you're") to sound authentic.
+- Lower vocabulary complexity: Use lower-tier, conversational, everyday words. Avoid pretentious or academic terms ("help" instead of "facilitate", "use" instead of "utilize", "show" instead of "demonstrate", "also" instead of "additionally").
+- Do not introduce lists: Do not convert paragraph blocks into bulleted or numbered lists unless they were list items in the original text. AI loves lists; humans prefer paragraph flow.
+- Mix expressive parts with plain, matter-of-fact statements. Do not make every sentence sound highly polished or poetic.
+- Allow slight irregularity and mild redundancy when it sounds natural.
+- After drafting, do a strict audit pass using the pattern checklist above. Rewrite again before returning JSON if the draft still feels likely to score above 10% AI-detected.${calibrationPrompt}
 
 Settings:
 - Mode: ${modeConfig.label}
@@ -628,9 +922,9 @@ Return ONLY valid JSON with this shape:
         { "label": "warmer", "text": "alternate rewrite following the same rules" },
         { "label": "sharper", "text": "alternate rewrite following the same rules" }
     ]
-}
+}`;
 
-Original text:
+    const userPrompt = `Original text:
 """
 ${originalText}
 """
@@ -639,9 +933,11 @@ Current rewritten draft:
 """
 ${currentDraft}
 """`;
+
+    return { systemPrompt, prompt: userPrompt };
 }
 
-function buildHtmlRetryPrompt({ template, originalText, currentDraft, tone, audience, brandVoice, preserveKeywords, maxChange, warnings, mode, primaryKeyword, relatedKeywords }) {
+function buildHtmlRetryPrompt({ template, originalText, currentDraft, tone, audience, brandVoice, preserveKeywords, maxChange, warnings, mode, primaryKeyword, relatedKeywords, sample = '' }) {
     const keywordsText = preserveKeywords.length > 0 ? preserveKeywords.join(', ') : 'none';
     const segmentPayload = JSON.stringify(currentDraft, null, 2);
     const modeConfig = getModeConfig(mode);
@@ -649,10 +945,11 @@ function buildHtmlRetryPrompt({ template, originalText, currentDraft, tone, audi
     const seoKeywordGuidance = mode === 'seo-blog'
         ? getSeoKeywordGuidance(primaryKeyword, relatedKeywords)
         : 'Ignore any SEO keyword placement strategy unless the mode is SEO Blog.';
+    const calibrationPrompt = getCalibrationInstructions(sample);
 
-    return `Revise these rewritten HTML text segments so they feel more naturally human and less over-produced.
+    const systemPrompt = `Revise these rewritten HTML text segments so they feel completely human, pass AI detectors, and feel less over-produced.
 
-Fix these specific problems:
+Fix these specific problems identified in the previous rewrite:
 - ${warnings.join('\n- ')}
 
 Requirements:
@@ -662,7 +959,17 @@ Requirements:
 - Make the writing less polished and less uniformly expressive.
 - Add a better mix of plain sentences and expressive ones.
 - Reduce rhetorical density.
-- Keep mild irregularity if it helps the text feel human.
+- If the draft still sounds like a textbook, restructure it. Avoid definition-example-category sequencing, category-label paragraphs, and long example pile-ups. Use more natural context-led phrasing.
+
+Naturalness + detector-risk reduction target (aim for an estimated AI-detection score below 10%):
+- Vary sentence lengths radically: Mix extremely short sentences (3-5 words) with longer ones to maximize sentence length variance (burstiness).
+- Avoid predictable sentence openers: Do not start consecutive sentences with the same word, pronoun, or grammatical structure. Banish conversational AI openers starting with "While...", "Through...", "By...".
+- Use contractions: Use common English contractions ("don't", "can't", "it's", "you're") to sound authentic.
+- Lower vocabulary complexity: Use lower-tier, conversational, everyday words. Avoid pretentious or academic terms ("help" instead of "facilitate", "use" instead of "utilize", "show" instead of "demonstrate", "also" instead of "additionally").
+- Do not introduce lists: Do not convert paragraph blocks into bulleted or numbered lists unless they were list items in the original text. AI loves lists; humans prefer paragraph flow.
+- Mix expressive sentences with plain, neutral ones.
+- Allow slight irregularity and mild redundancy when it sounds natural.
+- After drafting, do a strict audit pass using the pattern checklist above. Rewrite again before returning JSON if the draft still feels likely to score above 10% AI-detected.${calibrationPrompt}
 
 Settings:
 - Mode: ${modeConfig.label}
@@ -692,9 +999,9 @@ Return ONLY valid JSON in this shape:
     },
     "summary": "one sentence describing what changed",
     "changes": ["short bullet", "short bullet"]
-}
+}`;
 
-Original extracted text:
+    const userPrompt = `Original extracted text:
 """
 ${originalText}
 """
@@ -706,6 +1013,12 @@ ${template}
 
 Current rewritten segments:
 ${segmentPayload}`;
+
+    return { systemPrompt, prompt: userPrompt };
+}
+
+function getMaxRefinementPasses(maxChange) {
+    return String(maxChange || 'balanced').toLowerCase() === 'strong' ? 3 : 1;
 }
 
 function shouldRetryRefinement(verification) {
@@ -719,12 +1032,15 @@ function shouldRetryRefinement(verification) {
                 || warning.includes('Rhetorical density is high')
                 || warning.includes('too uniformly stylized')
                 || warning.includes('Still contains stiff phrasing')
+                || warning.includes('Estimated AI detection')
+                || warning.includes('Detector-risk patterns remain')
         );
 }
 
-async function requestRewrite(prompt) {
+async function requestRewrite({ systemPrompt, prompt }) {
     try {
         const content = await resilientLlmRequest({
+            systemPrompt,
             prompt,
             expectJson: true,
             timeoutMs: 30000
@@ -752,7 +1068,7 @@ function normalizeSegmentRewriteResponse(response, expectedIds) {
     };
 }
 
-async function humanizeHtmlContent({ text, tone, audience, brandVoice, preserveKeywords, maxChange, mode, primaryKeyword, relatedKeywords }) {
+async function humanizeHtmlContent({ text, tone, audience, brandVoice, preserveKeywords, maxChange, mode, primaryKeyword, relatedKeywords, sample = '' }) {
     const htmlTemplate = createHtmlSegmentTemplate(text);
 
     if (!htmlTemplate.segments.length) {
@@ -775,6 +1091,7 @@ async function humanizeHtmlContent({ text, tone, audience, brandVoice, preserveK
             mode,
             primaryKeyword,
             relatedKeywords,
+            sample,
         })),
         expectedIds
     );
@@ -795,7 +1112,12 @@ async function humanizeHtmlContent({ text, tone, audience, brandVoice, preserveK
     verification.warnings.push(...seoVerification.warnings);
     verification.relatedKeywordHits = seoVerification.relatedKeywordHits;
 
-    if (shouldRetryRefinement(verification)) {
+    const auditResult = await auditRewriteWithLlm(originalPlainText, refinedPlainText);
+    if (auditResult.isObviouslyAi && auditResult.lingeringTells.length > 0) {
+        verification.warnings.push(`AI Tells detected by Editor: ${auditResult.lingeringTells.join(', ')}`);
+    }
+
+    for (let refinementPass = 0; refinementPass < getMaxRefinementPasses(maxChange) && shouldRetryRefinement(verification); refinementPass += 1) {
         log.info({ warnings: verification.warnings.length }, 'retrying HTML humanizer for improved naturalness');
 
         rewrite = normalizeSegmentRewriteResponse(
@@ -812,6 +1134,7 @@ async function humanizeHtmlContent({ text, tone, audience, brandVoice, preserveK
                 mode,
                 primaryKeyword,
                 relatedKeywords,
+                sample,
             })),
             expectedIds
         );
@@ -847,7 +1170,7 @@ async function humanizeHtmlContent({ text, tone, audience, brandVoice, preserveK
     };
 }
 
-async function humanizeContent({ text, tone = 'natural', audience = '', brandVoice = '', preserveKeywords = [], maxChange = 'balanced', preserveHtml = false, mode = 'standard', primaryKeyword = '', relatedKeywords = [] }) {
+async function humanizeContent({ text, tone = 'natural', audience = '', brandVoice = '', preserveKeywords = [], maxChange = 'balanced', preserveHtml = false, mode = 'standard', primaryKeyword = '', relatedKeywords = [], sample = '' }) {
     const normalizedKeywords = normalizeKeywords(preserveKeywords);
     const normalizedPrimaryKeyword = mode === 'seo-blog' ? normalizeSingleKeyword(primaryKeyword) : '';
     const normalizedRelatedKeywords = mode === 'seo-blog' ? normalizeKeywords(relatedKeywords) : [];
@@ -863,6 +1186,7 @@ async function humanizeContent({ text, tone = 'natural', audience = '', brandVoi
             mode,
             primaryKeyword: normalizedPrimaryKeyword,
             relatedKeywords: normalizedRelatedKeywords,
+            sample,
         });
     }
 
@@ -877,6 +1201,7 @@ async function humanizeContent({ text, tone = 'natural', audience = '', brandVoi
         mode,
         primaryKeyword: normalizedPrimaryKeyword,
         relatedKeywords: normalizedRelatedKeywords,
+        sample,
     });
 
     log.info({ tone, audience, maxChange, keywords: normalizedKeywords.length }, 'humanizing content');
@@ -897,7 +1222,12 @@ async function humanizeContent({ text, tone = 'natural', audience = '', brandVoi
     verification.warnings.push(...seoVerification.warnings);
     verification.relatedKeywordHits = seoVerification.relatedKeywordHits;
 
-    if (shouldRetryRefinement(verification)) {
+    const auditResult = await auditRewriteWithLlm(text, refinedText);
+    if (auditResult.isObviouslyAi && auditResult.lingeringTells.length > 0) {
+        verification.warnings.push(`AI Tells detected by Editor: ${auditResult.lingeringTells.join(', ')}`);
+    }
+
+    for (let refinementPass = 0; refinementPass < getMaxRefinementPasses(maxChange) && shouldRetryRefinement(verification); refinementPass += 1) {
         log.info({ warnings: verification.warnings.length }, 'retrying humanizer for improved naturalness');
 
         rewrite = await requestRewrite(buildRetryPrompt({
@@ -912,6 +1242,7 @@ async function humanizeContent({ text, tone = 'natural', audience = '', brandVoi
             mode,
             primaryKeyword: normalizedPrimaryKeyword,
             relatedKeywords: normalizedRelatedKeywords,
+            sample,
         }));
 
         refinedText = String(rewrite.refinedText || '').trim();
@@ -950,4 +1281,5 @@ async function humanizeContent({ text, tone = 'natural', audience = '', brandVoi
 
 module.exports = {
     humanizeContent,
+    adjustContentTone,
 };

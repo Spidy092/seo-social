@@ -4,7 +4,9 @@
 
 const analysisService = require('../services/analysisService');
 const keywordService = require('../services/keywordService');
+const { extractDomain } = require('../utils/domainUtils');
 const { createLogger } = require('../utils/logger');
+const { requireAgencyContext } = require('../utils/authHelper');
 
 const log = createLogger('routes:analysis');
 
@@ -27,6 +29,8 @@ async function analysisRoutes(fastify, options) {
             },
         },
         handler: async (request, reply) => {
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
             const { myDomain, competitorDomain, keyword, myUrl, competitorUrl } = request.body;
 
             try {
@@ -61,8 +65,8 @@ async function analysisRoutes(fastify, options) {
                 // Best-effort SERP enrichment (does not block the response if it fails).
                 try {
                     const serpResults = await keywordService.getSERPResults(keyword, 'India', 20);
-                    const myClean = keywordService.extractDomain(myDomain);
-                    const compClean = keywordService.extractDomain(competitorDomain);
+                    const myClean = extractDomain(myDomain);
+                    const compClean = extractDomain(competitorDomain);
                     const myHit = serpResults.find(r => r.domain?.includes(myClean));
                     const compHit = serpResults.find(r => r.domain?.includes(compClean));
                     comparison.serp = {
@@ -120,6 +124,8 @@ async function analysisRoutes(fastify, options) {
             },
         },
         handler: async (request, reply) => {
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
             const { keyword, myDomain, location = 'India' } = request.body;
 
             try {
@@ -166,11 +172,13 @@ async function analysisRoutes(fastify, options) {
             },
         },
         handler: async (request, reply) => {
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
             const { url, keyword } = request.body;
 
             try {
                 const analysis = await keywordService.analyzePageContent(url, keyword);
-                const domain = keywordService.extractDomain(url);
+                const domain = extractDomain(url);
                 const da = await keywordService.getDomainAuthority(domain);
 
                 return {
@@ -202,6 +210,8 @@ async function analysisRoutes(fastify, options) {
             },
         },
         handler: async (request, reply) => {
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
             const { myDomain, keyword, myUrl } = request.body;
 
             try {
@@ -306,18 +316,24 @@ async function analysisRoutes(fastify, options) {
 
     // ─── Get Analysis History ───
     fastify.get('/api/analysis/history', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         const { domain, limit = 20 } = request.query;
 
         try {
             let query = `
-                SELECT ar.*, k.keyword
+                SELECT DISTINCT ar.*, k.keyword
                 FROM analysis_reports ar
                 JOIN keywords k ON ar.keyword_id = k.id
+                JOIN seo_project_keywords spk ON spk.keyword_id = k.id
+                JOIN seo_projects p ON p.id = spk.project_id
+                JOIN seo_clients c ON c.id = p.client_id
+                WHERE (c.agency_id = $1 OR c.agency_id IS NULL OR $1 IS NULL)
             `;
-            const params = [];
+            const params = [ctx.agencyId];
 
             if (domain) {
-                query += ' WHERE ar.my_domain = $1 OR ar.competitor_domain = $1';
+                query += ` AND (ar.my_domain = ${params.length + 1} OR ar.competitor_domain = ${params.length + 1})`;
                 params.push(domain);
             }
 
@@ -355,6 +371,8 @@ async function analysisRoutes(fastify, options) {
             },
         },
         handler: async (request, reply) => {
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
             const { domains, keyword, location = 'India' } = request.body;
 
             try {
@@ -392,6 +410,8 @@ async function analysisRoutes(fastify, options) {
             },
         },
         handler: async (request, reply) => {
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
             const { myDomain, competitorDomains, keyword } = request.body;
 
             try {

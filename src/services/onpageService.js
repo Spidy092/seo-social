@@ -5,6 +5,7 @@
 
 const axios = require('axios');
 const cheerio = require('cheerio');
+const { extractDomain } = require('../utils/domainUtils');
 
 const USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -93,6 +94,7 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
     const schemaScripts = [];
     const schemaTypes   = [];
     let schemaValid     = true;
+    const schemaValidationResults = [];
     $('script[type="application/ld+json"]').each((_, el) => {
         try {
             const parsed = JSON.parse($(el).html());
@@ -111,6 +113,8 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
                     });
                 }
                 schemaScripts.push(item);
+                const validation = validateSchema(item);
+                if (validation) schemaValidationResults.push(validation);
             });
         } catch { schemaValid = false; }
     });
@@ -339,6 +343,16 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
             'You have FAQs but no schema. Adding FAQPage schema shows your FAQs directly in Google results.',
             `Add FAQPage schema:\n<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "FAQPage",\n  "mainEntity": [{\n    "@type": "Question",\n    "name": "Your question here?",\n    "acceptedAnswer": {\n      "@type": "Answer",\n      "text": "Your answer here."\n    }\n  }]\n}\n</script>`,
             'No FAQPage schema', 'Add FAQPage schema');
+
+        // Validation-based issues
+        for (const v of schemaValidationResults) {
+            if (v.errors.length > 0) {
+                addIssue('schema', 'important', `${v.type}: missing required properties`,
+                    `${v.type} schema is missing: ${v.errors.join(', ')}. Google requires these for rich results.`,
+                    `Add the missing properties to your ${v.type} schema. See: https://developers.google.com/search/docs/appearance/structured-data`,
+                    `Missing: ${v.errors.join(', ')}`, `Required: ${v.errors.join(', ')}`);
+            }
+        }
     }
 
     // ── BREADCRUMBS ───────────────────────────────────────────────────────────
@@ -431,7 +445,7 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
         content:  { wordCount, kwDensity, kwMatches, flesch, hasFaq, kwInFirst100 },
         images:   { total: allImgs.length, noAlt: imgsNoAlt.length, noDimension: imgsNoDimension.length, noLazy: imgsNoLazy.length },
         links:    { internal: internalLinks.length, external: externalLinks.length, weakAnchors: weakAnchors.length },
-        schema:   { types: schemaTypes, valid: schemaValid, count: schemaScripts.length },
+        schema:   { types: schemaTypes, valid: schemaValid, count: schemaScripts.length, validation: schemaValidationResults },
         breadcrumb: { hasNav: hasBreadcrumbNav, hasSchema: hasBreadcrumbSchema },
         technical: { isHttps, hasCanonical: !!canonical, hasViewport: !!viewport, hasLang: !!langAttr, hasOg: !!ogTitle, blockingScripts: headScripts.length },
         analyzedAt: new Date().toISOString(),
@@ -439,10 +453,6 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function extractDomain(url) {
-    try { return new URL(url).hostname.replace('www.', ''); } catch { return ''; }
-}
-
 function checkHeadingOrder($) {
     const found = [];
     $('h1,h2,h3,h4,h5,h6').each((_, el) => {
@@ -500,6 +510,91 @@ function generateSchemaSnippet(type, keyword, url) {
     });
     else Object.assign(base, { name: keyword || 'Page Name', url: url || 'https://yoursite.com' });
     return `<script type="application/ld+json">\n${JSON.stringify(base, null, 2)}\n</script>`;
+}
+
+// ── Structured Data Validation ───────────────────────────────────────────────
+const SCHEMA_REQUIRED_FIELDS = {
+    'Product': ['name', 'image'],
+    'Product[]': ['name', 'image'],
+    'Article': ['headline', 'author', 'datePublished', 'image'],
+    'NewsArticle': ['headline', 'author', 'datePublished', 'image'],
+    'BlogPosting': ['headline', 'author', 'datePublished'],
+    'LocalBusiness': ['name', 'address'],
+    'LocalBusiness[]': ['name', 'address'],
+    'Organization': ['name', 'url'],
+    'FAQPage': ['mainEntity'],
+    'FAQPage[]': ['mainEntity'],
+    'HowTo': ['name', 'step'],
+    'HowTo[]': ['name', 'step'],
+    'BreadcrumbList': ['itemListElement'],
+    'BreadcrumbList[]': ['itemListElement'],
+    'Event': ['name', 'startDate', 'location'],
+    'Recipe': ['name', 'image', 'author'],
+    'VideoObject': ['name', 'description', 'thumbnailUrl', 'uploadDate'],
+    'JobPosting': ['title', 'description', 'datePosted', 'hiringOrganization'],
+    'Review': ['itemReviewed', 'reviewRating', 'author'],
+    'AggregateRating': ['ratingValue', 'reviewCount'],
+    'Service': ['name', 'provider'],
+    'WebPage': ['name'],
+    'WebSite': ['name', 'url'],
+    'ImageObject': ['contentUrl'],
+    'Course': ['name', 'provider'],
+    'Book': ['name'],
+    'Movie': ['name'],
+    'MusicAlbum': ['name'],
+    'SoftwareApplication': ['name', 'operatingSystem', 'applicationCategory'],
+    'MobileApplication': ['name', 'operatingSystem', 'applicationCategory'],
+    'Dataset': ['name', 'description'],
+    'SpecialAnnouncement': ['name', 'datePosted', 'category'],
+    'ItemList': ['itemListElement'],
+    'ItemList[]': ['itemListElement'],
+};
+
+function validateSchema(schemaObj) {
+    if (!schemaObj || typeof schemaObj !== 'object') return null;
+
+    const type = schemaObj['@type'];
+    if (!type) return null;
+
+    const types = Array.isArray(type) ? type : [type];
+    const results = [];
+
+    for (const t of types) {
+        const required = SCHEMA_REQUIRED_FIELDS[t] || SCHEMA_REQUIRED_FIELDS[t + '[]'];
+        if (!required) continue;
+
+        const missing = required.filter(field => {
+            const value = schemaObj[field];
+            if (value === undefined || value === null || value === '') return true;
+            if (Array.isArray(value) && value.length === 0) return true;
+            return false;
+        });
+
+        results.push({
+            type: t,
+            errors: missing,
+            warnings: [],
+            valid: missing.length === 0,
+        });
+    }
+
+    // Also check @graph arrays
+    if (schemaObj['@graph'] && Array.isArray(schemaObj['@graph'])) {
+        for (const item of schemaObj['@graph']) {
+            const sub = validateSchema(item);
+            if (sub) results.push(sub);
+        }
+    }
+
+    if (results.length === 0) return null;
+    if (results.length === 1) return results[0];
+
+    return {
+        type: results.map(r => r.type).join(', '),
+        errors: results.flatMap(r => r.errors),
+        warnings: results.flatMap(r => r.warnings),
+        valid: results.every(r => r.valid),
+    };
 }
 
 module.exports = { analyzeOnPage };

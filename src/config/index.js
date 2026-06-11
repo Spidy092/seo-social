@@ -54,7 +54,7 @@ module.exports = {
 
     // ─── Server ───
     server: {
-        port: parseInt(process.env.PORT || '3000'),
+        port: parseInt(process.env.PORT || '4000'),
         host: process.env.HOST || '0.0.0.0',
     },
 
@@ -75,5 +75,16 @@ module.exports = {
         defaultLanguage: 'en',
         maxResults: 100,
         resultsPerPage: 10,
+    },
+
+    // ─── Email (SMTP) ───
+    email: {
+        host: process.env.SMTP_HOST || '',
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: process.env.SMTP_SECURE === 'true',
+        user: process.env.SMTP_USER || '',
+        pass: process.env.SMTP_PASS || '',
+        from: process.env.EMAIL_FROM || 'SEO Reports <noreply@example.com>',
+        enabled: !!(process.env.SMTP_HOST && process.env.SMTP_USER),
     },
 };

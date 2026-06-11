@@ -326,6 +326,18 @@
             <div class="stat-num">-<%= report.summary.dropped %></div>
             <div class="stat-label">Keywords Dropped</div>
         </div>
+        <div class="stat-card">
+            <div class="stat-num"><%= report.summary.projectKeywords || report.summary.totalKeywords || 0 %></div>
+            <div class="stat-label">Client Keywords</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-num"><%= report.summary.pageSpeedScore || '—' %></div>
+            <div class="stat-label">PageSpeed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-num"><%= report.summary.latestTechnicalScore || '—' %></div>
+            <div class="stat-label">Technical Score</div>
+        </div>
     </div>
 
     <!-- ─── Traffic Estimate ─── -->
@@ -336,6 +348,79 @@
             <span style="font-size: 1rem; color: var(--text-muted); font-weight: 400;">visits/month</span>
         </div>
         <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">Based on current ranking positions and search volume CTR estimates</div>
+    </div>
+
+    <!-- ─── Client Coverage ─── -->
+    <div class="section">
+        <div class="section-title">Client Report Pack</div>
+        <div class="two-col">
+            <div class="card">
+                <div class="card-title">Projects Included</div>
+                <% if (report.data.projects && report.data.projects.length > 0) { %>
+                <table class="data-table">
+                    <thead><tr><th>Project</th><th>Type</th><th>Keywords</th></tr></thead>
+                    <tbody>
+                    <% report.data.projects.forEach(project => { %>
+                        <tr>
+                            <td><strong><%= project.name %></strong></td>
+                            <td><%= project.project_type || '—' %></td>
+                            <td><%= project.keyword_count || 0 %></td>
+                        </tr>
+                    <% }) %>
+                    </tbody>
+                </table>
+                <% } else { %>
+                <p style="color: var(--text-muted); font-size: 13px;">No client projects found for this report.</p>
+                <% } %>
+            </div>
+            <div class="card">
+                <div class="card-title">Recent Work Signals</div>
+                <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 0;">
+                    <div class="stat-card"><div class="stat-num"><%= report.summary.pageOptimizations || 0 %></div><div class="stat-label">Page Reports</div></div>
+                    <div class="stat-card"><div class="stat-num"><%= report.summary.contentBriefs || 0 %></div><div class="stat-label">Content Briefs</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── PageSpeed ─── -->
+    <div class="section">
+        <div class="section-title">PageSpeed & Core Web Vitals</div>
+        <% const ps = report.data.pageSpeed; %>
+        <% if (ps) { %>
+        <div class="card" style="margin-bottom: 16px; border-left: 4px solid var(--brand);">
+            <div class="card-title"><%= ps.source === 'google-pagespeed-insights' ? 'Google PageSpeed Insights - Mobile' : 'Technical Crawl Speed Fallback' %></div>
+            <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 18px;">
+                <div class="stat-card"><div class="stat-num"><%= ps.scores.performance || '—' %></div><div class="stat-label">Performance</div></div>
+                <div class="stat-card green"><div class="stat-num"><%= ps.scores.accessibility || '—' %></div><div class="stat-label">Accessibility</div></div>
+                <div class="stat-card orange"><div class="stat-num"><%= ps.scores.bestPractices || '—' %></div><div class="stat-label">Best Practices</div></div>
+                <div class="stat-card"><div class="stat-num"><%= ps.scores.seo || '—' %></div><div class="stat-label">SEO</div></div>
+            </div>
+            <% const psMetrics = [ps.metrics.lcp, ps.metrics.inp, ps.metrics.cls, ps.metrics.fcp, ps.metrics.speedIndex, ps.metrics.tbt, ps.metrics.avgLoad].filter(Boolean); %>
+            <% if (psMetrics.length) { %>
+            <table class="data-table">
+                <thead><tr><th>Metric</th><th>Value</th><th>Score</th></tr></thead>
+                <tbody>
+                <% psMetrics.slice(0, 6).forEach(metric => { %>
+                    <tr><td><%= metric.title %></td><td><%= metric.displayValue || '—' %></td><td><%= metric.score || '—' %></td></tr>
+                <% }) %>
+                </tbody>
+            </table>
+            <% } %>
+        </div>
+        <% if (ps.opportunities && ps.opportunities.length) { %>
+        <div class="card">
+            <div class="card-title">Top Speed Opportunities</div>
+            <ul class="check-list fixes">
+                <% ps.opportunities.forEach(item => { %>
+                <li><%= item.title %><% if (item.displayValue) { %> - <%= item.displayValue %><% } %></li>
+                <% }) %>
+            </ul>
+        </div>
+        <% } %>
+        <% } else { %>
+        <div class="card"><p style="color: var(--text-muted); font-size: 13px;">No PageSpeed data was available for this report.</p></div>
+        <% } %>
     </div>
 
     <!-- ─── Wins & Issues ─── -->
@@ -483,6 +568,40 @@
     </div>
     <% } %>
 
+    <% if (report.data.gsc) { %>
+    <div class="section">
+        <div class="section-title">Google Search Console Performance</div>
+        <div class="stats-grid">
+            <div class="stat-card green"><div class="stat-num"><%= Number(report.data.gsc.clicks || 0).toLocaleString() %></div><div class="stat-label">Clicks</div></div>
+            <div class="stat-card"><div class="stat-num"><%= Number(report.data.gsc.impressions || 0).toLocaleString() %></div><div class="stat-label">Impressions</div></div>
+            <div class="stat-card orange"><div class="stat-num"><%= ((Number(report.data.gsc.ctr || 0)) * 100).toFixed(1) %>%</div><div class="stat-label">CTR</div></div>
+            <div class="stat-card"><div class="stat-num"><%= report.data.gsc.position ? Number(report.data.gsc.position).toFixed(1) : '—' %></div><div class="stat-label">Avg Position</div></div>
+        </div>
+        <div class="two-col">
+            <div class="card">
+                <div class="card-title">Quick-Win Keywords</div>
+                <% if (report.data.gsc.quickWinKeywords && report.data.gsc.quickWinKeywords.length) { %>
+                <table class="data-table"><thead><tr><th>Query</th><th>Pos</th><th>Impr.</th></tr></thead><tbody>
+                <% report.data.gsc.quickWinKeywords.slice(0, 8).forEach(row => { %>
+                    <tr><td><strong><%= row.query %></strong></td><td>#<%= Number(row.position).toFixed(1) %></td><td><%= Number(row.impressions || 0).toLocaleString() %></td></tr>
+                <% }) %>
+                </tbody></table>
+                <% } else { %><p style="color: var(--text-muted); font-size: 13px;">No quick-win keywords synced.</p><% } %>
+            </div>
+            <div class="card">
+                <div class="card-title">Low CTR Pages</div>
+                <% if (report.data.gsc.lowCtrPages && report.data.gsc.lowCtrPages.length) { %>
+                <table class="data-table"><thead><tr><th>Page</th><th>CTR</th><th>Impr.</th></tr></thead><tbody>
+                <% report.data.gsc.lowCtrPages.slice(0, 8).forEach(row => { %>
+                    <tr><td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= (row.page || '').replace(/^https?:\/\//, '') %></td><td><%= (Number(row.ctr || 0) * 100).toFixed(1) %>%</td><td><%= Number(row.impressions || 0).toLocaleString() %></td></tr>
+                <% }) %>
+                </tbody></table>
+                <% } else { %><p style="color: var(--text-muted); font-size: 13px;">No low-CTR pages synced.</p><% } %>
+            </div>
+        </div>
+    </div>
+    <% } %>
+
     <!-- ─── Technical Fixes ─── -->
     <div class="section">
         <div class="section-title">🔧 Technical Fixes Completed / Recommended</div>
@@ -514,6 +633,27 @@
         </div>
         <% }) %>
     </div>
+
+    <% if (report.data.pageOptimizations && report.data.pageOptimizations.length > 0) { %>
+    <div class="section">
+        <div class="section-title">Page Optimization Reports</div>
+        <div class="card" style="padding: 0; overflow: hidden;">
+            <table class="data-table">
+                <thead><tr><th>URL / Keyword</th><th>My Score</th><th>Competitor Avg</th><th>Date</th></tr></thead>
+                <tbody>
+                <% report.data.pageOptimizations.slice(0, 8).forEach(item => { %>
+                    <tr>
+                        <td><strong><%= item.keyword %></strong><br><span style="font-size:11px;color:var(--text-muted);"><%= item.url.replace(/^https?:\/\//, '') %></span></td>
+                        <td><span class="badge blue"><%= item.my_score %></span></td>
+                        <td><%= item.avg_competitor_score %></td>
+                        <td><%= new Date(item.created_at).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) %></td>
+                    </tr>
+                <% }) %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <% } %>
 
     <!-- ─── Next Month Plan ─── -->
     <div class="section">

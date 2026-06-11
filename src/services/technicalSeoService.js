@@ -195,6 +195,31 @@ async function crawlPage(url, depth, source, siteOrigin) {
     page.externalLinks = externalLinks;
     page.internalLinksDiscovered = uniqueUrls(internalLinksDiscovered, siteOrigin);
 
+    // Hreflang extraction
+    page.hreflang = $('link[rel="alternate"][hreflang]').map((_, el) => ({
+        lang: $(el).attr('hreflang') || '',
+        href: absolutizeUrl($(el).attr('href') || '', url),
+    })).get().filter(h => h.href && h.lang);
+
+    // Pagination extraction
+    page.pagination = {
+        next: $('link[rel="next"]').attr('href') ? absolutizeUrl($('link[rel="next"]').attr('href'), url) : null,
+        prev: $('link[rel="prev"]').attr('href') ? absolutizeUrl($('link[rel="prev"]').attr('href'), url) : null,
+    };
+
+    // Structured data extraction
+    page.structuredData = [];
+    $('script[type="application/ld+json"]').each((_, el) => {
+        try {
+            const parsed = JSON.parse($(el).html());
+            const items = Array.isArray(parsed) ? parsed : [parsed];
+            items.forEach(item => {
+                const types = item['@type'] ? (Array.isArray(item['@type']) ? item['@type'] : [item['@type']]) : [];
+                page.structuredData.push({ types, raw: item });
+            });
+        } catch { /* skip invalid JSON-LD */ }
+    });
+
     if (!title) {
         page.issues.push('Missing title');
     }
@@ -231,6 +256,7 @@ function buildSitewideAnalysis({ siteUrl, siteOrigin, pages, robotsTxt, sitemaps
     const canonicalCrossDomainPages = htmlPages.filter((page) => page.canonicalStatus === 'cross-domain');
     const deepPages = htmlPages.filter((page) => page.depth >= 4);
     const weaklyLinkedPages = htmlPages.filter((page) => page.status === 200 && page.depth > 0 && page.inboundLinks <= 1);
+    const pageByUrl = new Map(htmlPages.map((page) => [page.url, page]));
     const duplicateTitleGroups = getDuplicateGroups(titleBuckets);
     const duplicateMetaGroups = getDuplicateGroups(metaBuckets);
     const sitemapUrls = uniqueUrls(sitemaps.flatMap((item) => item.urls || []), siteOrigin);
@@ -405,6 +431,173 @@ function buildSitewideAnalysis({ siteUrl, siteOrigin, pages, robotsTxt, sitemaps
         );
     }
 
+    // ─── Hreflang Checks ─────────────────────────────────────────────────
+    const pagesWithHreflang = htmlPages.filter(p => p.hreflang && p.hreflang.length > 0);
+    const hreflangErrors = [];
+
+    for (const page of pagesWithHreflang) {
+        // Check for missing self-referencing hreflang
+        const hasSelfRef = page.hreflang.some(h => h.href === page.url);
+        if (!hasSelfRef) {
+            hreflangErrors.push({ url: page.url, issue: 'missing self-referencing hreflang' });
+        }
+
+        // Check for missing x-default
+        const hasXDefault = page.hreflang.some(h => h.lang === 'x-default');
+        if (!hasXDefault) {
+            hreflangErrors.push({ url: page.url, issue: 'missing x-default hreflang' });
+        }
+
+        // Check for invalid language codes (basic ISO 639-1 check)
+        for (const h of page.hreflang) {
+            if (h.lang === 'x-default') continue;
+            if (!/^[a-z]{2}(-[a-zA-Z]{2,})?$/.test(h.lang)) {
+                hreflangErrors.push({ url: page.url, issue: `invalid hreflang code: ${h.lang}` });
+            }
+        }
+
+        // Check bidirectional: hreflang target should link back
+        for (const h of page.hreflang) {
+            if (!h.href || h.lang === 'x-default') continue;
+            const targetPage = pageByUrl.get(cleanUrl(h.href, siteOrigin));
+            if (targetPage && targetPage.hreflang) {
+                const hasReturnLink = targetPage.hreflang.some(th => th.href === page.url);
+                if (!hasReturnLink) {
+                    hreflangErrors.push({ url: page.url, issue: `hreflang ${h.lang} target (${h.href}) has no return link` });
+                }
+            }
+        }
+    }
+
+    if (hreflangErrors.length) {
+        addIssue(
+            'indexability',
+            'important',
+            `${hreflangErrors.length} hreflang issue(s) found`,
+            'Hreflang errors cause search engines to ignore your international targeting signals, showing wrong-language pages to users.',
+            'Fix hreflang tags: ensure bidirectional links, valid ISO language codes, self-referencing tags, and x-default.',
+            `${hreflangErrors.length} hreflang errors`,
+            'Valid bidirectional hreflang with self-reference and x-default',
+            hreflangErrors.slice(0, 20).map(e => `${e.url} — ${e.issue}`)
+        );
+    }
+
+    // ─── Pagination Checks ───────────────────────────────────────────────
+    const pagesWithPagination = htmlPages.filter(p => p.pagination && (p.pagination.next || p.pagination.prev));
+    const paginationErrors = [];
+
+    for (const page of pagesWithPagination) {
+        // Check self-referencing canonical on paginated pages
+        if (page.pagination.next || page.pagination.prev) {
+            if (page.canonicalStatus !== 'self') {
+                paginationErrors.push({ url: page.url, issue: 'paginated page should have self-referencing canonical (not pointing to page 1)' });
+            }
+        }
+
+        // Check next/prev chain continuity
+        if (page.pagination.next) {
+            const nextPage = pageByUrl.get(cleanUrl(page.pagination.next, siteOrigin));
+            if (nextPage && nextPage.pagination.prev) {
+                if (cleanUrl(nextPage.pagination.prev, siteOrigin) !== page.url) {
+                    paginationErrors.push({ url: page.url, issue: `next page (${page.pagination.next}) does not link back with rel="prev"` });
+                }
+            }
+        }
+
+        // Check that pagination URLs return 200
+        if (page.pagination.next) {
+            const nextUrl = cleanUrl(page.pagination.next, siteOrigin);
+            const nextPage = pageByUrl.get(nextUrl);
+            if (nextPage && nextPage.status >= 400) {
+                paginationErrors.push({ url: page.url, issue: `rel="next" points to broken URL (${nextUrl})` });
+            }
+        }
+    }
+
+    if (paginationErrors.length) {
+        addIssue(
+            'architecture',
+            'important',
+            `${paginationErrors.length} pagination issue(s) found`,
+            'Pagination issues confuse crawlers about which page to index and can cause duplicate content or lost ranking signals.',
+            'Use self-referencing canonicals on paginated pages. Ensure rel="next"/"prev" chains are complete and bidirectional.',
+            `${paginationErrors.length} pagination errors`,
+            'Complete rel="next"/"prev" chain with self-referencing canonicals',
+            paginationErrors.slice(0, 20).map(e => `${e.url} — ${e.issue}`)
+        );
+    }
+
+    // ─── Canonical Chain Checks ──────────────────────────────────────────
+    const canonicalErrors = [];
+
+    for (const page of htmlPages) {
+        if (!page.canonical || page.canonicalStatus === 'missing') continue;
+
+        const canonicalTarget = cleanUrl(page.canonical, siteOrigin);
+
+        // Check: canonical points to a URL that itself has a different canonical (chain)
+        const targetPage = pageByUrl.get(canonicalTarget);
+        if (targetPage && targetPage.canonical && cleanUrl(targetPage.canonical, siteOrigin) !== canonicalTarget) {
+            canonicalErrors.push({
+                url: page.url,
+                issue: `canonical chain: ${page.url} → ${canonicalTarget} → ${targetPage.canonical}`,
+            });
+        }
+
+        // Check: canonical points to a broken URL (404/5xx)
+        if (targetPage && targetPage.status >= 400) {
+            canonicalErrors.push({
+                url: page.url,
+                issue: `canonical points to broken URL (${canonicalTarget}, status ${targetPage.status})`,
+            });
+        }
+
+        // Check: canonical protocol mismatch (http vs https)
+        if (page.canonical.startsWith('http:') && page.url.startsWith('https:')) {
+            canonicalErrors.push({
+                url: page.url,
+                issue: 'canonical uses HTTP but page is served over HTTPS',
+            });
+        }
+
+        // Check: canonical www mismatch
+        const pageWww = page.url.includes('://www.');
+        const canonWww = page.canonical.includes('://www.');
+        if (pageWww !== canonWww) {
+            canonicalErrors.push({
+                url: page.url,
+                issue: 'canonical www/non-www mismatch with page URL',
+            });
+        }
+    }
+
+    if (canonicalErrors.length) {
+        addIssue(
+            'indexability',
+            'critical',
+            `${canonicalErrors.length} canonical chain / mismatch issue(s)`,
+            'Canonical chains and mismatches dilute ranking signals and can cause de-indexation. Each page should canonical to its final, correct, self-referencing URL.',
+            'Fix canonical tags so each page points directly to its own final URL. Avoid chains, protocol mismatches, and www inconsistencies.',
+            `${canonicalErrors.length} canonical issues`,
+            'Each page has a direct self-referencing canonical',
+            canonicalErrors.slice(0, 20).map(e => `${e.url} — ${e.issue}`)
+        );
+    }
+
+    // ─── Structured Data Summary ─────────────────────────────────────────
+    const schemaTypes = new Map();
+    let pagesWithSchema = 0;
+    for (const page of htmlPages) {
+        if (page.structuredData && page.structuredData.length > 0) {
+            pagesWithSchema++;
+            for (const sd of page.structuredData) {
+                for (const t of sd.types) {
+                    schemaTypes.set(t, (schemaTypes.get(t) || 0) + 1);
+                }
+            }
+        }
+    }
+
     const categories = buildCategoryScores(issues);
     const overall = computeOverallScore(issues);
 
@@ -426,6 +619,11 @@ function buildSitewideAnalysis({ siteUrl, siteOrigin, pages, robotsTxt, sitemaps
             sitemapUrls: sitemapUrls.length,
             orphanSitemapUrls: orphanSitemapUrls.length,
             robotsFound: robotsTxt.found,
+            hreflangIssues: hreflangErrors.length,
+            paginationIssues: paginationErrors.length,
+            canonicalChainIssues: canonicalErrors.length,
+            pagesWithSchema,
+            schemaTypes: Object.fromEntries(schemaTypes),
         },
         issues,
         pages: pages.map((page) => ({
@@ -443,6 +641,9 @@ function buildSitewideAnalysis({ siteUrl, siteOrigin, pages, robotsTxt, sitemaps
             issues: page.issues,
             redirectTo: page.redirectTo || '',
             canonicalStatus: page.canonicalStatus,
+            hreflang: page.hreflang || [],
+            pagination: page.pagination || {},
+            structuredData: (page.structuredData || []).flatMap(sd => sd.types),
         })),
     };
 }

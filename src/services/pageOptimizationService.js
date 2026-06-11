@@ -17,6 +17,7 @@ const cheerio = require('cheerio');
 const { createLogger } = require('../utils/logger');
 const { analyzeOnPage } = require('./onpageService');
 const keywordService = require('./keywordService');
+const { extractDomain } = require('../utils/domainUtils');
 
 const log = createLogger('page-optimization');
 
@@ -168,7 +169,7 @@ async function optimizePage({ url, keyword, location = 'India' }) {
         log.warn({ err: err.message }, 'SERP fetch failed');
     }
 
-    const myDomain = keywordService.extractDomain(normalizedUrl);
+    const myDomain = extractDomain(normalizedUrl);
     const uniqueCompetitors = [];
     const seenDomains = new Set([myDomain]);
     for (const entry of serpResults) {
@@ -638,7 +639,7 @@ function buildFaqSchemaSnippet(keyword) {
     {
       "@type": "Question",
       "name": "What is ${keyword}?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Short answer that addresses the searcher intent for \"${keyword}\"." }
+      "acceptedAnswer": { "@type": "Answer", "text": "Short answer that addresses the searcher intent for "${keyword}"." }
     },
     {
       "@type": "Question",

@@ -116,51 +116,73 @@ async function getKeywordIdeas(keywords, location = 'India') {
 
     log.info({ keywords: seedKeywords, location, geoTargetId }, 'fetching keyword ideas from Google Ads');
 
-    const results = await customer.keywordPlanIdeas.generateKeywordIdeas({
-        keyword_seed: { keywords: seedKeywords },
-        geo_target_constants: [`geoTargetConstants/${geoTargetId}`],
-        language:             `languageConstants/${languageId}`,
-        keyword_plan_network: enums.KeywordPlanNetwork.GOOGLE_SEARCH,
-        include_adult_keywords: false,
-    });
+    const MAX_RETRIES = 3;
+    let lastError = null;
 
-    log.info({ count: results.length }, 'Google Ads keyword ideas received');
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            const results = await customer.keywordPlanIdeas.generateKeywordIdeas({
+                keyword_seed: { keywords: seedKeywords },
+                geo_target_constants: [`geoTargetConstants/${geoTargetId}`],
+                language:             `languageConstants/${languageId}`,
+                keyword_plan_network: enums.KeywordPlanNetwork.GOOGLE_SEARCH,
+                include_adult_keywords: false,
+            });
 
-    return results.map(item => {
-        const text    = item.text || '';
-        const metrics = item.keyword_idea_metrics || {};
+            log.info({ count: results.length }, 'Google Ads keyword ideas received');
 
-        const volume           = parseInt(metrics.avg_monthly_searches ?? 0);
-        const competitionIndex = parseInt(metrics.competition_index   ?? 0);
-        const competition      = competitionIndex >= 70 ? 'high'
-                               : competitionIndex >= 40 ? 'medium'
-                               : 'low';
+            return results.map(item => {
+                const text    = item.text || '';
+                const metrics = item.keyword_idea_metrics || {};
 
-        const lowCpc  = parseInt(metrics.low_top_of_page_bid_micros  ?? 0) / 1_000_000;
-        const highCpc = parseInt(metrics.high_top_of_page_bid_micros ?? 0) / 1_000_000;
-        const avgCpc  = ((lowCpc + highCpc) / 2);
+                const volume           = parseInt(metrics.avg_monthly_searches ?? 0);
+                const competitionIndex = parseInt(metrics.competition_index   ?? 0);
+                const competition      = competitionIndex >= 70 ? 'high'
+                                       : competitionIndex >= 40 ? 'medium'
+                                       : 'low';
 
-        const monthlyTrend = (metrics.monthly_search_volumes || []).map(m => ({
-            month:   m.month,
-            year:    m.year,
-            searches: parseInt(m.monthly_searches ?? 0),
-        }));
+                const lowCpc  = parseInt(metrics.low_top_of_page_bid_micros  ?? 0) / 1_000_000;
+                const highCpc = parseInt(metrics.high_top_of_page_bid_micros ?? 0) / 1_000_000;
+                const avgCpc  = ((lowCpc + highCpc) / 2);
 
-        return {
-            keyword:          text,
-            volume,
-            competition,
-            competitionIndex,
-            cpc:      parseFloat(avgCpc.toFixed(2)),
-            cpcRange: {
-                low:  parseFloat(lowCpc.toFixed(2)),
-                high: parseFloat(highCpc.toFixed(2)),
-            },
-            monthlyTrend,
-            source: 'google_ads_keyword_planner',
-            isReal: true,
-        };
-    });
+                const monthlyTrend = (metrics.monthly_search_volumes || []).map(m => ({
+                    month:   m.month,
+                    year:    m.year,
+                    searches: parseInt(m.monthly_searches ?? 0),
+                }));
+
+                return {
+                    keyword:          text,
+                    volume,
+                    competition,
+                    competitionIndex,
+                    cpc:      parseFloat(avgCpc.toFixed(2)),
+                    cpcRange: {
+                        low:  parseFloat(lowCpc.toFixed(2)),
+                        high: parseFloat(highCpc.toFixed(2)),
+                    },
+                    monthlyTrend,
+                    source: 'google_ads_keyword_planner',
+                    isReal: true,
+                };
+            });
+        } catch (err) {
+            lastError = err;
+            const msg = err.message || '';
+            const isQuotaError = msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('rate') || err.code === 429;
+            const isRetryable = isQuotaError || err.code >= 500 || msg.includes('UNAVAILABLE');
+
+            if (!isRetryable || attempt >= MAX_RETRIES) {
+                throw err;
+            }
+
+            const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+            log.warn({ attempt, backoffMs: Math.round(backoffMs), err: msg }, 'Google Ads request failed, retrying with backoff');
+            await new Promise((res) => setTimeout(res, backoffMs));
+        }
+    }
+
+    throw lastError;
 }
 
 /**
@@ -185,10 +207,32 @@ async function getBulkKeywordVolume(keywords, location = 'India') {
     try {
         for (let i = 0; i < keywords.length; i += 20) {
             const batch   = keywords.slice(i, i + 20);
-            const results = await getKeywordIdeas(batch, location);
-            for (const r of results) {
-                resultMap.set(r.keyword.toLowerCase(), r);
+            let batchResults = null;
+
+            // Retry individual batches up to 3 times with backoff
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    batchResults = await getKeywordIdeas(batch, location);
+                    break;
+                } catch (err) {
+                    const msg = err.message || '';
+                    const isRetryable = msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED') || err.code >= 429;
+                    if (!isRetryable || attempt >= 3) {
+                        log.warn({ batchStart: i, attempt, err: msg }, 'batch failed permanently, skipping');
+                        break;
+                    }
+                    const backoffMs = Math.pow(2, attempt) * 1500;
+                    log.warn({ batchStart: i, attempt, backoffMs }, 'batch failed, retrying');
+                    await new Promise((res) => setTimeout(res, backoffMs));
+                }
             }
+
+            if (batchResults) {
+                for (const r of batchResults) {
+                    resultMap.set(r.keyword.toLowerCase(), r);
+                }
+            }
+
             if (i + 20 < keywords.length) {
                 await new Promise(res => setTimeout(res, 1000));
             }

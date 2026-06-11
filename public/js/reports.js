@@ -11,6 +11,8 @@ let savedReportId = null;
 document.addEventListener('DOMContentLoaded', () => {
     loadClients();
     loadSavedReports();
+    loadScheduledReports();
+    checkSmtpStatus();
 
     document.getElementById('generateReportBtn').addEventListener('click', generateReport);
     document.getElementById('saveReportBtn')?.addEventListener('click', saveReport);
@@ -44,6 +46,7 @@ async function loadClients() {
                 document.getElementById('reportDomain').value = domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
             }
             autoFillTitle();
+            if (select.value) generateReport();
         });
     } catch (err) {
         console.warn('Could not load clients for report builder:', err.message);
@@ -68,6 +71,7 @@ async function generateReport() {
     const clientId = document.getElementById('reportClientSelect')?.value || null;
     const periodDays = parseInt(document.getElementById('reportPeriod')?.value || '30');
     const reportTitle = document.getElementById('reportTitle')?.value?.trim();
+    const includePageSpeed = document.getElementById('reportIncludePageSpeed')?.checked !== false;
 
     if (!domain && !clientId) {
         showReportToast('Please enter a domain or select a client', 'error');
@@ -89,6 +93,7 @@ async function generateReport() {
                 clientId: clientId || null,
                 periodDays,
                 reportTitle: reportTitle || undefined,
+                includePageSpeed,
             }),
         });
 
@@ -141,6 +146,12 @@ function renderReportPreview(report) {
             ${statChip(summary.avgPosition || '—', 'Avg Position', '#f59e0b')}
             ${statChip('+' + summary.improved, 'Improved', '#10b981')}
             ${statChip('-' + summary.dropped, 'Dropped', '#ef4444')}
+            ${statChip(summary.projectKeywords || summary.totalKeywords || 0, 'Client Keywords', '#0f766e')}
+            ${statChip(summary.pageSpeedScore ?? '—', 'PageSpeed', '#2563eb')}
+            ${statChip(summary.latestTechnicalScore ?? '—', 'Tech Score', '#64748b')}
+            ${statChip(summary.gscClicks ?? 0, 'GSC Clicks', '#0f766e')}
+            ${statChip(summary.gscImpressions ?? 0, 'GSC Impr.', '#4f46e5')}
+            ${statChip(summary.gscQuickWins ?? 0, 'GSC Wins', '#f59e0b')}
         </div>
 
         <!-- Traffic estimate -->
@@ -148,6 +159,25 @@ function renderReportPreview(report) {
             <div style="font-size:11px;font-weight:600;color:#6366f1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Estimated Monthly Traffic</div>
             <div style="font-size:1.8rem;font-weight:800;color:#4f46e5;">${summary.estimatedMonthlyTraffic.toLocaleString()} <span style="font-size:0.9rem;color:var(--text-muted);font-weight:400;">visits/month</span></div>
         </div>
+
+        <!-- Client coverage -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+            <div style="border:1px solid var(--border);border-radius:10px;padding:14px;background:var(--bg);">
+                <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Client Pack Included</div>
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
+                    ${statChip(summary.projectCount || 0, 'Projects', '#4f46e5')}
+                    ${statChip(summary.projectKeywords || 0, 'Keywords', '#0f766e')}
+                    ${statChip(summary.pageOptimizations || 0, 'Page Reports', '#f59e0b')}
+                    ${statChip(summary.contentBriefs || 0, 'Briefs', '#7c3aed')}
+                </div>
+            </div>
+            <div style="border:1px solid var(--border);border-radius:10px;padding:14px;">
+                <div style="font-size:11px;font-weight:600;color:#2563eb;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">PageSpeed & Core Web Vitals</div>
+                ${renderPageSpeedPreview(data.pageSpeed)}
+            </div>
+        </div>
+
+        ${renderGscPreview(data.gsc)}
 
         <!-- Executive Summary -->
         <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:14px 16px;margin-bottom:20px;">
@@ -291,6 +321,61 @@ async function deleteReport(id) {
 }
 
 // ─── Helpers ───
+
+
+function renderGscPreview(gsc) {
+    if (!gsc) return '';
+    const ctr = gsc.ctr === null || gsc.ctr === undefined ? '—' : `${(Number(gsc.ctr) * 100).toFixed(1)}%`;
+    const position = gsc.position === null || gsc.position === undefined ? '—' : Number(gsc.position).toFixed(1);
+    const quickWins = (gsc.quickWinKeywords || []).slice(0, 4);
+    const lowCtr = (gsc.lowCtrPages || []).slice(0, 4);
+    return `
+        <div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:20px;">
+            <div style="font-size:11px;font-weight:600;color:#0f766e;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Google Search Console</div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+                ${statChip(gsc.clicks || 0, 'Clicks', '#0f766e')}
+                ${statChip(gsc.impressions || 0, 'Impressions', '#4f46e5')}
+                ${statChip(ctr, 'CTR', '#f59e0b')}
+                ${statChip(position, 'Avg Pos', '#7c3aed')}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div>${quickWins.length ? `<strong style="font-size:12px;">Quick wins</strong>${quickWins.map(row => `<div style="font-size:12px;padding-top:5px;">${escHtml(row.query)} · #${Number(row.position).toFixed(1)}</div>`).join('')}` : '<span style="font-size:12px;color:var(--text-muted);">No quick-win keywords synced.</span>'}</div>
+                <div>${lowCtr.length ? `<strong style="font-size:12px;">Low CTR pages</strong>${lowCtr.map(row => `<div style="font-size:12px;padding-top:5px;">${escHtml((row.page || '').replace(/^https?:\/\//, ''))} · ${(Number(row.ctr) * 100).toFixed(1)}%</div>`).join('')}` : '<span style="font-size:12px;color:var(--text-muted);">No low-CTR pages synced.</span>'}</div>
+            </div>
+        </div>
+    `;
+}
+
+function renderPageSpeedPreview(pageSpeed) {
+    if (!pageSpeed) {
+        return '<div style="font-size:13px;color:var(--text-muted);line-height:1.6;">No PageSpeed data yet. Add a website URL for the client or run a technical audit for crawl-based speed signals.</div>';
+    }
+    const scores = pageSpeed.scores || {};
+    const metrics = pageSpeed.metrics || {};
+    const source = pageSpeed.source === 'google-pagespeed-insights' ? 'Google PSI mobile' : 'Technical crawl fallback';
+    const metricItems = [metrics.lcp, metrics.inp, metrics.cls, metrics.fcp, metrics.speedIndex, metrics.avgLoad]
+        .filter(Boolean)
+        .slice(0, 4)
+        .map(item => `<div style="font-size:12px;padding:5px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px;"><span>${escHtml(item.title)}</span><strong>${escHtml(item.displayValue || '—')}</strong></div>`)
+        .join('');
+    const opportunities = (pageSpeed.opportunities || [])
+        .slice(0, 2)
+        .map(item => `<div style="font-size:12px;color:var(--text-muted);padding-top:6px;">• ${escHtml(item.title)} ${item.displayValue ? `(${escHtml(item.displayValue)})` : ''}</div>`)
+        .join('');
+
+    return `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;">
+            ${statChip(scores.performance ?? '—', 'Perf', '#2563eb')}
+            ${statChip(scores.accessibility ?? '—', 'A11y', '#10b981')}
+            ${statChip(scores.bestPractices ?? '—', 'Best', '#f59e0b')}
+            ${statChip(scores.seo ?? '—', 'SEO', '#7c3aed')}
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">Source: ${source}</div>
+        ${metricItems || '<div style="font-size:12px;color:var(--text-muted);">No metric details available.</div>'}
+        ${opportunities ? `<div style="margin-top:8px;">${opportunities}</div>` : ''}
+    `;
+}
+
 function statChip(value, label, color) {
     return `
         <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;">
@@ -326,4 +411,141 @@ function showReportToast(message, type = 'info') {
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3500);
+}
+
+// ─── Scheduled Email Reports ─────────────────────────────────────────────────
+async function checkSmtpStatus() {
+    const container = document.getElementById('scheduledReportsSmtpStatus');
+    if (!container) return;
+    try {
+        const res = await fetch('/api/scheduled-reports/smtp-status');
+        const data = await res.json();
+        if (data.ok) {
+            container.innerHTML = '<span style="color:#10b981;font-size:12px;"><i class="fas fa-check-circle"></i> SMTP connected</span>';
+        } else {
+            container.innerHTML = `<span style="color:#f59e0b;font-size:12px;"><i class="fas fa-exclamation-triangle"></i> SMTP not configured — set SMTP_HOST, SMTP_USER, SMTP_PASS in .env</span>`;
+        }
+    } catch {
+        container.innerHTML = '<span style="color:#94a3b8;font-size:12px;">Could not check SMTP status</span>';
+    }
+}
+
+async function loadScheduledReports() {
+    const container = document.getElementById('scheduledReportsList');
+    if (!container) return;
+    try {
+        const res = await fetch('/api/scheduled-reports');
+        const { schedules = [] } = await res.json();
+        if (!schedules.length) {
+            container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;text-align:center;padding:12px;">No scheduled reports yet.</p>';
+            return;
+        }
+        const freqLabels = { weekly: 'Weekly', biweekly: 'Biweekly', monthly: 'Monthly' };
+        container.innerHTML = schedules.map(s => {
+            const recipients = Array.isArray(s.recipients) ? s.recipients : [];
+            return `
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">
+                <div style="width:36px;height:36px;background:#dbeafe;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">
+                    <i class="fas fa-envelope" style="color:#2563eb;"></i>
+                </div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;font-size:13px;">${escHtml(s.title)}</div>
+                    <div style="font-size:11px;color:var(--text-muted);">
+                        ${escHtml(s.domain)} · ${freqLabels[s.frequency] || s.frequency} at ${String(s.hour).padStart(2, '0')}:00
+                        · ${recipients.length} recipient${recipients.length !== 1 ? 's' : ''}
+                    </div>
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
+                        ${s.last_sent_at ? 'Last sent: ' + formatDate(s.last_sent_at) : 'Never sent'}
+                        ${s.next_run_at ? ' · Next: ' + formatDate(s.next_run_at) : ''}
+                    </div>
+                </div>
+                <div style="display:flex;gap:6px;flex-shrink:0;align-items:center;">
+                    <span style="font-size:11px;padding:3px 8px;border-radius:12px;font-weight:600;${s.is_active ? 'background:#d1fae5;color:#065f46;' : 'background:#fee2e2;color:#991b1b;'}">${s.is_active ? 'Active' : 'Paused'}</span>
+                    <button onclick="toggleScheduledReport(${s.id}, ${!s.is_active})" class="btn btn-sm btn-outline" title="${s.is_active ? 'Pause' : 'Resume'}">
+                        <i class="fas ${s.is_active ? 'fa-pause' : 'fa-play'}"></i>
+                    </button>
+                    <button onclick="deleteScheduledReport(${s.id})" class="btn btn-sm btn-outline" title="Delete" style="color:#ef4444;border-color:#fecaca;">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>`;
+        }).join('');
+    } catch {
+        container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;padding:12px;">Could not load scheduled reports.</p>';
+    }
+}
+
+async function createScheduledReport() {
+    const domain = document.getElementById('schedDomain')?.value?.trim();
+    const title = document.getElementById('schedTitle')?.value?.trim() || 'Monthly SEO Report';
+    const recipientsRaw = document.getElementById('schedRecipients')?.value?.trim();
+    const frequency = document.getElementById('schedFrequency')?.value || 'monthly';
+    const hour = parseInt(document.getElementById('schedHour')?.value || '8');
+    const dayOfMonth = parseInt(document.getElementById('schedDayOfMonth')?.value || '1');
+
+    if (!domain) { showReportToast('Enter a domain', 'error'); return; }
+    if (!recipientsRaw) { showReportToast('Enter at least one recipient email', 'error'); return; }
+
+    const recipients = recipientsRaw.split(',').map(e => e.trim()).filter(Boolean);
+    if (!recipients.length) { showReportToast('Enter valid email(s)', 'error'); return; }
+
+    try {
+        const res = await fetch('/api/scheduled-reports', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain, title, recipients, frequency, hour, dayOfMonth }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create schedule');
+        showReportToast('Scheduled report created!', 'success');
+        loadScheduledReports();
+        // Clear form
+        document.getElementById('schedDomain').value = '';
+        document.getElementById('schedRecipients').value = '';
+        document.getElementById('schedTitle').value = '';
+    } catch (err) {
+        showReportToast(`Error: ${err.message}`, 'error');
+    }
+}
+
+async function toggleScheduledReport(id, isActive) {
+    try {
+        await fetch(`/api/scheduled-reports/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isActive }),
+        });
+        loadScheduledReports();
+    } catch (err) {
+        showReportToast('Failed to update schedule', 'error');
+    }
+}
+
+async function deleteScheduledReport(id) {
+    if (!confirm('Delete this scheduled report?')) return;
+    try {
+        await fetch(`/api/scheduled-reports/${id}`, { method: 'DELETE' });
+        loadScheduledReports();
+        showReportToast('Schedule deleted', 'success');
+    } catch {
+        showReportToast('Delete failed', 'error');
+    }
+}
+
+async function sendTestEmail() {
+    const recipients = document.getElementById('schedRecipients')?.value?.trim();
+    if (!recipients) { showReportToast('Enter a recipient email first', 'error'); return; }
+    const email = recipients.split(',')[0].trim();
+    try {
+        const res = await fetch('/api/scheduled-reports/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showReportToast(`Test email sent to ${email}`, 'success');
+    } catch (err) {
+        showReportToast(`Test failed: ${err.message}`, 'error');
+    }
 }

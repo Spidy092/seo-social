@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const axios = require('axios');
+const { requireAgencyContext, getAgencyContext } = require('../../utils/authHelper');
 
 function generateState() {
   return crypto.randomBytes(16).toString('hex');
@@ -10,10 +11,12 @@ module.exports = async function (fastify, options) {
 
   // ─── GET /platforms — list connections (Protected) ────────────
   fastify.get('/social/platforms', async (request, reply) => {
+    const ctx = await requireAgencyContext(request, reply, db);
+    if (!ctx) return;
     try {
       const { rows: connections } = await db.query(
-        'SELECT * FROM platform_connections WHERE user_id = $1',
-        [request.session.get('userId')]
+        'SELECT * FROM platform_connections WHERE user_id = $1 AND (agency_id = $2 OR agency_id IS NULL OR $2 IS NULL)',
+        [ctx.userId, ctx.agencyId]
       );
 
       const platforms = ['instagram', 'facebook', 'linkedin', 'youtube'];
@@ -45,6 +48,8 @@ module.exports = async function (fastify, options) {
 
   // ─── GET /platforms/:platform/connect — initiate OAuth ───
   fastify.get('/social/platforms/meta/connect', async (request, reply) => {
+    const ctx = await requireAgencyContext(request, reply, db);
+    if (!ctx) return;
     const state = generateState();
     request.session.set('oauthState', state);
     const params = new URLSearchParams({
@@ -58,6 +63,8 @@ module.exports = async function (fastify, options) {
   });
 
   fastify.get('/social/platforms/linkedin/connect', async (request, reply) => {
+    const ctx = await requireAgencyContext(request, reply, db);
+    if (!ctx) return;
     const state = generateState();
     request.session.set('oauthState', state);
     const params = new URLSearchParams({
@@ -71,6 +78,8 @@ module.exports = async function (fastify, options) {
   });
 
   fastify.get('/social/platforms/youtube/connect', async (request, reply) => {
+    const ctx = await requireAgencyContext(request, reply, db);
+    if (!ctx) return;
     const state = generateState();
     request.session.set('oauthState', state);
     const params = new URLSearchParams({
@@ -88,6 +97,8 @@ module.exports = async function (fastify, options) {
   // ─── DELETE /platforms/:platform/disconnect ───────────────
   // We'll use POST /social/platforms/:platform/disconnect logic for easy HTML forms without method-override
   fastify.post('/social/platforms/:platform/disconnect', async (request, reply) => {
+    const ctx = await requireAgencyContext(request, reply, db);
+    if (!ctx) return;
     const { platform } = request.params;
     const allowed = ['instagram', 'facebook', 'linkedin', 'youtube'];
     if (!allowed.includes(platform)) {
@@ -97,15 +108,15 @@ module.exports = async function (fastify, options) {
 
     try {
       await db.query(
-        'DELETE FROM platform_connections WHERE user_id = $1 AND platform = $2',
-        [request.session.get('userId'), platform]
+        'DELETE FROM platform_connections WHERE user_id = $1 AND platform = $2 AND (agency_id = $3 OR agency_id IS NULL OR $3 IS NULL)',
+        [ctx.userId, platform, ctx.agencyId]
       );
 
       if (platform === 'instagram' || platform === 'facebook') {
         const otherPlatform = platform === 'instagram' ? 'facebook' : 'instagram';
         await db.query(
-          'DELETE FROM platform_connections WHERE user_id = $1 AND platform = $2',
-          [request.session.get('userId'), otherPlatform]
+          'DELETE FROM platform_connections WHERE user_id = $1 AND platform = $2 AND (agency_id = $3 OR agency_id IS NULL OR $3 IS NULL)',
+          [ctx.userId, otherPlatform, ctx.agencyId]
         );
         request.session.set('success', `Instagram & Facebook disconnected`);
       } else {
@@ -178,17 +189,18 @@ module.exports = async function (fastify, options) {
           return reply.redirect('/login');
       }
 
+      const ctx = await getAgencyContext(request, db);
       let fbUsername = userRes.data.name || 'Facebook User';
       let igUsername = null;
 
       if (pagesRes.data.data && pagesRes.data.data.length > 0) {
         const page = pagesRes.data.data[0];
         await db.query(
-          `INSERT INTO platform_connections (user_id, platform, access_token, refresh_token, token_expires_at, platform_user_id, platform_username)
-           VALUES ($1, 'facebook', $2, NULL, $3, $4, $5)
+          `INSERT INTO platform_connections (user_id, agency_id, platform, access_token, refresh_token, token_expires_at, platform_user_id, platform_username)
+           VALUES ($1, $2, 'facebook', $3, NULL, $4, $5, $6)
            ON CONFLICT (user_id, platform) DO UPDATE SET
-             access_token = $2, token_expires_at = $3, platform_user_id = $4, platform_username = $5`,
-          [userId, page.access_token, longExpiresAt, page.id, page.name || fbUsername]
+             access_token = $3, token_expires_at = $4, platform_user_id = $5, platform_username = $6, agency_id = $2`,
+          [userId, ctx?.agencyId || null, page.access_token, longExpiresAt, page.id, page.name || fbUsername]
         );
       }
 
@@ -207,11 +219,11 @@ module.exports = async function (fastify, options) {
             igUsername = igUserRes.data.username || 'Instagram User';
 
             await db.query(
-              `INSERT INTO platform_connections (user_id, platform, access_token, refresh_token, token_expires_at, platform_user_id, platform_username)
-               VALUES ($1, 'instagram', $2, NULL, $3, $4, $5)
+              `INSERT INTO platform_connections (user_id, agency_id, platform, access_token, refresh_token, token_expires_at, platform_user_id, platform_username)
+               VALUES ($1, $2, 'instagram', $3, NULL, $4, $5, $6)
                ON CONFLICT (user_id, platform) DO UPDATE SET
-                 access_token = $2, token_expires_at = $3, platform_user_id = $4, platform_username = $5`,
-              [userId, longToken, longExpiresAt, igId, igUsername]
+                 access_token = $3, token_expires_at = $4, platform_user_id = $5, platform_username = $6, agency_id = $2`,
+              [userId, ctx?.agencyId || null, longToken, longExpiresAt, igId, igUsername]
             );
           }
         } catch (igErr) {
@@ -273,12 +285,13 @@ module.exports = async function (fastify, options) {
           return reply.redirect('/login');
       }
 
+      const ctx = await getAgencyContext(request, db);
       await db.query(
-        `INSERT INTO platform_connections (user_id, platform, access_token, refresh_token, token_expires_at, platform_user_id, platform_username)
-         VALUES ($1, 'linkedin', $2, $3, $4, $5, $6)
+        `INSERT INTO platform_connections (user_id, agency_id, platform, access_token, refresh_token, token_expires_at, platform_user_id, platform_username)
+         VALUES ($1, $2, 'linkedin', $3, $4, $5, $6, $7)
          ON CONFLICT (user_id, platform) DO UPDATE SET
-           access_token = $2, refresh_token = $3, token_expires_at = $4, platform_user_id = $5, platform_username = $6`,
-        [userId, access_token, refresh_token || null, tokenExpiresAt, personId, displayName]
+           access_token = $3, refresh_token = $4, token_expires_at = $5, platform_user_id = $6, platform_username = $7, agency_id = $2`,
+        [userId, ctx?.agencyId || null, access_token, refresh_token || null, tokenExpiresAt, personId, displayName]
       );
 
       request.session.set('success', `LinkedIn connected as ${displayName}`);
@@ -334,12 +347,13 @@ module.exports = async function (fastify, options) {
           return reply.redirect('/login');
       }
 
+      const ctx = await getAgencyContext(request, db);
       await db.query(
-        `INSERT INTO platform_connections (user_id, platform, access_token, refresh_token, token_expires_at, platform_user_id, platform_username)
-         VALUES ($1, 'youtube', $2, $3, $4, $5, $6)
+        `INSERT INTO platform_connections (user_id, agency_id, platform, access_token, refresh_token, token_expires_at, platform_user_id, platform_username)
+         VALUES ($1, $2, 'youtube', $3, $4, $5, $6, $7)
          ON CONFLICT (user_id, platform) DO UPDATE SET
-           access_token = $2, refresh_token = $3, token_expires_at = $4, platform_user_id = $5, platform_username = $6`,
-        [userId, access_token, refresh_token || null, tokenExpiresAt, channelId, channelName]
+           access_token = $3, refresh_token = $4, token_expires_at = $5, platform_user_id = $6, platform_username = $7, agency_id = $2`,
+        [userId, ctx?.agencyId || null, access_token, refresh_token || null, tokenExpiresAt, channelId, channelName]
       );
 
       request.session.set('success', `YouTube connected as ${channelName}`);

@@ -1,5 +1,5 @@
 /**
- * 🛠️ SEO Task Routes
+ * 🛠️ SEO Task Routes — Agency-scoped
  */
 
 const {
@@ -11,23 +11,22 @@ const {
     deleteTask,
 } = require('../services/taskService');
 const { createLogger } = require('../utils/logger');
+const { getAgencyContext } = require('../utils/authHelper');
 
 const log = createLogger('routes:tasks');
-
-function getUserId(request) {
-    return request.session?.get('userId') || null;
-}
 
 async function taskRoutes(fastify, options) {
     const { db } = options;
 
     // ─── List Tasks for a Project ───
     fastify.get('/api/projects/:projectId/tasks', async (request, reply) => {
-        const userId = getUserId(request);
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         const { projectId } = request.params;
 
         try {
-            const tasks = await getTasks(projectId, userId);
+            const tasks = await getTasks(projectId, ctx.userId);
             return { success: true, tasks, generatedCount: tasks.length };
         } catch (err) {
             log.error({ err: err.message, projectId }, 'Failed to fetch tasks');
@@ -44,11 +43,13 @@ async function taskRoutes(fastify, options) {
             },
         },
         handler: async (request, reply) => {
-            const userId = getUserId(request);
+            const ctx = await getAgencyContext(request, db);
+            if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
             const { projectId } = request.params;
 
             try {
-                const tasks = await autoGenerateTasks(projectId, userId);
+                const tasks = await autoGenerateTasks(projectId, ctx.userId);
                 return { success: true, tasks, generatedCount: tasks.length };
             } catch (err) {
                 log.error({ err: err.message, projectId }, 'Failed to auto-generate tasks');
@@ -59,7 +60,9 @@ async function taskRoutes(fastify, options) {
 
     // ─── Create a Manual Task ───
     fastify.post('/api/tasks', async (request, reply) => {
-        const userId = getUserId(request);
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         const body = request.body || {};
 
         if (!body.title || !body.projectId) {
@@ -67,7 +70,7 @@ async function taskRoutes(fastify, options) {
         }
 
         try {
-            const task = await createTask(body, userId);
+            const task = await createTask(body, ctx.userId);
             return { success: true, task };
         } catch (err) {
             log.error({ err: err.message }, 'Failed to create task');
@@ -87,12 +90,14 @@ async function taskRoutes(fastify, options) {
             },
         },
         handler: async (request, reply) => {
-            const userId = getUserId(request);
+            const ctx = await getAgencyContext(request, db);
+            if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
             const { id } = request.params;
             const { mode = 'full' } = request.body || {};
 
             try {
-                const assistant = await generateTaskAssistant(id, userId, mode);
+                const assistant = await generateTaskAssistant(id, ctx.userId, mode);
                 return { success: true, assistant };
             } catch (err) {
                 log.error({ err: err.message, taskId: id }, 'Failed to generate task AI assistant');
@@ -103,12 +108,14 @@ async function taskRoutes(fastify, options) {
 
     // ─── Update an Existing Task ───
     fastify.put('/api/tasks/:id', async (request, reply) => {
-        const userId = getUserId(request);
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         const { id } = request.params;
         const body = request.body || {};
 
         try {
-            const task = await updateTask(id, body, userId);
+            const task = await updateTask(id, body, ctx.userId);
             if (!task) {
                 return reply.code(404).send({ error: 'Task not found or access denied' });
             }
@@ -121,11 +128,13 @@ async function taskRoutes(fastify, options) {
 
     // ─── Delete a Task ───
     fastify.delete('/api/tasks/:id', async (request, reply) => {
-        const userId = getUserId(request);
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         const { id } = request.params;
 
         try {
-            const task = await deleteTask(id, userId);
+            const task = await deleteTask(id, ctx.userId);
             if (!task) {
                 return reply.code(404).send({ error: 'Task not found or access denied' });
             }

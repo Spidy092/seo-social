@@ -161,6 +161,57 @@ async function repairKeywordConflictIndexes() {
     await query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_seo_project_keywords_project_keyword ON seo_project_keywords(project_id, keyword_id)`);
 }
 
+async function ensureAgencyForeignKeys() {
+    const tables = [
+        'agency_members', 'agency_invites', 'seo_clients', 'seo_tasks', 'technical_audits',
+        'page_optimizations', 'page_speed_checks', 'content_briefs', 'content_rewrite_history',
+        'posts', 'platform_connections', 'seo_reports', 'gsc_search_analytics', 'gsc_sync_runs',
+        'ga4_page_analytics', 'ga4_sync_runs', 'my_domains'
+    ];
+
+    for (const table of tables) {
+        const columnCheck = await query(
+            `SELECT 1 FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = $1 AND column_name = 'agency_id'`,
+            [table]
+        );
+        if (!columnCheck.rows.length) continue;
+
+        const constraints = await query(
+            `SELECT c.conname, c.confdeltype
+             FROM pg_constraint c
+             JOIN pg_class t ON t.oid = c.conrelid
+             JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(c.conkey)
+             WHERE t.relname = $1 AND a.attname = 'agency_id' AND c.contype = 'f'`,
+            [table]
+        );
+
+        for (const row of constraints.rows) {
+            if (row.confdeltype !== 'n') {
+                await query(`ALTER TABLE ${table} DROP CONSTRAINT IF EXISTS ${row.conname}`);
+            }
+        }
+
+        const remaining = await query(
+            `SELECT 1
+             FROM pg_constraint c
+             JOIN pg_class t ON t.oid = c.conrelid
+             JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(c.conkey)
+             WHERE t.relname = $1 AND a.attname = 'agency_id' AND c.contype = 'f' AND c.confdeltype = 'n'
+             LIMIT 1`,
+            [table]
+        );
+
+        if (!remaining.rows.length) {
+            await query(
+                `ALTER TABLE ${table}
+                 ADD CONSTRAINT fk_${table}_agency_id
+                 FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE SET NULL`
+            );
+        }
+    }
+}
+
 /**
  * Initialize the database schema.
  */
@@ -225,8 +276,10 @@ async function initializeDatabase() {
     await query(`
         CREATE TABLE IF NOT EXISTS my_domains (
             id SERIAL PRIMARY KEY,
-            domain VARCHAR(255) NOT NULL UNIQUE,
-            added_at TIMESTAMP DEFAULT NOW()
+            agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL,
+            domain VARCHAR(255) NOT NULL,
+            added_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE(agency_id, domain)
         )
     `);
 
@@ -304,6 +357,52 @@ async function initializeDatabase() {
             created_at TIMESTAMPTZ DEFAULT NOW()
         )
     `);
+
+    // ─── Agencies Table ───
+    await query(`
+        CREATE TABLE IF NOT EXISTS agencies (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name TEXT NOT NULL,
+            created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+
+    // ─── Agency Members Table (links users to agencies with roles) ───
+    await query(`
+        CREATE TABLE IF NOT EXISTS agency_members (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL,
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            role TEXT NOT NULL DEFAULT 'agent',
+            invited_by UUID REFERENCES users(id) ON DELETE SET NULL,
+            joined_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE(agency_id, user_id)
+        )
+    `);
+
+    // ─── Agency Invites Table ───
+    await query(`
+        CREATE TABLE IF NOT EXISTS agency_invites (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL,
+            email TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'agent',
+            token TEXT UNIQUE NOT NULL,
+            invited_by UUID REFERENCES users(id) ON DELETE SET NULL,
+            accepted BOOLEAN DEFAULT FALSE,
+            expires_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days',
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+
+    await query(`CREATE INDEX IF NOT EXISTS idx_agency_members_user ON agency_members(user_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_agency_members_agency ON agency_members(agency_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_agency_invites_token ON agency_invites(token)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_agency_invites_email ON agency_invites(email)`);
+
+
 
     await query(`
         CREATE TABLE IF NOT EXISTS platform_connections (
@@ -460,6 +559,23 @@ async function initializeDatabase() {
     `);
 
     await query(`
+        CREATE TABLE IF NOT EXISTS page_speed_checks (
+            id SERIAL PRIMARY KEY,
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            client_id UUID REFERENCES seo_clients(id) ON DELETE SET NULL,
+            url TEXT NOT NULL,
+            final_url TEXT,
+            strategy TEXT DEFAULT 'mobile',
+            performance_score INTEGER,
+            accessibility_score INTEGER,
+            best_practices_score INTEGER,
+            seo_score INTEGER,
+            result JSONB NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+
+    await query(`
         CREATE TABLE IF NOT EXISTS content_briefs (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -472,6 +588,112 @@ async function initializeDatabase() {
         )
     `);
 
+    await query(`
+        CREATE TABLE IF NOT EXISTS gsc_search_analytics (
+            id SERIAL PRIMARY KEY,
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            client_id UUID REFERENCES seo_clients(id) ON DELETE CASCADE,
+            site_url TEXT NOT NULL,
+            date_start DATE NOT NULL,
+            date_end DATE NOT NULL,
+            dimension_type TEXT NOT NULL,
+            query TEXT,
+            page TEXT,
+            device TEXT,
+            country TEXT,
+            clicks INTEGER DEFAULT 0,
+            impressions INTEGER DEFAULT 0,
+            ctr DECIMAL(12,6) DEFAULT 0,
+            position DECIMAL(12,4) DEFAULT 0,
+            raw JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS gsc_sync_runs (
+            id SERIAL PRIMARY KEY,
+            user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+            client_id UUID REFERENCES seo_clients(id) ON DELETE CASCADE,
+            site_url TEXT,
+            sync_type TEXT NOT NULL DEFAULT 'manual',
+            status TEXT NOT NULL,
+            rows_synced INTEGER DEFAULT 0,
+            date_start DATE,
+            date_end DATE,
+            error_message TEXT,
+            started_at TIMESTAMPTZ DEFAULT NOW(),
+            finished_at TIMESTAMPTZ DEFAULT NOW(),
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS ga4_page_analytics (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+            agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL,
+            client_id UUID REFERENCES seo_clients(id) ON DELETE CASCADE,
+            property_id TEXT NOT NULL,
+            date_start DATE NOT NULL,
+            date_end DATE NOT NULL,
+            page_path TEXT,
+            page_url TEXT,
+            normalized_url TEXT,
+            landing_page TEXT,
+            source_medium TEXT,
+            channel_group TEXT,
+            device_category TEXT,
+            country TEXT,
+            city TEXT,
+            sessions INTEGER DEFAULT 0,
+            users INTEGER DEFAULT 0,
+            new_users INTEGER DEFAULT 0,
+            views INTEGER DEFAULT 0,
+            bounce_rate NUMERIC DEFAULT 0,
+            engagement_rate NUMERIC DEFAULT 0,
+            avg_session_duration NUMERIC DEFAULT 0,
+            conversions NUMERIC DEFAULT 0,
+            event_count INTEGER DEFAULT 0,
+            revenue NUMERIC DEFAULT 0,
+            raw JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS ga4_sync_runs (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+            agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL,
+            client_id UUID REFERENCES seo_clients(id) ON DELETE CASCADE,
+            property_id TEXT,
+            sync_type TEXT NOT NULL DEFAULT 'manual',
+            status TEXT NOT NULL,
+            rows_synced INTEGER DEFAULT 0,
+            date_start DATE,
+            date_end DATE,
+            error_message TEXT,
+            started_at TIMESTAMPTZ DEFAULT NOW(),
+            finished_at TIMESTAMPTZ DEFAULT NOW(),
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+
+    await query(`ALTER TABLE my_domains ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+    await query(`ALTER TABLE my_domains DROP CONSTRAINT IF EXISTS my_domains_domain_key`);
+    await query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_my_domains_agency_domain ON my_domains(agency_id, domain)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_my_domains_agency ON my_domains(agency_id)`);
+
+    await query(`ALTER TABLE seo_clients ADD COLUMN IF NOT EXISTS gsc_site_url TEXT`);
+    await query(`ALTER TABLE seo_clients ADD COLUMN IF NOT EXISTS ga4_property_id TEXT`);
+    await query(`ALTER TABLE seo_clients ADD COLUMN IF NOT EXISTS ga4_property_name TEXT`);
+    await query(`ALTER TABLE seo_clients ADD COLUMN IF NOT EXISTS ga4_connected_at TIMESTAMPTZ`);
+    await query(`ALTER TABLE seo_clients ADD COLUMN IF NOT EXISTS ga4_last_synced_at TIMESTAMPTZ`);
+    await query(`ALTER TABLE gsc_search_analytics ADD COLUMN IF NOT EXISTS normalized_url TEXT`);
+
     await query(`ALTER TABLE content_rewrite_history ADD COLUMN IF NOT EXISTS primary_keyword TEXT`);
     await query(`ALTER TABLE content_rewrite_history ADD COLUMN IF NOT EXISTS related_keywords JSONB DEFAULT '[]'::jsonb`);
 
@@ -479,12 +701,26 @@ async function initializeDatabase() {
     await query(`CREATE INDEX IF NOT EXISTS idx_content_rewrite_history_user_created ON content_rewrite_history(user_id, created_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_content_briefs_user_created ON content_briefs(user_id, created_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_content_briefs_project_created ON content_briefs(project_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_gsc_search_analytics_client_date ON gsc_search_analytics(client_id, date_start, date_end)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_gsc_search_analytics_client_dimension ON gsc_search_analytics(client_id, dimension_type, impressions DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_gsc_sync_runs_client_created ON gsc_sync_runs(client_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_gsc_sync_runs_user_created ON gsc_sync_runs(user_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_gsc_search_analytics_normalized_url ON gsc_search_analytics(client_id, normalized_url)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_ga4_page_analytics_client ON ga4_page_analytics(client_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_ga4_page_analytics_window ON ga4_page_analytics(client_id, date_start, date_end)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_ga4_page_analytics_url ON ga4_page_analytics(client_id, normalized_url)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_ga4_page_analytics_source ON ga4_page_analytics(client_id, source_medium, channel_group)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_ga4_sync_runs_client ON ga4_sync_runs(client_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_ga4_sync_runs_created ON ga4_sync_runs(created_at DESC)`);
+
     await query(`CREATE INDEX IF NOT EXISTS idx_technical_audits_site_created ON technical_audits(site_url, created_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_technical_audits_user_created ON technical_audits(user_id, created_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_seo_clients_user_created ON seo_clients(user_id, created_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_seo_projects_client_created ON seo_projects(client_id, created_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_seo_project_keywords_project ON seo_project_keywords(project_id, created_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_page_optimizations_user_created ON page_optimizations(user_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_page_speed_checks_client_created ON page_speed_checks(client_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_page_speed_checks_url_created ON page_speed_checks(url, created_at DESC)`);
 
     // ─── SEO Reports Table ───
     await query(`
@@ -523,7 +759,78 @@ async function initializeDatabase() {
     await query(`CREATE INDEX IF NOT EXISTS idx_seo_tasks_project ON seo_tasks(project_id, status)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_seo_tasks_user ON seo_tasks(user_id, status)`);
 
-    await repairKeywordConflictIndexes();
+    // ─── Add onboarding_dismissed to agencies ───
+    await query(`ALTER TABLE agencies ADD COLUMN IF NOT EXISTS onboarding_dismissed BOOLEAN DEFAULT FALSE`);
+
+    // ─── Add agency_id to seo_clients (migration-safe) ───
+    await query(`ALTER TABLE seo_clients ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_seo_clients_agency ON seo_clients(agency_id)`);
+
+    // ─── Add agency_id to seo_tasks ───
+    await query(`ALTER TABLE seo_tasks ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_seo_tasks_agency ON seo_tasks(agency_id)`);
+
+    // ─── Add assigned_to for client/task assignment to specific members ───
+    await query(`ALTER TABLE seo_clients ADD COLUMN IF NOT EXISTS assigned_to UUID REFERENCES users(id) ON DELETE SET NULL`);
+    await query(`ALTER TABLE seo_tasks ADD COLUMN IF NOT EXISTS assigned_to UUID REFERENCES users(id) ON DELETE SET NULL`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_seo_clients_assigned ON seo_clients(assigned_to)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_seo_tasks_assigned ON seo_tasks(assigned_to)`);
+
+    // ─── Add agency_id to technical_audits ───
+    await query(`ALTER TABLE technical_audits ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+
+    // ─── Add agency_id to page_optimizations ───
+    await query(`ALTER TABLE page_optimizations ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+
+    // ─── Add agency_id to page_speed_checks ───
+    await query(`ALTER TABLE page_speed_checks ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+
+    // ─── Add agency_id to content_briefs ───
+    await query(`ALTER TABLE content_briefs ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+
+    // ─── Add agency_id to content_rewrite_history ───
+    await query(`ALTER TABLE content_rewrite_history ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+    await query(`ALTER TABLE content_rewrite_history ADD COLUMN IF NOT EXISTS sample TEXT`);
+
+    // ─── Add agency_id to posts ───
+    await query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+
+    // ─── Add agency_id to platform_connections ───
+    await query(`ALTER TABLE platform_connections ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+
+    // ─── Add agency_id to seo_reports ───
+    await query(`ALTER TABLE seo_reports ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+
+    // ─── Add agency_id to gsc tables ───
+    await query(`ALTER TABLE gsc_search_analytics ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+    await query(`ALTER TABLE gsc_sync_runs ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+
+    await ensureAgencyForeignKeys();
+
+    // ─── Scheduled Email Reports ───
+    await query(`
+        CREATE TABLE IF NOT EXISTS scheduled_reports (
+            id SERIAL PRIMARY KEY,
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL,
+            client_id UUID REFERENCES seo_clients(id) ON DELETE SET NULL,
+            domain TEXT NOT NULL,
+            title TEXT NOT NULL DEFAULT 'Monthly SEO Report',
+            recipients JSONB NOT NULL DEFAULT '[]'::jsonb,
+            frequency TEXT NOT NULL DEFAULT 'monthly',
+            day_of_week INTEGER DEFAULT 1,
+            day_of_month INTEGER DEFAULT 1,
+            hour INTEGER DEFAULT 8,
+            report_options JSONB DEFAULT '{}'::jsonb,
+            is_active BOOLEAN DEFAULT TRUE,
+            last_sent_at TIMESTAMPTZ,
+            next_run_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_scheduled_reports_active ON scheduled_reports(is_active, next_run_at)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_scheduled_reports_agency ON scheduled_reports(agency_id)`);
+
 
     log.info('✅ database schema initialized');
 }
@@ -532,5 +839,6 @@ module.exports = {
     query,
     getClient,
     initializeDatabase,
+    repairKeywordConflictIndexes,
     pool,
 };

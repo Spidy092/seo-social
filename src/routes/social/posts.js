@@ -5,12 +5,15 @@ const pipeline = util.promisify(require('stream').pipeline);
 const os = require('os');
 const { uploadFile, deleteFile } = require('../../services/cloudinary');
 const { postToPlatform } = require('../../services/platforms');
+const { requireAgencyContext } = require('../../utils/authHelper');
 
 module.exports = async function (fastify, options) {
     const { db } = options;
 
     // GET /social/posts/upload
     fastify.get('/social/posts/upload', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         const error = request.session.get('error');
         const success = request.session.get('success');
         request.session.set('error', null);
@@ -26,6 +29,8 @@ module.exports = async function (fastify, options) {
 
     // POST /social/posts (handle multipart form data)
     fastify.post('/social/posts', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         const parts = request.parts(); // use async iterator for parts
         let mediaFile = null;
         let tempFilePath = null;
@@ -93,9 +98,9 @@ module.exports = async function (fastify, options) {
             const dbScheduledAt = scheduled_at ? new Date(scheduled_at) : null;
             
             await db.query(`
-              INSERT INTO posts (user_id, media_url, media_type, caption_original, platforms, scheduled_at, status)
-              VALUES ($1, $2, $3, $4, $5, $6, $7)
-            `, [request.session.get('userId'), cloudinaryResult.url, cloudinaryResult.resourceType, caption, JSON.stringify(platformsData), dbScheduledAt, status]);
+              INSERT INTO posts (user_id, agency_id, media_url, media_type, caption_original, platforms, scheduled_at, status)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            `, [ctx.userId, ctx.agencyId, cloudinaryResult.url, cloudinaryResult.resourceType, caption, JSON.stringify(platformsData), dbScheduledAt, status]);
 
             request.session.set('success', 'Post created successfully!');
             return reply.redirect('/social/posts/upload');
@@ -109,14 +114,16 @@ module.exports = async function (fastify, options) {
 
     // GET /social/posts/schedule
     fastify.get('/social/posts/schedule', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         try {
             const result = await db.query(`
               SELECT p.*, 
                 (SELECT json_agg(pr) FROM post_results pr WHERE pr.post_id = p.id) as results
               FROM posts p
-              WHERE p.user_id = $1
+              WHERE p.user_id = $1 AND (p.agency_id = $2 OR p.agency_id IS NULL OR $2 IS NULL)
               ORDER BY p.created_at DESC
-            `, [request.session.get('userId')]);
+            `, [ctx.userId, ctx.agencyId]);
 
             return reply.view('social/schedule.ejs', { 
                 activePage: 'schedule', 
@@ -141,8 +148,10 @@ module.exports = async function (fastify, options) {
 
     // POST /social/posts/:id/delete
     fastify.post('/social/posts/:id/delete', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         try {
-            const result = await db.query('SELECT * FROM posts WHERE id = $1 AND user_id = $2', [request.params.id, request.session.get('userId')]);
+            const result = await db.query('SELECT * FROM posts WHERE id = $1 AND user_id = $2 AND (agency_id = $3 OR agency_id IS NULL OR $3 IS NULL)', [request.params.id, ctx.userId, ctx.agencyId]);
             const post = result.rows[0];
 
             if (!post) {
@@ -155,7 +164,7 @@ module.exports = async function (fastify, options) {
             const publicId = `social-poster/${lastPart.split('.')[0]}`;
             
             await deleteFile(publicId, post.media_type);
-            await db.query('DELETE FROM posts WHERE id = $1', [request.params.id]);
+            await db.query('DELETE FROM posts WHERE id = $1 AND user_id = $2 AND (agency_id = $3 OR agency_id IS NULL OR $3 IS NULL)', [request.params.id, ctx.userId, ctx.agencyId]);
 
             request.session.set('success', 'Post deleted.');
         } catch (err) {
@@ -167,11 +176,14 @@ module.exports = async function (fastify, options) {
 
     // POST /social/posts/:id/publish-now
     fastify.post('/social/posts/:id/publish-now', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         try {
+            if (!ctx) return;
             const { id } = request.params;
-            const userId = request.session.get('userId');
+            const userId = ctx.userId;
             
-            const checkResult = await db.query('SELECT * FROM posts WHERE id = $1 AND user_id = $2', [id, userId]);
+            const checkResult = await db.query('SELECT * FROM posts WHERE id = $1 AND user_id = $2 AND (agency_id = $3 OR agency_id IS NULL OR $3 IS NULL)', [id, userId, ctx.agencyId]);
             const post = checkResult.rows[0];
 
             if (!post) {
@@ -179,15 +191,15 @@ module.exports = async function (fastify, options) {
                 return reply.redirect('/social/posts/schedule');
             }
 
-            await db.query('UPDATE posts SET status = $1 WHERE id = $2', ['publishing', id]);
+            await db.query('UPDATE posts SET status = $1 WHERE id = $2 AND user_id = $3 AND (agency_id = $4 OR agency_id IS NULL OR $4 IS NULL)', ['publishing', id, userId, ctx.agencyId]);
 
             const platforms = Object.keys(post.platforms);
             
             const results = await Promise.allSettled(
                 platforms.map(async (platform) => {
                     const { rows: [conn] } = await db.query(
-                        `SELECT * FROM platform_connections WHERE user_id=$1 AND platform=$2`,
-                        [post.user_id, platform]
+                        `SELECT * FROM platform_connections WHERE user_id=$1 AND platform=$2 AND (agency_id = $3 OR agency_id IS NULL OR $3 IS NULL)`,
+                        [post.user_id, platform, ctx.agencyId]
                     );
                     if (!conn) throw new Error(`No connection for ${platform}`);
                     const caption = post.platforms[platform]?.caption || post.caption_original;
@@ -204,7 +216,7 @@ module.exports = async function (fastify, options) {
             );
             
             const allOk = results.every(r => r.status === 'fulfilled');
-            await db.query(`UPDATE posts SET status=$1 WHERE id=$2`, [allOk ? 'published' : 'failed', post.id]);
+            await db.query('UPDATE posts SET status=$1 WHERE id=$2 AND user_id=$3 AND (agency_id = $4 OR agency_id IS NULL OR $4 IS NULL)', [allOk ? 'published' : 'failed', post.id, userId, ctx.agencyId]);
             
             for (let i = 0; i < results.length; i++) {
                 if (results[i].status === 'rejected') {
@@ -222,7 +234,7 @@ module.exports = async function (fastify, options) {
             }
         } catch (err) {
             request.log.error(err, 'Publish-now error');
-            await db.query('UPDATE posts SET status = $1 WHERE id = $2 AND user_id = $3', ['failed', request.params.id, request.session.get('userId')]);
+            await db.query('UPDATE posts SET status = $1 WHERE id = $2 AND user_id = $3 AND (agency_id = $4 OR agency_id IS NULL OR $4 IS NULL)', ['failed', request.params.id, ctx?.userId || request.session.get('userId'), ctx?.agencyId || null]);
             request.session.set('error', 'Error triggering publish: ' + err.message);
         }
         return reply.redirect('/social/posts/schedule');

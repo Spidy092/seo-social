@@ -6,6 +6,7 @@
 
 const { createLogger } = require('../utils/logger');
 const keywordService = require('./keywordService');
+const { extractDomain } = require('../utils/domainUtils');
 const aiService = require('./aiService');
 
 
@@ -28,8 +29,8 @@ async function compareDomains(myDomain, competitorDomain, keyword, myPageData = 
 
     try {
         // Domain extraction safety (handles full URLs if pasted)
-        const myCleanDomain = keywordService.extractDomain(myDomain);
-        const compCleanDomain = keywordService.extractDomain(competitorDomain);
+        const myCleanDomain = extractDomain(myDomain);
+        const compCleanDomain = extractDomain(competitorDomain);
 
         log.info({ myCleanDomain, compCleanDomain }, 'normalized domains for comparison');
 

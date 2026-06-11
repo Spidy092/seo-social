@@ -1,14 +1,20 @@
 const cron = require('node-cron');
 const { pool } = require('../db');
+const { createLogger } = require('../utils/logger');
 
-// Simulate API fetch since endpoints aren't specified in PLATFORM_APIS.md
+const log = createLogger('analytics-sync');
+
+// ⚠️ MOCK DATA: This function returns random data instead of real platform analytics.
+// TODO: Replace with real Meta Insights API, LinkedIn Analytics API, YouTube Analytics API calls.
 async function fetchStatsMock(platform, platformPostId) {
+  log.warn({ platform, platformPostId }, 'Using MOCK analytics data — real platform API not implemented');
   return {
     likes: Math.floor(Math.random() * 50) + 10,
     comments: Math.floor(Math.random() * 10),
     shares: Math.floor(Math.random() * 5),
     views: Math.floor(Math.random() * 500) + 100,
-    reach: Math.floor(Math.random() * 400) + 50
+    reach: Math.floor(Math.random() * 400) + 50,
+    _mock: true,
   };
 }
 
@@ -23,11 +29,10 @@ async function syncAnalytics(userId) {
       [userId]
     );
 
+    let syncedCount = 0;
     for (const res of results) {
-      // Fetch stats
       const stats = await fetchStatsMock(res.platform, res.platform_post_id);
       
-      // Upsert into analytics_snapshots (one per post_result per day)
       const { rows: existing } = await pool.query(
         `SELECT id FROM analytics_snapshots 
          WHERE post_result_id = $1 AND DATE(snapped_at) = CURRENT_DATE`,
@@ -48,10 +53,11 @@ async function syncAnalytics(userId) {
           [res.post_result_id, stats.likes, stats.comments, stats.shares, stats.views, stats.reach]
         );
       }
+      syncedCount++;
     }
-    console.log(`[analytics] Synced stats for user ${userId}`);
+    log.info({ userId, postsSynced: syncedCount }, 'analytics sync complete (mock data)');
   } catch (err) {
-    console.error('[analytics] Sync error:', err);
+    log.error({ err: err.message, userId }, 'analytics sync failed');
   }
 }
 
@@ -59,14 +65,15 @@ function startAnalyticsCron() {
   cron.schedule('0 2 * * *', async () => {
     try {
       const { rows: users } = await pool.query('SELECT id FROM users');
+      log.info({ userCount: users.length }, 'starting daily analytics sync');
       for (const user of users) {
         await syncAnalytics(user.id);
       }
     } catch (err) {
-      console.error('[analytics] Cron error:', err.message);
+      log.error({ err: err.message }, 'analytics cron failed');
     }
   });
-  console.log('[analytics] Cron started — running at 2 AM daily');
+  log.info('analytics cron started — running at 2 AM daily');
 }
 
 module.exports = { syncAnalytics, startAnalyticsCron };

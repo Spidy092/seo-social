@@ -3,7 +3,9 @@
  */
 
 const keywordService = require('../services/keywordService');
+const { extractDomain } = require('../utils/domainUtils');
 const { createLogger } = require('../utils/logger');
+const { requireAgencyContext } = require('../utils/authHelper');
 
 const log = createLogger('routes:competitors');
 
@@ -24,16 +26,30 @@ async function competitorRoutes(fastify, options) {
             },
         },
         handler: async (request, reply) => {
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
             const { url, keyword, keywordId } = request.body;
 
             try {
+                if (keywordId) {
+                    const access = await db.query(
+                        `SELECT 1
+                         FROM seo_project_keywords spk
+                         JOIN seo_projects p ON p.id = spk.project_id
+                         JOIN seo_clients c ON c.id = p.client_id
+                         WHERE spk.keyword_id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)
+                         LIMIT 1`,
+                        [keywordId, ctx.agencyId]
+                    );
+                    if (!access.rows.length) return reply.code(403).send({ error: 'Keyword not found or access denied' });
+                }
                 log.info({ url, keyword }, 'analyzing competitor page');
 
                 // Analyze page content
                 const pageAnalysis = await keywordService.analyzePageContent(url, keyword);
 
                 // Get domain authority
-                const domain = keywordService.extractDomain(url);
+                const domain = extractDomain(url);
                 const da = await keywordService.getDomainAuthority(domain);
 
                 // Store in database if keywordId provided
@@ -88,6 +104,8 @@ async function competitorRoutes(fastify, options) {
 
     // ─── Get Competitors for Keyword ───
     fastify.get('/api/competitors/keyword/:keywordId', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         const { keywordId } = request.params;
 
         try {
@@ -97,8 +115,9 @@ async function competitorRoutes(fastify, options) {
                  FROM competitors c
                  LEFT JOIN ranking_pages rp ON c.domain = rp.domain AND c.keyword_id = rp.keyword_id
                  WHERE c.keyword_id = $1
+                   AND EXISTS (SELECT 1 FROM seo_project_keywords spk JOIN seo_projects p ON p.id = spk.project_id JOIN seo_clients sc ON sc.id = p.client_id WHERE spk.keyword_id = c.keyword_id AND (sc.agency_id = $2 OR sc.agency_id IS NULL OR $2 IS NULL))
                  ORDER BY c.rank_position`,
-                [keywordId]
+                [keywordId, ctx.agencyId]
             );
 
             return {
@@ -114,6 +133,8 @@ async function competitorRoutes(fastify, options) {
 
     // ─── Get Competitor Details ───
     fastify.get('/api/competitors/:domain', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         const { domain } = request.params;
 
         try {
@@ -123,8 +144,9 @@ async function competitorRoutes(fastify, options) {
                  FROM competitors c
                  JOIN keywords k ON c.keyword_id = k.id
                  WHERE c.domain = $1
+                   AND EXISTS (SELECT 1 FROM seo_project_keywords spk JOIN seo_projects p ON p.id = spk.project_id JOIN seo_clients sc ON sc.id = p.client_id WHERE spk.keyword_id = c.keyword_id AND (sc.agency_id = $2 OR sc.agency_id IS NULL OR $2 IS NULL))
                  ORDER BY k.search_volume DESC`,
-                [domain]
+                [domain, ctx.agencyId]
             );
 
             // Get domain authority
@@ -160,6 +182,8 @@ async function competitorRoutes(fastify, options) {
             },
         },
         handler: async (request, reply) => {
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
             const { domains, keyword } = request.body;
 
             try {
@@ -170,8 +194,10 @@ async function competitorRoutes(fastify, options) {
                     
                     // Get ranking count
                     const rankingCount = await db.query(
-                        'SELECT COUNT(*) as count FROM competitors WHERE domain = $1',
-                        [domain]
+                        `SELECT COUNT(*) as count FROM competitors c
+                         WHERE c.domain = $1
+                           AND EXISTS (SELECT 1 FROM seo_project_keywords spk JOIN seo_projects p ON p.id = spk.project_id JOIN seo_clients sc ON sc.id = p.client_id WHERE spk.keyword_id = c.keyword_id AND (sc.agency_id = $2 OR sc.agency_id IS NULL OR $2 IS NULL))`,
+                        [domain, ctx.agencyId]
                     );
 
                     results.push({
@@ -203,12 +229,17 @@ async function competitorRoutes(fastify, options) {
 
     // ─── Get Top Competitors ───
     fastify.get('/api/competitors/top', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         const { limit = 15, offset = 0 } = request.query;
 
         try {
             // Get total count for pagination
             const countResult = await db.query(
-                'SELECT COUNT(DISTINCT domain) as total FROM competitors'
+                `SELECT COUNT(DISTINCT c.domain) as total
+                 FROM competitors c
+                 WHERE EXISTS (SELECT 1 FROM seo_project_keywords spk JOIN seo_projects p ON p.id = spk.project_id JOIN seo_clients sc ON sc.id = p.client_id WHERE spk.keyword_id = c.keyword_id AND (sc.agency_id = $1 OR sc.agency_id IS NULL OR $1 IS NULL))`,
+                [ctx.agencyId]
             );
             const total = parseInt(countResult.rows[0].total);
 
@@ -217,11 +248,12 @@ async function competitorRoutes(fastify, options) {
                         COUNT(*) as keyword_count,
                         ROUND(AVG(rank_position)::numeric, 1) as avg_position,
                         MIN(rank_position) as best_position
-                 FROM competitors
+                 FROM competitors c
+                 WHERE EXISTS (SELECT 1 FROM seo_project_keywords spk JOIN seo_projects p ON p.id = spk.project_id JOIN seo_clients sc ON sc.id = p.client_id WHERE spk.keyword_id = c.keyword_id AND (sc.agency_id = $1 OR sc.agency_id IS NULL OR $1 IS NULL))
                  GROUP BY domain
                  ORDER BY keyword_count DESC
-                 LIMIT $1 OFFSET $2`,
-                [limit, offset]
+                 LIMIT $2 OFFSET $3`,
+                [ctx.agencyId, limit, offset]
             );
 
             return {

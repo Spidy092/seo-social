@@ -6,6 +6,7 @@ const keywordService = require('../services/keywordService');
 const googleAdsService = require('../services/googleAdsService');
 const contentBriefService = require('../services/contentBriefService');
 const { createLogger } = require('../utils/logger');
+const { getAgencyContext, requireAgencyContext, assertProjectAccess } = require('../utils/authHelper');
 
 
 const log = createLogger('routes:keywords');
@@ -111,7 +112,7 @@ async function keywordRoutes(fastify, options) {
                 isReal: data?.isReal ?? false,
             };
         } catch (err) {
-            return reply.code(500).send({ success: false, error: err.message });
+            return reply.code(500).send({ error: err.message });
         }
     });
 
@@ -136,6 +137,9 @@ async function keywordRoutes(fastify, options) {
             },
         },
         handler: async (request, reply) => {
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
+
             const { 
                 keyword, 
                 location = 'India',
@@ -150,7 +154,13 @@ async function keywordRoutes(fastify, options) {
             } = request.body;
 
             try {
-                log.info({ keyword, location }, 'advanced keyword research');
+                let project = null;
+                if (projectId) {
+                    project = await assertProjectAccess(db, projectId, ctx.agencyId);
+                    if (!project) return reply.code(403).send({ error: 'Project not found or access denied' });
+                }
+
+                log.info({ keyword, location, agencyId: ctx.agencyId }, 'advanced keyword research');
 
                 const options = {
                     location,
@@ -181,20 +191,7 @@ async function keywordRoutes(fastify, options) {
 
                 const keywordId = dbResult.rows[0].id;
 
-                if (projectId) {
-                    const userId = request.session?.get('userId') || null;
-                    const projectAccess = await db.query(
-                        `SELECT p.id, p.client_id
-                         FROM seo_projects p
-                         JOIN seo_clients c ON c.id = p.client_id
-                         WHERE p.id = $1 AND (c.user_id = $2 OR c.user_id IS NULL OR c.user_id = '00000000-0000-0000-0000-000000000000')`,
-                        [projectId, userId]
-                    );
-
-                    if (!projectAccess.rows.length) {
-                        return reply.code(404).send({ error: 'Project not found' });
-                    }
-
+                if (projectId && project) {
                     await db.query(
                         `INSERT INTO seo_project_keywords (project_id, keyword_id, intent, priority_score)
                          VALUES ($1, $2, $3, $4)
@@ -204,7 +201,7 @@ async function keywordRoutes(fastify, options) {
                         [projectId, keywordId, result.intent?.primary || null, result.metrics.opportunityScore || 0]
                     );
                     await db.query(`UPDATE seo_projects SET updated_at = NOW() WHERE id = $1`, [projectId]);
-                    await db.query(`UPDATE seo_clients SET updated_at = NOW() WHERE id = $1`, [projectAccess.rows[0].client_id]);
+                    await db.query(`UPDATE seo_clients SET updated_at = NOW() WHERE id = $1`, [project.client_id]);
                 }
 
                 // Store competitors from SERP results
@@ -272,7 +269,8 @@ async function keywordRoutes(fastify, options) {
             },
         },
         handler: async (request, reply) => {
-            const userId = request.session?.get('userId') || null;
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
             const {
                 projectId,
                 location = 'India',
@@ -289,11 +287,11 @@ async function keywordRoutes(fastify, options) {
 
             try {
                 const projectAccess = await db.query(
-                    `SELECT p.id, p.client_id, p.name AS project_name, c.website_url, c.user_id
+                    `SELECT p.id, p.client_id, p.name AS project_name, c.website_url, c.agency_id
                      FROM seo_projects p
                      JOIN seo_clients c ON c.id = p.client_id
-                     WHERE p.id = $1 AND (c.user_id = $2 OR c.user_id IS NULL OR c.user_id = '00000000-0000-0000-0000-000000000000')`,
-                    [projectId, userId]
+                     WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`,
+                    [projectId, ctx?.agencyId || null]
                 );
 
                 const project = projectAccess.rows[0];
@@ -345,10 +343,11 @@ async function keywordRoutes(fastify, options) {
 
                         if (!existing.rows.length) {
                             await db.query(
-                                `INSERT INTO seo_tasks (user_id, client_id, project_id, title, description, category, impact, effort, priority, status)
-                                 VALUES ($1, $2, $3, $4, $5, 'content', $6, 'medium', $7, 'todo')`,
+                                `INSERT INTO seo_tasks (user_id, agency_id, client_id, project_id, title, description, category, impact, effort, priority, status)
+                                 VALUES ($1, $2, $3, $4, $5, $6, 'content', $7, 'medium', $8, 'todo')`,
                                 [
-                                    userId,
+                                    ctx?.userId || null,
+                                    ctx?.agencyId || null,
                                     project.client_id,
                                     projectId,
                                     title,
@@ -377,10 +376,11 @@ async function keywordRoutes(fastify, options) {
 
                             await db.query(
                                 `INSERT INTO content_briefs
-                                 (user_id, project_id, keyword, location, brief, source_metrics)
-                                 VALUES ($1, $2, $3, $4, $5, $6)`,
+                                 (user_id, agency_id, project_id, keyword, location, brief, source_metrics)
+                                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
                                 [
-                                    userId,
+                                    ctx?.userId || null,
+                                    ctx?.agencyId || null,
                                     projectId,
                                     brief.keyword,
                                     brief.location,
@@ -522,11 +522,18 @@ async function keywordRoutes(fastify, options) {
     // ─── Get Keyword Details ───
     fastify.get('/api/keywords/:id', async (request, reply) => {
         const { id } = request.params;
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
 
         try {
             const keywordResult = await db.query(
-                'SELECT * FROM keywords WHERE id = $1',
-                [id]
+                `SELECT DISTINCT k.*
+                 FROM keywords k
+                 JOIN seo_project_keywords spk ON spk.keyword_id = k.id
+                 JOIN seo_projects p ON p.id = spk.project_id
+                 JOIN seo_clients c ON c.id = p.client_id
+                 WHERE k.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`,
+                [id, ctx.agencyId]
             );
 
             if (keywordResult.rows.length === 0) {
@@ -551,26 +558,37 @@ async function keywordRoutes(fastify, options) {
     // ─── List All Keywords ───
     fastify.get('/api/keywords', async (request, reply) => {
         const { limit = 50, offset = 0, search } = request.query;
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
 
         try {
-            let query = 'SELECT * FROM keywords';
-            const params = [];
-
+            const params = [ctx.agencyId];
+            let where = '(c.agency_id = $1 OR c.agency_id IS NULL OR $1 IS NULL)';
             if (search) {
-                query += ' WHERE keyword ILIKE $1';
                 params.push(`%${search}%`);
+                where += ` AND k.keyword ILIKE ${params.length}`;
             }
 
-            query += ' ORDER BY updated_at DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
-            params.push(limit, offset);
-
-            const result = await db.query(query, params);
+            const result = await db.query(
+                `SELECT DISTINCT k.*
+                 FROM keywords k
+                 JOIN seo_project_keywords spk ON spk.keyword_id = k.id
+                 JOIN seo_projects p ON p.id = spk.project_id
+                 JOIN seo_clients c ON c.id = p.client_id
+                 WHERE ${where}
+                 ORDER BY k.updated_at DESC
+                 LIMIT ${params.length + 1} OFFSET ${params.length + 2}`,
+                [...params, limit, offset]
+            );
 
             const countResult = await db.query(
-                search 
-                    ? 'SELECT COUNT(*) as total FROM keywords WHERE keyword ILIKE $1'
-                    : 'SELECT COUNT(*) as total FROM keywords',
-                search ? [`%${search}%`] : []
+                `SELECT COUNT(DISTINCT k.id) as total
+                 FROM keywords k
+                 JOIN seo_project_keywords spk ON spk.keyword_id = k.id
+                 JOIN seo_projects p ON p.id = spk.project_id
+                 JOIN seo_clients c ON c.id = p.client_id
+                 WHERE ${where}`,
+                params
             );
 
             return {

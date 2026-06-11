@@ -28,13 +28,80 @@ const PG = {
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
+// ─── Breadcrumb Map ───
+const breadcrumbMap = {
+    dashboard: [{ icon: 'fa-home', label: 'Home' }, { label: 'Dashboard' }],
+    clients: [{ icon: 'fa-home', label: 'Home' }, { label: 'Clients' }],
+    'project-dashboard': [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-briefcase', label: 'Clients' }, { label: 'Project Dashboard' }],
+    research: [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-search', label: 'Research' }, { label: 'Keyword Research' }],
+    competitors: [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-search', label: 'Research' }, { label: 'Competitors' }],
+    analysis: [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-search', label: 'Research' }, { label: 'Compare & Analyze' }],
+    tracking: [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-search', label: 'Research' }, { label: 'Rank Tracking' }],
+    gsc: [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-search', label: 'Research' }, { label: 'Search Console' }],
+    'seo-performance': [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-chart-line', label: 'Analytics' }, { label: 'SEO Performance' }],
+    alerts: [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-search', label: 'Research' }, { label: 'Alerts' }],
+    onpage: [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-spider', label: 'Audit' }, { label: 'On-Page SEO' }],
+    'page-optimization': [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-spider', label: 'Audit' }, { label: 'Page Optimization' }],
+    'page-speed': [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-spider', label: 'Audit' }, { label: 'PageSpeed' }],
+    technical: [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-spider', label: 'Audit' }, { label: 'Technical SEO' }],
+    humanizer: [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-pen-nib', label: 'Content' }, { label: 'Content Humanizer' }],
+    'content-brief': [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-pen-nib', label: 'Content' }, { label: 'Content Brief' }],
+    reports: [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-pen-nib', label: 'Content' }, { label: 'Agency Reports' }],
+    tasks: [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-pen-nib', label: 'Content' }, { label: 'SEO Tasks' }],
+    'agency-settings': [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-building', label: 'Agency' }, { label: 'Agency Settings' }],
+    'agency-members': [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-building', label: 'Agency' }, { label: 'Team Members' }],
+    'social-upload': [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-share-nodes', label: 'Social' }, { label: 'Upload' }],
+    'social-schedule': [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-share-nodes', label: 'Social' }, { label: 'Schedule' }],
+    'social-platforms': [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-share-nodes', label: 'Social' }, { label: 'Platforms' }],
+    'social-analytics': [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-share-nodes', label: 'Social' }, { label: 'Analytics' }],
+};
+
+// ─── Command Palette Pages ───
+const commandPages = [
+    { page: 'dashboard', title: 'Dashboard', desc: 'Overview stats and recent activity', icon: 'fa-chart-line' },
+    { page: 'clients', title: 'Clients', desc: 'Manage SEO clients and projects', icon: 'fa-briefcase' },
+    { page: 'project-dashboard', title: 'Project Dashboard', desc: 'Per-project SEO health overview', icon: 'fa-tachometer-alt' },
+    { page: 'research', title: 'Keyword Research', desc: 'Research keywords with SERP data', icon: 'fa-search' },
+    { page: 'competitors', title: 'Competitors', desc: 'View competing domains', icon: 'fa-users' },
+    { page: 'analysis', title: 'Compare & Analyze', desc: 'Head-to-head domain comparison', icon: 'fa-balance-scale' },
+    { page: 'tracking', title: 'Rank Tracking', desc: 'Track domain rankings over time', icon: 'fa-chart-bar' },
+    { page: 'gsc', title: 'Search Console', desc: 'Google Search Console data', icon: 'fa-chart-column' },
+    { page: 'seo-performance', title: 'SEO Performance', desc: 'GSC + GA4 combined insights', icon: 'fa-chart-line' },
+    { page: 'alerts', title: 'Alerts', desc: 'Rank changes and notifications', icon: 'fa-bell' },
+    { page: 'onpage', title: 'On-Page SEO', desc: 'Analyze on-page SEO factors', icon: 'fa-file-invoice' },
+    { page: 'page-optimization', title: 'Page Optimization', desc: 'Compare page vs top competitors', icon: 'fa-bullseye' },
+    { page: 'page-speed', title: 'PageSpeed', desc: 'Core Web Vitals and performance', icon: 'fa-bolt' },
+    { page: 'technical', title: 'Technical SEO', desc: 'Site-wide technical crawl', icon: 'fa-spider' },
+    { page: 'humanizer', title: 'Content Humanizer', desc: 'AI content rewriting tool', icon: 'fa-pen-nib' },
+    { page: 'content-brief', title: 'Content Brief', desc: 'AI-generated content briefs', icon: 'fa-file-lines' },
+    { page: 'reports', title: 'Agency Reports', desc: 'Generate PDF-ready reports', icon: 'fa-file-pdf' },
+    { page: 'tasks', title: 'SEO Tasks', desc: 'Kanban task board', icon: 'fa-tasks' },
+    { page: 'agency-settings', title: 'Agency Settings', desc: 'Manage your agency profile and invites', icon: 'fa-building' },
+    { page: 'agency-members', title: 'Team Members', desc: 'View and manage team members', icon: 'fa-user-group' },
+    { page: 'social-upload', title: 'Upload Content', desc: 'Create social media posts', icon: 'fa-upload' },
+    { page: 'social-schedule', title: 'Post Schedule', desc: 'View scheduled posts', icon: 'fa-calendar-alt' },
+    { page: 'social-platforms', title: 'Social Platforms', desc: 'Connect social accounts', icon: 'fa-hashtag' },
+    { page: 'social-analytics', title: 'Social Analytics', desc: 'Engagement statistics', icon: 'fa-chart-pie' },
+];
+
 // ─── Initialize ───
 document.addEventListener('DOMContentLoaded', () => {
+    initSidebarGroups();
+    initSidebarCollapse();
+    initCommandPalette();
+    initDarkMode();
     initNavigation();
-    
-    // Check for hash on load for deep linking
+    initMobileSidebar();
+    initBackToTop();
+    initQuickActions();
+    initCollapsibleSections();
+    initWizards();
+    initVoiceProfiles();
+    initDiffModeToggler();
+    initToneAdjusters();
+        // Check for hash on load for deep linking
     const hash = window.location.hash.substring(1);
-    const validPages = ['dashboard', 'clients', 'project-dashboard', 'research', 'competitors', 'analysis', 'tracking', 'alerts', 'onpage', 'technical', 'humanizer', 'content-brief', 'social-upload', 'social-schedule', 'social-platforms', 'social-analytics', 'reports', 'tasks'];
+    const validPages = commandPages.map(p => p.page);
     
     if (hash && validPages.includes(hash)) {
         navigateTo(hash);
@@ -45,6 +112,241 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshAlertBadge();
     setInterval(refreshAlertBadge, 30000);
 });
+
+// ─── Wizards Init ───
+function initWizards() {
+    $$('.wizard-steps').forEach(stepsEl => {
+        const container = stepsEl.closest('.card-body') || stepsEl.parentElement;
+        initWizard(container);
+    });
+}
+
+// ─── Collapsible Sections Init ───
+function initCollapsibleSections() {
+    $$('.collapsible-header').forEach(header => {
+        initCollapsible(header);
+    });
+}
+
+// ─── Sidebar Groups ───
+function initSidebarGroups() {
+    $$('.nav-group-header').forEach(header => {
+        const group = header.closest('.nav-group');
+        const items = group.querySelector('.nav-group-items');
+        if (items) {
+            items.style.maxHeight = items.scrollHeight + 'px';
+        }
+        header.addEventListener('click', () => {
+            group.classList.toggle('collapsed');
+            const items = group.querySelector('.nav-group-items');
+            if (items) {
+                if (group.classList.contains('collapsed')) {
+                    items.style.maxHeight = '0px';
+                } else {
+                    items.style.maxHeight = items.scrollHeight + 'px';
+                }
+            }
+        });
+    });
+}
+
+// ─── Sidebar Collapse ───
+function initSidebarCollapse() {
+    const btn = $('#sidebarCollapseBtn');
+    const sidebar = $('.sidebar');
+    if (!btn || !sidebar) return;
+
+    const collapsed = localStorage.getItem('sidebar-collapsed') === 'true';
+    if (collapsed) sidebar.classList.add('collapsed');
+
+    btn.addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+        localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+    });
+}
+
+// ─── Mobile Sidebar ───
+function initMobileSidebar() {
+    const toggle = $('#menuToggle');
+    const overlay = $('#sidebarOverlay');
+    const sidebar = $('.sidebar');
+
+    if (toggle) {
+        toggle.addEventListener('click', () => {
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        });
+    }
+
+    if (overlay) {
+        overlay.addEventListener('click', () => {
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+        });
+    }
+}
+
+// ─── Command Palette ───
+function initCommandPalette() {
+    const overlay = $('#commandPalette');
+    const input = $('#commandPaletteInput');
+    const results = $('#commandPaletteResults');
+    const trigger = $('#commandPaletteTrigger');
+    if (!overlay || !input || !results) return;
+
+    let selectedIndex = 0;
+
+    function openPalette() {
+        overlay.classList.add('active');
+        input.value = '';
+        input.focus();
+        selectedIndex = 0;
+        renderCommands('');
+    }
+
+    function closePalette() {
+        overlay.classList.remove('active');
+        input.value = '';
+    }
+
+    function renderCommands(query) {
+        const q = query.toLowerCase().trim();
+        let filtered = commandPages;
+
+        if (q) {
+            filtered = commandPages.filter(p =>
+                p.title.toLowerCase().includes(q) ||
+                p.desc.toLowerCase().includes(q) ||
+                p.page.toLowerCase().includes(q)
+            );
+        }
+
+        if (filtered.length === 0) {
+            results.innerHTML = '<div class="command-result-item" style="justify-content:center;color:#94a3b8;padding:24px;">No results found</div>';
+            return;
+        }
+
+        results.innerHTML = filtered.map((p, i) => `
+            <div class="command-result-item${i === selectedIndex ? ' active' : ''}" data-page="${p.page}" data-index="${i}">
+                <div class="command-result-icon"><i class="fas ${p.icon}"></i></div>
+                <div class="command-result-text">
+                    <div class="command-result-title">${p.title}</div>
+                    <div class="command-result-desc">${p.desc}</div>
+                </div>
+                <div class="command-result-hint">Enter</div>
+            </div>
+        `).join('');
+
+        $$('.command-result-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const page = item.dataset.page;
+                closePalette();
+                navigateTo(page);
+            });
+        });
+    }
+
+    input.addEventListener('input', () => {
+        selectedIndex = 0;
+        renderCommands(input.value);
+    });
+
+    input.addEventListener('keydown', (e) => {
+        const items = $$('.command-result-item[data-page]');
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+            updateSelected(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selectedIndex = Math.max(selectedIndex - 1, 0);
+            updateSelected(items);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const selected = items[selectedIndex];
+            if (selected) {
+                closePalette();
+                navigateTo(selected.dataset.page);
+            }
+        } else if (e.key === 'Escape') {
+            closePalette();
+        }
+    });
+
+    function updateSelected(items) {
+        items.forEach((item, i) => {
+            item.classList.toggle('active', i === selectedIndex);
+        });
+        const selected = items[selectedIndex];
+        if (selected) selected.scrollIntoView({ block: 'nearest' });
+    }
+
+    // Open on trigger click
+    if (trigger) {
+        trigger.addEventListener('click', openPalette);
+    }
+
+    // Close on overlay click
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closePalette();
+    });
+
+    // Keyboard shortcut Ctrl+K / Cmd+K
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            if (overlay.classList.contains('active')) {
+                closePalette();
+            } else {
+                openPalette();
+            }
+        }
+        if (e.key === 'Escape' && overlay.classList.contains('active')) {
+            closePalette();
+        }
+    });
+}
+
+// ─── Dark Mode ───
+function initDarkMode() {
+    const toggle = $('#themeToggle');
+    const html = document.documentElement;
+    const saved = localStorage.getItem('theme');
+
+    if (saved === 'dark') {
+        html.setAttribute('data-theme', 'dark');
+        if (toggle) toggle.innerHTML = '<i class="fas fa-sun"></i>';
+    }
+
+    if (toggle) {
+        toggle.addEventListener('click', () => {
+            const isDark = html.getAttribute('data-theme') === 'dark';
+            if (isDark) {
+                html.removeAttribute('data-theme');
+                toggle.innerHTML = '<i class="fas fa-moon"></i>';
+                localStorage.setItem('theme', 'light');
+            } else {
+                html.setAttribute('data-theme', 'dark');
+                toggle.innerHTML = '<i class="fas fa-sun"></i>';
+                localStorage.setItem('theme', 'dark');
+            }
+        });
+    }
+}
+
+// ─── Breadcrumbs ───
+function updateBreadcrumbs(page) {
+    const container = $('#breadcrumbs');
+    if (!container) return;
+
+    const crumbs = breadcrumbMap[page] || [{ icon: 'fa-home', label: 'Home' }];
+    container.innerHTML = crumbs.map((crumb, i) => {
+        const isLast = i === crumbs.length - 1;
+        const iconHtml = crumb.icon ? `<i class="fas ${crumb.icon}"></i>` : '';
+        const sep = !isLast ? '<span class="breadcrumb-sep"><i class="fas fa-chevron-right"></i></span>' : '';
+        return `<span class="breadcrumb-item">${iconHtml} ${crumb.label}</span>${sep}`;
+    }).join('');
+}
 
 // ─── Alert Badge Polling via new /api/alerts/unread-count ───
 async function refreshAlertBadge() {
@@ -67,7 +369,7 @@ function initNavigation() {
     $$('.nav-item').forEach(item => {
         item.addEventListener('click', () => {
             const page = item.dataset.page;
-            navigateTo(page);
+            if (page) navigateTo(page);
         });
     });
 
@@ -75,13 +377,8 @@ function initNavigation() {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             const page = link.dataset.page;
-            navigateTo(page);
+            if (page) navigateTo(page);
         });
-    });
-
-    // Menu toggle for mobile
-    $('.menu-toggle')?.addEventListener('click', () => {
-        $('.sidebar').classList.toggle('active');
     });
 
     // Logout button handler
@@ -95,21 +392,32 @@ function initNavigation() {
     window.addEventListener('hashchange', () => {
         const hash = window.location.hash.substring(1);
         if (hash && hash !== currentPage) {
-            navigateTo(hash);
+            navigateTo(hash, true);
         }
     });
 }
 
-function navigateTo(page) {
+function navigateTo(page, isHashChange = false) {
     if (currentPage !== page) {
         currentPage = page;
-        window.location.hash = page;
+        if (!isHashChange) window.location.hash = page;
     }
     
     // Update nav
     $$('.nav-item').forEach(item => {
         item.classList.toggle('active', item.dataset.page === page);
     });
+
+    // Ensure parent group is expanded
+    const activeItem = $(`.nav-item[data-page="${page}"]`);
+    if (activeItem) {
+        const group = activeItem.closest('.nav-group');
+        if (group && group.classList.contains('collapsed')) {
+            group.classList.remove('collapsed');
+            const items = group.querySelector('.nav-group-items');
+            if (items) items.style.maxHeight = items.scrollHeight + 'px';
+        }
+    }
 
     // Update page
     $$('.page').forEach(p => {
@@ -128,19 +436,32 @@ function navigateTo(page) {
         alerts: 'Alerts',
         onpage: 'On-Page SEO Analyzer',
         'page-optimization': 'Page Optimization',
+        'page-speed': 'PageSpeed',
         technical: 'Technical SEO Audit',
+        gsc: 'Google Search Console',
+        'seo-performance': 'SEO Performance',
         humanizer: 'Content Humanizer',
-        
         'content-brief': 'Content Brief Generator',
         'social-upload': 'Upload Content',
         'social-schedule': 'Post Schedule',
         'social-platforms': 'Social Platforms',
         'social-analytics': 'Social Analytics',
-        'reports': 'Agency-Ready Reports',
-        'tasks': 'SEO Tasks Prioritization'
+        reports: 'Agency-Ready Reports',
+        tasks: 'SEO Tasks Prioritization',
+        'agency-settings': 'Agency Settings',
+        'agency-members': 'Team Members'
     };
 
     $('#pageTitle').textContent = titles[page] || page;
+
+    // Update breadcrumbs
+    updateBreadcrumbs(page);
+
+    // Close mobile sidebar
+    const sidebar = $('.sidebar');
+    const overlay = $('#sidebarOverlay');
+    if (sidebar) sidebar.classList.remove('active');
+    if (overlay) overlay.classList.remove('active');
 
     // Load page data
     switch (page) {
@@ -153,10 +474,15 @@ function navigateTo(page) {
         case 'alerts': loadAlerts(); break;
         case 'onpage': break;
         case 'page-optimization': initPageOptimization(); break;
+        case 'page-speed': break;
         case 'technical': break;
+        case 'gsc': initGscPage(); break;
+        case 'seo-performance': if (typeof initSeoPerformancePage === 'function') initSeoPerformancePage(); break;
         case 'humanizer': loadHumanizerHistory(); break;
         case 'reports': if (typeof loadSavedReports === 'function') loadSavedReports(); break;
         case 'tasks': if (typeof initTasksPage === 'function') initTasksPage(); break;
+        case 'agency-settings': if (typeof loadAgencySettingsPage === 'function') loadAgencySettingsPage(); break;
+        case 'agency-members': if (typeof loadAgencyMembersPage === 'function') loadAgencyMembersPage(); break;
         case 'social-upload':
             $('#iframe-social-upload').src = $('#iframe-social-upload').dataset.src;
             break;
@@ -173,6 +499,404 @@ function navigateTo(page) {
 
 }
 
+// ─── Quick Action Handlers ───
+function initQuickActions() {
+    $$('.quick-action-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const page = btn.dataset.page;
+            if (page) navigateTo(page);
+        });
+    });
+}
+
+// ─── Back to Top ───
+function initBackToTop() {
+    const btn = $('#backToTop');
+    if (!btn) return;
+
+    const content = $('.content');
+    if (content) {
+        content.addEventListener('scroll', () => {
+            btn.classList.toggle('visible', content.scrollTop > 300);
+        });
+    }
+
+    window.addEventListener('scroll', () => {
+        btn.classList.toggle('visible', window.scrollY > 300);
+    });
+
+    btn.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        if (content) content.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+}
+
+// ─── Skeleton Loaders ───
+function showSkeleton(container, count = 3) {
+    if (!container) return;
+    const skeletons = Array.from({ length: count }, () =>
+        '<div class="skeleton skeleton-stat"></div>'
+    ).join('');
+    container.innerHTML = `<div class="stats-grid">${skeletons}</div>`;
+}
+
+function showTableSkeleton(tbody, cols, rows = 5) {
+    if (!tbody) return;
+    const skeletonRows = Array.from({ length: rows }, () => {
+        const cells = Array.from({ length: cols }, () =>
+            '<td><div class="skeleton skeleton-text"></div></td>'
+        ).join('');
+        return `<tr>${cells}</tr>`;
+    }).join('');
+    tbody.innerHTML = skeletonRows;
+}
+
+// ─── Table Sorting ───
+function initTableSorting(table) {
+    if (!table || table.classList.contains('sortable')) return;
+    table.classList.add('sortable');
+
+    const headers = table.querySelectorAll('th');
+    headers.forEach((th, colIndex) => {
+        th.addEventListener('click', () => {
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const isAsc = th.classList.contains('sort-asc');
+            const isDesc = th.classList.contains('sort-desc');
+
+            // Clear other sort indicators
+            headers.forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+
+            // Determine sort direction
+            let direction = 'asc';
+            if (isAsc) direction = 'desc';
+            else if (isDesc) direction = 'none';
+
+            if (direction === 'none') {
+                // Reset to original order
+                rows.sort((a, b) => {
+                    const aIdx = parseInt(a.dataset.originalIndex || 0);
+                    const bIdx = parseInt(b.dataset.originalIndex || 0);
+                    return aIdx - bIdx;
+                });
+            } else {
+                th.classList.add(direction === 'asc' ? 'sort-asc' : 'sort-desc');
+
+                // Store original indices
+                rows.forEach((row, i) => {
+                    if (!row.dataset.originalIndex) row.dataset.originalIndex = i;
+                });
+
+                rows.sort((a, b) => {
+                    const aCell = a.cells[colIndex];
+                    const bCell = b.cells[colIndex];
+                    if (!aCell || !bCell) return 0;
+
+                    const aVal = aCell.textContent.trim();
+                    const bVal = bCell.textContent.trim();
+
+                    // Try numeric sort
+                    const aNum = parseFloat(aVal.replace(/[^0-9.-]/g, ''));
+                    const bNum = parseFloat(bVal.replace(/[^0-9.-]/g, ''));
+
+                    if (!isNaN(aNum) && !isNaN(bNum)) {
+                        return direction === 'asc' ? aNum - bNum : bNum - aNum;
+                    }
+
+                    // String sort
+                    return direction === 'asc'
+                        ? aVal.localeCompare(bVal)
+                        : bVal.localeCompare(aVal);
+                });
+            }
+
+            // Re-append sorted rows
+            rows.forEach(row => tbody.appendChild(row));
+        });
+    });
+}
+
+// ─── Table Filter ───
+function initTableFilter(input, table) {
+    if (!input || !table) return;
+
+    input.addEventListener('input', () => {
+        const query = input.value.toLowerCase().trim();
+        const rows = table.querySelectorAll('tbody tr');
+
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = query && !text.includes(query) ? 'none' : '';
+        });
+    });
+}
+
+// ─── Empty State Helper ───
+function renderEmptyState(container, icon, title, message) {
+    if (!container) return;
+    container.innerHTML = `
+        <div class="table-empty">
+            <i class="fas ${icon}"></i>
+            <h4>${title}</h4>
+            <p>${message}</p>
+        </div>
+    `;
+}
+
+// ─── Form Validation ───
+function initFormValidation(form) {
+    if (!form) return;
+
+    const inputs = form.querySelectorAll('input[required], select[required], textarea[required]');
+    inputs.forEach(input => {
+        const group = input.closest('.form-group');
+        if (!group) return;
+
+        // Create error element if not exists
+        let errorEl = group.querySelector('.field-error');
+        if (!errorEl) {
+            errorEl = document.createElement('div');
+            errorEl.className = 'field-error';
+            errorEl.innerHTML = '<i class="fas fa-exclamation-circle"></i> <span></span>';
+            input.parentNode.appendChild(errorEl);
+        }
+
+        input.addEventListener('blur', () => validateField(input, group, errorEl));
+        input.addEventListener('input', () => {
+            if (group.classList.contains('has-error')) {
+                validateField(input, group, errorEl);
+            }
+        });
+    });
+
+    form.addEventListener('submit', (e) => {
+        let valid = true;
+        inputs.forEach(input => {
+            const group = input.closest('.form-group');
+            const errorEl = group?.querySelector('.field-error');
+            if (!validateField(input, group, errorEl)) valid = false;
+        });
+        if (!valid) e.preventDefault();
+    });
+}
+
+function validateField(input, group, errorEl) {
+    const value = input.value.trim();
+    const span = errorEl?.querySelector('span');
+    let error = '';
+
+    if (input.required && !value) {
+        error = 'This field is required';
+    } else if (input.type === 'url' && value && !isValidUrl(value)) {
+        error = 'Please enter a valid URL';
+    } else if (input.type === 'email' && value && !isValidEmail(value)) {
+        error = 'Please enter a valid email';
+    }
+
+    if (error) {
+        group?.classList.add('has-error');
+        if (span) span.textContent = error;
+        return false;
+    } else {
+        group?.classList.remove('has-error');
+        return true;
+    }
+}
+
+function isValidUrl(str) {
+    try {
+        new URL(str.startsWith('http') ? str : `https://${str}`);
+        return true;
+    } catch { return false; }
+}
+
+function isValidEmail(str) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str);
+}
+
+// ─── Collapsible Sections ───
+function initCollapsible(header) {
+    if (!header) return;
+    const body = header.nextElementSibling;
+    if (!body || !body.classList.contains('collapsible-body')) return;
+
+    header.addEventListener('click', () => {
+        header.classList.toggle('open');
+        body.classList.toggle('open');
+    });
+}
+
+// ─── Multi-Step Wizard ───
+function initWizard(container) {
+    if (!container) return;
+    const steps = container.querySelectorAll('.wizard-step');
+    const panels = container.querySelectorAll('.wizard-panel');
+    const nextBtns = container.querySelectorAll('.wizard-next');
+    const prevBtns = container.querySelectorAll('.wizard-prev');
+
+    function goToStep(num) {
+        steps.forEach(s => {
+            const stepNum = parseInt(s.dataset.step);
+            s.classList.toggle('active', stepNum === num);
+            s.classList.toggle('completed', stepNum < num);
+        });
+        panels.forEach(p => {
+            p.classList.toggle('active', parseInt(p.dataset.panel) === num);
+        });
+    }
+
+    nextBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const next = parseInt(btn.dataset.next);
+            // Validate current step fields
+            const currentPanel = container.querySelector('.wizard-panel.active');
+            const requiredInputs = currentPanel.querySelectorAll('input[required]');
+            let valid = true;
+            requiredInputs.forEach(input => {
+                const group = input.closest('.form-group');
+                const errorEl = group?.querySelector('.field-error');
+                if (!validateField(input, group, errorEl)) valid = false;
+            });
+            if (valid) goToStep(next);
+        });
+    });
+
+    prevBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            goToStep(parseInt(btn.dataset.prev));
+        });
+    });
+
+    // Click on step labels to navigate (only to completed steps)
+    steps.forEach(s => {
+        s.addEventListener('click', () => {
+            const stepNum = parseInt(s.dataset.step);
+            if (s.classList.contains('completed')) goToStep(stepNum);
+        });
+    });
+
+    // Initialize step lines
+    const lines = container.querySelectorAll('.wizard-step-line');
+    function updateLines() {
+        lines.forEach((line, i) => {
+            const prevStep = steps[i];
+            line.style.background = prevStep?.classList.contains('completed') ? 'var(--secondary)' : 'var(--gray-light)';
+        });
+    }
+
+    // Override goToStep to include line updates
+    const origGoToStep = goToStep;
+    window._wizardGoToStep = (num) => {
+        origGoToStep(num);
+        updateLines();
+    };
+
+    // Re-bind to use updated function
+    nextBtns.forEach(btn => {
+        btn.addEventListener('click', () => updateLines());
+    });
+    prevBtns.forEach(btn => {
+        btn.addEventListener('click', () => updateLines());
+    });
+}
+
+// ─── Alert Filter with Counts ───
+function initAlertFilters(container, alerts) {
+    if (!container) return;
+    const buttons = container.querySelectorAll('.filter-btn');
+
+    const counts = { all: alerts.length };
+    alerts.forEach(a => {
+        const type = a.alert_type || 'other';
+        counts[type] = (counts[type] || 0) + 1;
+    });
+
+    buttons.forEach(btn => {
+        const filter = btn.dataset.filter;
+        const count = counts[filter] || 0;
+        const baseText = btn.textContent.trim().replace(/\d+$/, '').trim();
+        btn.innerHTML = `${baseText} <span class="filter-count">${count}</span>`;
+    });
+}
+
+// ─── Error State Rendering ───
+function renderErrorState(container, options = {}) {
+    if (!container) return;
+    const {
+        icon = 'fa-exclamation-triangle',
+        title = 'Something went wrong',
+        message = 'An unexpected error occurred. Please try again.',
+        detail = '',
+        retryFn = null,
+    } = options;
+
+    const detailHtml = detail ? `<div class="error-detail">${escapeHtml(detail)}</div>` : '';
+    const retryHtml = retryFn
+        ? `<button class="btn-retry" onclick="(${retryFn.toString()})()"><i class="fas fa-rotate-right"></i> Try Again</button>`
+        : '';
+
+    container.innerHTML = `
+        <div class="error-state">
+            <div class="error-state-icon"><i class="fas ${icon}"></i></div>
+            <h4>${title}</h4>
+            <p>${message}</p>
+            ${detailHtml}
+            ${retryHtml}
+        </div>
+    `;
+}
+
+function renderInlineError(container, options = {}) {
+    if (!container) return;
+    const {
+        message = 'Failed to load data',
+        hint = 'Check your connection and try again',
+        retryFn = null,
+    } = options;
+
+    const retryHtml = retryFn
+        ? `<button class="btn-retry-sm" data-retry-id="${Date.now()}"><i class="fas fa-rotate-right"></i> Retry</button>`
+        : '';
+
+    container.innerHTML = `
+        <div class="inline-error">
+            <i class="fas fa-circle-exclamation"></i>
+            <div class="inline-error-text">
+                <div class="error-msg">${escapeHtml(message)}</div>
+                <div class="error-hint">${escapeHtml(hint)}</div>
+            </div>
+            ${retryHtml}
+        </div>
+    `;
+
+    if (retryFn) {
+        const btn = container.querySelector('.btn-retry-sm');
+        if (btn) btn.addEventListener('click', retryFn);
+    }
+}
+
+function wrapWithErrorHandling(fn, container, options = {}) {
+    return async function(...args) {
+        try {
+            return await fn.apply(this, args);
+        } catch (err) {
+            console.error(err);
+            if (container) {
+                renderInlineError(container, {
+                    message: options.message || 'Failed to load data',
+                    hint: err.message || 'Check your connection and try again',
+                    retryFn: () => {
+                        container.innerHTML = '<div class="inline-spinner"><div class="spinner-dot"></div> Loading...</div>';
+                        wrapWithErrorHandling(fn, container, options).apply(this, args);
+                    },
+                });
+            }
+        }
+    };
+}
+
 // ─── Content Humanizer ───
 $('#humanizeBtn')?.addEventListener('click', async () => {
     const text = $('#humanizerInput')?.value.trim();
@@ -185,6 +909,7 @@ $('#humanizeBtn')?.addEventListener('click', async () => {
     const relatedKeywords = mode === 'seo-blog' ? ($('#humanizerRelatedKeywords')?.value.trim() || '') : '';
     const preserveHtml = $('#humanizerPreserveHtml')?.checked || false;
     const maxChange = $('#humanizerMaxChange')?.value || 'balanced';
+    const sample = $('#humanizerSample')?.value.trim() || '';
 
     if (!text || text.length < 30) {
         showError('Please paste at least a short paragraph to humanize.');
@@ -205,10 +930,11 @@ $('#humanizeBtn')?.addEventListener('click', async () => {
                 relatedKeywords,
                 preserveHtml,
                 maxChange,
+                sample,
             }),
         });
 
-        if (!data.success) {
+        if (!data.success && !data.ok) {
             showError(data.error || 'Humanizer failed.');
             return;
         }
@@ -245,12 +971,16 @@ $('#copyHumanizedBtn')?.addEventListener('click', async () => {
 function renderHumanizerResult(result) {
     humanizerAlternativesCache = result.alternatives || [];
     $('#humanizerResults').style.display = 'block';
-    $('#humanizerOriginalScore').textContent = `${result.originalAnalysis?.estimatedHumanScore || 0}/100`;
-    $('#humanizerRefinedScore').textContent = `${result.refinedAnalysis?.estimatedHumanScore || 0}/100`;
+    $('#humanizerOriginalScore').textContent = `${result.originalAnalysis?.estimatedAiDetectionPercent ?? 0}%`;
+    $('#humanizerRefinedScore').textContent = `${result.refinedAnalysis?.estimatedAiDetectionPercent ?? 0}%`;
     $('#humanizerReadability').textContent = `${capitalize(result.refinedAnalysis?.readability?.label || 'unknown')} (${result.refinedAnalysis?.readability?.score || 0})`;
     $('#humanizerWarningsCount').textContent = result.verification?.warnings?.length || 0;
     $('#humanizerSummary').textContent = result.summary || '';
     $('#humanizerOutput').value = result.refinedText || '';
+
+    if ($('#humanizerDiffContainer').style.display === 'block') {
+        renderDiffView();
+    }
 
     const changes = result.changes || [];
     $('#humanizerChanges').innerHTML = changes.length
@@ -415,22 +1145,44 @@ async function loadDashboard() {
         const alertsData = await api('/api/alerts?limit=5');
         renderRecentAlerts(alertsData.alerts || []);
 
+        // Load onboarding checklist
+        loadOnboardingChecklist();
+
     } catch (err) {
         console.error('Dashboard load failed:', err);
-        // Show error state
-        $('#totalKeywords').textContent = '-';
-        $('#activeAlerts').textContent = '-';
-        $('#totalCompetitors').textContent = '-';
-        $('#topRankings').textContent = '-';
-        $('#totalClients').textContent = '-';
-        $('#totalProjects').textContent = '-';
+        // Show error states
+        const statIds = ['totalKeywords', 'activeAlerts', 'totalCompetitors', 'topRankings', 'totalClients', 'totalProjects'];
+        statIds.forEach(id => {
+            const el = $(`#${id}`);
+            if (el) el.textContent = '-';
+        });
+
+        // Show inline error in recent keywords table
+        const keywordsCard = $('#recentKeywordsTable')?.closest('.card-body');
+        if (keywordsCard) {
+            renderInlineError(keywordsCard, {
+                message: 'Failed to load recent keywords',
+                hint: err.message || 'Check your connection and try again',
+                retryFn: () => loadDashboard(),
+            });
+        }
+
+        // Show inline error in recent alerts
+        const alertsCard = $('#recentAlertsList')?.closest('.card-body');
+        if (alertsCard) {
+            renderInlineError(alertsCard, {
+                message: 'Failed to load recent alerts',
+                hint: err.message || 'Check your connection and try again',
+                retryFn: () => loadDashboard(),
+            });
+        }
     }
 }
 
 function renderRecentKeywords(keywords) {
     const tbody = $('#recentKeywordsTable tbody');
     if (!keywords.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center">No keywords yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4"><div class="table-empty"><i class="fas fa-key"></i><h4>No keywords yet</h4><p>Start with keyword research to see data here.</p></div></td></tr>';
         return;
     }
 
@@ -447,6 +1199,8 @@ function renderRecentKeywords(keywords) {
             </td>
         </tr>
     `).join('');
+
+    initTableSorting($('#recentKeywordsTable'));
 }
 
 function renderRecentAlerts(alerts) {
@@ -467,6 +1221,71 @@ function renderRecentAlerts(alerts) {
             </div>
         </div>
     `).join('');
+}
+
+// ─── Onboarding Checklist ───
+async function loadOnboardingChecklist() {
+    const container = document.getElementById('onboardingChecklist');
+    if (!container) return;
+
+    try {
+        const status = await api('/api/agency/onboarding-status');
+        if (status.dismissed) {
+            container.style.display = 'none';
+            return;
+        }
+
+        const items = [
+            { done: !status.isDefaultName, label: 'Name your agency', page: 'agency-settings' },
+            { done: status.clientCount > 0, label: 'Add your first client', page: 'clients' },
+            { done: status.keywordCount > 0, label: 'Run keyword research', page: 'research' },
+            { done: status.memberCount > 1, label: 'Invite a team member', page: 'agency-settings' },
+        ];
+
+        const allDone = items.every(i => i.done);
+        if (allDone) {
+            container.style.display = 'none';
+            return;
+        }
+
+        const itemsHtml = items.map(item => `
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 0;">
+                <span style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;
+                    ${item.done ? 'background:#dcfce7;color:#059669;' : 'background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;'}">
+                    ${item.done ? '✓' : ''}
+                </span>
+                <a href="#" data-page="${item.page}" class="checklist-link"
+                    style="${item.done ? 'text-decoration:line-through;color:#94a3b8;' : 'color:#0f172a;font-weight:600;'}font-size:13px;text-decoration:none;">
+                    ${item.label}
+                </a>
+            </div>
+        `).join('');
+
+        const itemsDiv = document.getElementById('checklistItems');
+        if (itemsDiv) itemsDiv.innerHTML = itemsHtml;
+        container.style.display = 'block';
+
+        container.querySelectorAll('.checklist-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const page = link.dataset.page;
+                if (page) navigateTo(page);
+            });
+        });
+    } catch (err) {
+        container.style.display = 'none';
+    }
+}
+
+const dismissBtn = document.getElementById('dismissOnboarding');
+if (dismissBtn) {
+    dismissBtn.addEventListener('click', async () => {
+        try {
+            await fetch('/api/agency/onboarding/dismiss', { method: 'POST' });
+            const container = document.getElementById('onboardingChecklist');
+            if (container) container.style.display = 'none';
+        } catch (_) {}
+    });
 }
 
 // ─── Location Cascading ───
@@ -984,7 +1803,7 @@ async function runSelectedKeywordProjectAction(options = {}) {
         }),
     });
 
-    if (!data.success) {
+    if (!data.success && !data.ok) {
         showError(data.error || 'Keyword action failed.');
         return null;
     }
@@ -2431,12 +3250,17 @@ function renderSeoClients(clients) {
                         <h4>${escapeHtml(client.name)}</h4>
                         <p>${escapeHtml(client.industry || 'No industry set')} ${client.website_url ? `· <a href="${escapeHtml(client.website_url)}" target="_blank" rel="noopener">${escapeHtml(client.website_url)}</a>` : ''}</p>
                     </div>
-                    <button class="btn btn-sm btn-outline client-select-btn" data-client-id="${client.id}">Use</button>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <select class="assign-client-select" data-client-id="${client.id}" style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);max-width:160px;">
+                            <option value="">Unassigned</option>
+                        </select>
+                        <button class="btn btn-sm btn-outline client-select-btn" data-client-id="${client.id}">Use</button>
+                    </div>
                 </div>
                 <div class="client-meta-grid">
                     <span><strong>${client.project_count || 0}</strong> projects</span>
                     <span><strong>${client.keyword_count || 0}</strong> keywords</span>
-                    <span>${escapeHtml(locations.slice(0, 3).join(', ') || 'No locations')}</span>
+                    <span>${client.assigned_email ? `👤 ${escapeHtml(client.assigned_email)}` : escapeHtml(locations.slice(0, 3).join(', ') || 'No locations')}</span>
                 </div>
                 <div class="client-tags">
                     ${services.slice(0, 5).map(service => `<span class="tag tag-outline">${escapeHtml(service)}</span>`).join('')}
@@ -2450,6 +3274,9 @@ function renderSeoClients(clients) {
     $$('.client-select-btn').forEach(button => {
         button.addEventListener('click', () => selectSeoClient(button.dataset.clientId));
     });
+
+    // Populate assign dropdowns with agency members
+    loadMembersForAssignment();
 }
 
 function selectSeoClient(clientId) {
@@ -2468,6 +3295,51 @@ function selectSeoClient(clientId) {
     $('#projectClientSelect').value = client.id;
     loadClientProjects(client.id);
     showSuccess('Client loaded.');
+}
+
+// ─── Client Assignment ───
+let agencyMembersCache = [];
+
+async function loadMembersForAssignment() {
+    try {
+        if (!agencyMembersCache.length) {
+            const data = await api('/api/clients/members');
+            agencyMembersCache = data.members || [];
+        }
+        $$('.assign-client-select').forEach(select => {
+            const clientId = select.dataset.clientId;
+            const client = seoClientsCache.find(c => c.id === clientId);
+            const currentAssigned = client?.assigned_to || '';
+
+            // Only populate if not already populated
+            if (select.options.length <= 1) {
+                agencyMembersCache.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.id;
+                    opt.textContent = m.email;
+                    if (m.id === currentAssigned) opt.selected = true;
+                    select.appendChild(opt);
+                });
+            }
+
+            // Remove old listener, add new one
+            select.onchange = async () => {
+                try {
+                    await fetch(`/api/clients/${clientId}/assign`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: select.value || null }),
+                    });
+                    if (typeof showToast === 'function') showToast(select.value ? 'Client assigned' : 'Client unassigned', 'success');
+                    loadSeoClients();
+                } catch (err) {
+                    if (typeof showToast === 'function') showToast(err.message, 'error');
+                }
+            };
+        });
+    } catch (err) {
+        console.error('Failed to load members for assignment:', err);
+    }
 }
 
 async function saveSeoClient() {
@@ -2492,7 +3364,7 @@ async function saveSeoClient() {
     const endpoint = id ? `/api/clients/${id}` : '/api/clients';
     const method = id ? 'PUT' : 'POST';
     const data = await api(endpoint, { method, body: JSON.stringify(payload) });
-    if (!data.success) {
+    if (!data.success && !data.ok) {
         showError(data.error || 'Could not save client.');
         return;
     }
@@ -2527,7 +3399,7 @@ async function saveSeoProject() {
         body: JSON.stringify(payload),
     });
 
-    if (!data.success) {
+    if (!data.success && !data.ok) {
         showError(data.error || 'Could not save project.');
         return;
     }
@@ -2597,4 +3469,583 @@ async function loadResearchProjects() {
     } catch (err) {
         console.error('Failed to load research projects:', err);
     }
+}
+
+
+// ─── Google Search Console Page ───
+let gscClientsLoaded = false;
+let gscClientConnections = [];
+
+async function initGscPage() {
+    await gscCheckStatus();
+    await gscLoadClients();
+    await gscLoadClientManager();
+    await gscLoadSyncLog();
+}
+
+async function gscCheckStatus() {
+    const warning = document.getElementById('gscSetupWarning');
+    if (!warning) return;
+    try {
+        const res = await fetch('/api/gsc/status');
+        const data = await res.json();
+        warning.style.display = (data.success || data.ok) && data.configured ? 'none' : 'block';
+    } catch (_) {
+        warning.style.display = 'block';
+    }
+}
+
+async function gscLoadClients() {
+    const select = document.getElementById('gscClientSelect');
+    if (!select) return;
+    try {
+        const res = await fetch('/api/gsc/clients');
+        const data = await res.json();
+        if (!data.success && !data.ok) throw new Error(data.error || 'Could not load GSC clients');
+        gscClientConnections = data.clients || [];
+        const previous = select.value;
+
+        select.innerHTML = '<option value="">-- select a client --</option>' + gscClientConnections.map(client => `
+            <option value="${escapeHtml(client.id)}" data-site="${escapeHtml(client.gsc_site_url || client.website_url || '')}">
+                ${escapeHtml(client.name || client.company || 'Client')}${client.gsc_site_url ? ' - GSC connected' : ''}
+            </option>
+        `).join('');
+
+        if (previous && gscClientConnections.some(client => String(client.id) === String(previous))) {
+            select.value = previous;
+        }
+
+        if (!select.dataset.gscChangeBound) {
+            select.addEventListener('change', () => {
+                const option = select.options[select.selectedIndex];
+                const input = document.getElementById('gscSiteUrlInput');
+                if (input) input.value = option?.dataset?.site || '';
+            });
+            select.dataset.gscChangeBound = '1';
+        }
+
+        const selectedOption = select.options[select.selectedIndex];
+        const input = document.getElementById('gscSiteUrlInput');
+        if (input && selectedOption?.dataset?.site && !input.value) input.value = selectedOption.dataset.site;
+        gscClientsLoaded = true;
+    } catch (err) {
+        showError(err.message || 'Could not load clients for GSC');
+    }
+}
+
+async function gscLoadClientManager() {
+    const container = document.getElementById('gscClientManagerList');
+    if (!container) return;
+    try {
+        if (!gscClientsLoaded) await gscLoadClients();
+        renderGscClientManager(gscClientConnections);
+    } catch (err) {
+        container.innerHTML = `<p style="color:#fca5a5;font-size:.85rem;margin:0;">${escapeHtml(err.message || 'Could not load client GSC connections')}</p>`;
+    }
+}
+
+window.gscRefreshClientManager = async function gscRefreshClientManager() {
+    gscClientsLoaded = false;
+    await gscLoadClients();
+    await gscLoadClientManager();
+    await gscLoadSyncLog();
+};
+
+function renderGscClientManager(clients) {
+    const container = document.getElementById('gscClientManagerList');
+    if (!container) return;
+    if (!clients.length) {
+        container.innerHTML = '<p style="color:#64748b;font-size:.85rem;margin:0;">No clients found. Add clients first, then connect each GSC property here.</p>';
+        return;
+    }
+
+    container.innerHTML = `
+        <div style="overflow:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:.83rem;color:#e2e8f0;min-width:760px;">
+                <thead><tr style="color:#94a3b8;text-align:left;">
+                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Client</th>
+                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">GSC Property</th>
+                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Latest Clicks</th>
+                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Impressions</th>
+                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Last Sync</th>
+                    <th style="padding:10px 8px;border-bottom:1px solid #334155;text-align:right;">Actions</th>
+                </tr></thead>
+                <tbody>${clients.map(client => {
+                    const connected = Boolean(client.gsc_site_url);
+                    const syncText = client.last_synced_at ? new Date(client.last_synced_at).toLocaleDateString() : 'Not synced';
+                    return `
+                        <tr>
+                            <td style="padding:10px 8px;border-bottom:1px solid #334155;">
+                                <div style="font-weight:700;color:#f8fafc;">${escapeHtml(client.name || client.company || 'Client')}</div>
+                                <div style="color:#64748b;font-size:.76rem;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(client.website_url || 'No website')}</div>
+                            </td>
+                            <td style="padding:10px 8px;border-bottom:1px solid #334155;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(client.gsc_site_url || '')}">
+                                ${connected ? escapeHtml(client.gsc_site_url) : '<span style="color:#f59e0b;">Not connected</span>'}
+                            </td>
+                            <td style="padding:10px 8px;border-bottom:1px solid #334155;">${formatNumber(client.clicks || 0)}</td>
+                            <td style="padding:10px 8px;border-bottom:1px solid #334155;">${formatNumber(client.impressions || 0)}</td>
+                            <td style="padding:10px 8px;border-bottom:1px solid #334155;color:#94a3b8;">${escapeHtml(syncText)}</td>
+                            <td style="padding:10px 8px;border-bottom:1px solid #334155;text-align:right;white-space:nowrap;">
+                                <button onclick="gscSelectClient('${escapeHtml(client.id)}')" style="padding:7px 10px;background:#334155;color:#e2e8f0;border:none;border-radius:7px;cursor:pointer;font-size:.78rem;margin-left:4px;">Select</button>
+                                <button onclick="gscSyncClient('${escapeHtml(client.id)}')" ${connected ? '' : 'disabled'} style="padding:7px 10px;background:${connected ? '#6366f1' : '#475569'};color:#fff;border:none;border-radius:7px;cursor:${connected ? 'pointer' : 'not-allowed'};font-size:.78rem;margin-left:4px;">Sync</button>
+                                <button onclick="gscGenerateClientReport('${escapeHtml(client.id)}')" style="padding:7px 10px;background:#7c3aed;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:.78rem;margin-left:4px;">Report</button>
+                                <button onclick="gscDisconnect('${escapeHtml(client.id)}')" ${connected ? '' : 'disabled'} style="padding:7px 10px;background:${connected ? '#7f1d1d' : '#475569'};color:#fff;border:none;border-radius:7px;cursor:${connected ? 'pointer' : 'not-allowed'};font-size:.78rem;margin-left:4px;">Disconnect</button>
+                            </td>
+                        </tr>`;
+                }).join('')}</tbody>
+            </table>
+        </div>`;
+}
+
+
+async function gscLoadSyncLog(clientId = '') {
+    const container = document.getElementById('gscSyncLogList');
+    if (!container) return;
+    try {
+        const qs = clientId ? `?clientId=${encodeURIComponent(clientId)}&limit=25` : '?limit=25';
+        const res = await fetch(`/api/gsc/sync-log${qs}`);
+        const data = await res.json();
+        if (!data.success && !data.ok) throw new Error(data.error || 'Could not load GSC sync history');
+        renderGscSyncLog(data.runs || []);
+    } catch (err) {
+        container.innerHTML = `<p style="color:#fca5a5;font-size:.85rem;margin:0;">${escapeHtml(err.message || 'Could not load sync history')}</p>`;
+    }
+}
+
+function renderGscSyncLog(runs) {
+    const container = document.getElementById('gscSyncLogList');
+    if (!container) return;
+    if (!runs.length) {
+        container.innerHTML = '<p style="color:#64748b;font-size:.85rem;margin:0;">No GSC syncs recorded yet. Run Sync Now or Sync All Connected to create the first log.</p>';
+        return;
+    }
+
+    container.innerHTML = `
+        <div style="overflow:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:.83rem;color:#e2e8f0;min-width:760px;">
+                <thead><tr style="color:#94a3b8;text-align:left;">
+                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Client</th>
+                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Type</th>
+                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Status</th>
+                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Rows</th>
+                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Window</th>
+                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Finished</th>
+                </tr></thead>
+                <tbody>${runs.map(run => {
+                    const ok = run.status === 'success';
+                    const finished = run.finished_at ? new Date(run.finished_at).toLocaleString() : '—';
+                    const windowText = run.date_start && run.date_end ? `${run.date_start} to ${run.date_end}` : '—';
+                    const error = run.error_message ? `<div style="color:#fca5a5;font-size:.76rem;margin-top:3px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(run.error_message)}">${escapeHtml(run.error_message)}</div>` : '';
+                    return `
+                        <tr>
+                            <td style="padding:10px 8px;border-bottom:1px solid #334155;">
+                                <div style="font-weight:700;color:#f8fafc;">${escapeHtml(run.client_name || 'Client')}</div>
+                                <div style="color:#64748b;font-size:.76rem;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(run.site_url || '')}">${escapeHtml(run.site_url || '')}</div>
+                            </td>
+                            <td style="padding:10px 8px;border-bottom:1px solid #334155;text-transform:capitalize;">${escapeHtml(run.sync_type || 'manual')}</td>
+                            <td style="padding:10px 8px;border-bottom:1px solid #334155;">
+                                <span style="display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:${ok ? '#064e3b' : '#7f1d1d'};color:${ok ? '#bbf7d0' : '#fecaca'};font-size:.75rem;font-weight:700;">${ok ? 'Success' : 'Failed'}</span>
+                                ${error}
+                            </td>
+                            <td style="padding:10px 8px;border-bottom:1px solid #334155;">${formatNumber(run.rows_synced || 0)}</td>
+                            <td style="padding:10px 8px;border-bottom:1px solid #334155;color:#94a3b8;">${escapeHtml(windowText)}</td>
+                            <td style="padding:10px 8px;border-bottom:1px solid #334155;color:#94a3b8;">${escapeHtml(finished)}</td>
+                        </tr>`;
+                }).join('')}</tbody>
+            </table>
+        </div>`;
+}
+
+function gscSelectedClientId() {
+    return document.getElementById('gscClientSelect')?.value || '';
+}
+
+window.gscSelectClient = async function gscSelectClient(clientId) {
+    const select = document.getElementById('gscClientSelect');
+    if (select) {
+        select.value = clientId;
+        const option = select.options[select.selectedIndex];
+        const input = document.getElementById('gscSiteUrlInput');
+        if (input) input.value = option?.dataset?.site || '';
+    }
+    await gscLoad();
+    await gscLoadSyncLog(clientId);
+};
+
+
+window.gscGenerateClientReport = async function gscGenerateClientReport(clientId = '') {
+    const targetClientId = clientId || gscSelectedClientId();
+    if (!targetClientId) return showError('Select a client first.');
+
+    const client = gscClientConnections.find(item => String(item.id) === String(targetClientId));
+    navigateTo('reports');
+
+    const select = document.getElementById('reportClientSelect');
+    if (select) {
+        for (let attempt = 0; attempt < 10; attempt += 1) {
+            if (Array.from(select.options).some(option => String(option.value) === String(targetClientId))) break;
+            await new Promise(resolve => setTimeout(resolve, 150));
+        }
+        select.value = targetClientId;
+        const domainInput = document.getElementById('reportDomain');
+        if (domainInput && client?.website_url) {
+            domainInput.value = client.website_url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        }
+    }
+
+    const titleInput = document.getElementById('reportTitle');
+    if (titleInput && client) {
+        const now = new Date();
+        const month = now.toLocaleString('default', { month: 'long' });
+        titleInput.value = `SEO Report - ${client.name || client.company || 'Client'} - ${month} ${now.getFullYear()}`;
+    }
+
+    if (typeof generateReport === 'function') {
+        await generateReport();
+    } else {
+        showSuccess('Client selected in Reports. Click Generate Report.');
+    }
+};
+
+window.gscConnect = async function gscConnect() {
+    const clientId = gscSelectedClientId();
+    const siteUrl = document.getElementById('gscSiteUrlInput')?.value.trim() || '';
+    if (!clientId) return showError('Select a client first.');
+    if (!siteUrl) return showError('Enter the exact GSC property URL, e.g. https://example.com/ or sc-domain:example.com');
+    try {
+        const res = await fetch('/api/gsc/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clientId, siteUrl }),
+        });
+        const data = await res.json();
+        if (!data.success && !data.ok) throw new Error(data.error || 'GSC connect failed');
+        showSuccess('GSC property connected to this client.');
+        await gscRefreshClientManager();
+        await gscSyncClient(clientId);
+    } catch (err) {
+        showError(err.message || 'Could not connect GSC property');
+    }
+};
+
+
+window.gscSyncAllClients = async function gscSyncAllClients() {
+    if (!confirm('Sync GSC data for all connected clients now?')) return;
+    try {
+        const res = await fetch('/api/gsc/sync-all', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ days: 30 }),
+        });
+        const data = await res.json();
+        if (!data.success && !data.ok) throw new Error(data.error || 'Bulk GSC sync failed');
+        const failedText = data.failed ? `, ${formatNumber(data.failed)} failed` : '';
+        showSuccess(`GSC sync complete: ${formatNumber(data.synced || 0)} clients synced${failedText}.`);
+        await gscRefreshClientManager();
+        if (gscSelectedClientId()) await gscLoad();
+    } catch (err) {
+        showError(err.message || 'Could not sync all GSC clients');
+    }
+};
+
+window.gscSync = async function gscSync() {
+    const clientId = gscSelectedClientId();
+    if (!clientId) return showError('Select a client first.');
+    await gscSyncClient(clientId);
+};
+
+window.gscSyncClient = async function gscSyncClient(clientId) {
+    if (!clientId) return showError('Select a client first.');
+    try {
+        const res = await fetch(`/api/gsc/sync/${encodeURIComponent(clientId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ days: 30 }),
+        });
+        const data = await res.json();
+        if (!data.success && !data.ok) throw new Error(data.error || 'GSC sync failed');
+        showSuccess(`GSC synced: ${formatNumber(data.rows || 0)} rows.`);
+        await gscRefreshClientManager();
+        if (String(gscSelectedClientId()) === String(clientId)) await gscLoad();
+    } catch (err) {
+        showError(err.message || 'Could not sync GSC data');
+    }
+};
+
+window.gscDisconnect = async function gscDisconnect(clientId) {
+    if (!clientId) return showError('Select a client first.');
+    if (!confirm('Disconnect this client from GSC and clear stored GSC data?')) return;
+    try {
+        const res = await fetch(`/api/gsc/disconnect/${encodeURIComponent(clientId)}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!data.success && !data.ok) throw new Error(data.error || 'GSC disconnect failed');
+        showSuccess('GSC disconnected for this client.');
+        await gscRefreshClientManager();
+        if (String(gscSelectedClientId()) === String(clientId)) {
+            document.getElementById('gscSiteUrlInput').value = '';
+            document.getElementById('gscOverviewCards').style.display = 'none';
+        }
+    } catch (err) {
+        showError(err.message || 'Could not disconnect GSC');
+    }
+};
+
+window.gscLoad = async function gscLoad() {
+    const clientId = gscSelectedClientId();
+    if (!clientId) return showError('Select a client first.');
+    try {
+        const [overview, queries, opportunities, lowCtr, pages] = await Promise.all([
+            fetch(`/api/gsc/overview/${encodeURIComponent(clientId)}`).then(r => r.json()),
+            fetch(`/api/gsc/top-queries/${encodeURIComponent(clientId)}?limit=10`).then(r => r.json()),
+            fetch(`/api/gsc/opportunities/${encodeURIComponent(clientId)}?limit=10`).then(r => r.json()),
+            fetch(`/api/gsc/low-ctr/${encodeURIComponent(clientId)}`).then(r => r.json()),
+            fetch(`/api/gsc/top-pages/${encodeURIComponent(clientId)}?limit=10`).then(r => r.json()),
+        ]);
+        if (!overview.success && !overview.ok) throw new Error(overview.error || 'Could not load GSC overview');
+        renderGscOverview(overview.data || {});
+        renderGscRows('gscTopQueriesTable', queries.data || [], 'query');
+        renderGscRows('gscOpportunitiesTable', opportunities.data || [], 'query');
+        renderGscRows('gscLowCtrTable', lowCtr.data || [], 'page');
+        renderGscRows('gscTopPagesTable', pages.data || [], 'page');
+    } catch (err) {
+        showError(err.message || 'Could not load GSC data');
+    }
+};
+
+function renderGscOverview(data) {
+    const cards = document.getElementById('gscOverviewCards');
+    if (cards) cards.style.display = 'grid';
+    const clicks = Number(data.total_clicks || 0);
+    const impressions = Number(data.total_impressions || 0);
+    document.getElementById('gscStatClicks').textContent = formatNumber(clicks);
+    document.getElementById('gscStatImpressions').textContent = formatNumber(impressions);
+    document.getElementById('gscStatCtr').textContent = `${Number(data.avg_ctr_pct || 0).toFixed(2)}%`;
+    document.getElementById('gscStatPosition').textContent = Number(data.avg_position || 0).toFixed(1);
+}
+
+function renderGscRows(containerId, rows, keyName) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    if (!rows.length) {
+        container.innerHTML = '<p style="color:#64748b;font-size:.85rem;">No data yet. Sync GSC first.</p>';
+        return;
+    }
+    container.innerHTML = `
+        <div style="overflow:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:.83rem;color:#e2e8f0;">
+                <thead><tr style="color:#94a3b8;text-align:left;">
+                    <th style="padding:8px;border-bottom:1px solid #334155;">${keyName === 'page' ? 'Page' : 'Query'}</th>
+                    <th style="padding:8px;border-bottom:1px solid #334155;">Clicks</th>
+                    <th style="padding:8px;border-bottom:1px solid #334155;">Impr.</th>
+                    <th style="padding:8px;border-bottom:1px solid #334155;">CTR</th>
+                    <th style="padding:8px;border-bottom:1px solid #334155;">Pos</th>
+                </tr></thead>
+                <tbody>${rows.map(row => `
+                    <tr>
+                        <td style="padding:8px;border-bottom:1px solid #334155;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(row[keyName] || '')}">${escapeHtml(row[keyName] || '')}</td>
+                        <td style="padding:8px;border-bottom:1px solid #334155;">${formatNumber(row.clicks || 0)}</td>
+                        <td style="padding:8px;border-bottom:1px solid #334155;">${formatNumber(row.impressions || 0)}</td>
+                        <td style="padding:8px;border-bottom:1px solid #334155;">${Number(row.ctr_pct || 0).toFixed(2)}%</td>
+                        <td style="padding:8px;border-bottom:1px solid #334155;">${Number(row.avg_position || 0).toFixed(1)}</td>
+                    </tr>
+                `).join('')}</tbody>
+            </table>
+        </div>`;
+}
+
+function initVoiceProfiles() {
+    const profileSelect = $('#voiceProfileSelect');
+    const saveBtn = $('#saveVoiceProfileBtn');
+    const deleteBtn = $('#deleteVoiceProfileBtn');
+    const voiceInput = $('#humanizerVoice');
+    const audienceInput = $('#humanizerAudience');
+    const sampleInput = $('#humanizerSample');
+
+    if (!profileSelect || !saveBtn || !deleteBtn) return;
+
+    function getProfiles() {
+        try {
+            return JSON.parse(localStorage.getItem('keyword_analyzer_voice_profiles') || '{}');
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function saveProfiles(profiles) {
+        localStorage.setItem('keyword_analyzer_voice_profiles', JSON.stringify(profiles));
+    }
+
+    function renderProfileSelect() {
+        const profiles = getProfiles();
+        profileSelect.innerHTML = '<option value="">-- Select Saved Profile --</option>';
+        Object.keys(profiles).forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            profileSelect.appendChild(opt);
+        });
+    }
+
+    saveBtn.addEventListener('click', () => {
+        const voice = voiceInput.value.trim();
+        const audience = audienceInput.value.trim();
+        const sample = sampleInput ? sampleInput.value.trim() : '';
+        if (!voice && !audience && !sample) {
+            showError('Please fill in Brand Voice, Audience, or Writing Sample first.');
+            return;
+        }
+
+        const name = prompt('Enter a name for this Voice Profile:');
+        if (!name) return;
+        const cleanName = name.trim();
+        if (!cleanName) return;
+
+        const profiles = getProfiles();
+        profiles[cleanName] = { voice, audience, sample };
+        saveProfiles(profiles);
+        renderProfileSelect();
+        profileSelect.value = cleanName;
+        showSuccess(`Profile "${cleanName}" saved successfully.`);
+    });
+
+    deleteBtn.addEventListener('click', () => {
+        const selected = profileSelect.value;
+        if (!selected) {
+            showError('Please select a profile to delete.');
+            return;
+        }
+        if (!confirm(`Are you sure you want to delete profile "${selected}"?`)) return;
+
+        const profiles = getProfiles();
+        delete profiles[selected];
+        saveProfiles(profiles);
+        renderProfileSelect();
+        showSuccess(`Profile "${selected}" deleted.`);
+    });
+
+    profileSelect.addEventListener('change', () => {
+        const selected = profileSelect.value;
+        if (!selected) {
+            voiceInput.value = '';
+            audienceInput.value = '';
+            if (sampleInput) sampleInput.value = '';
+            return;
+        }
+
+        const profiles = getProfiles();
+        const prof = profiles[selected];
+        if (prof) {
+            voiceInput.value = prof.voice || '';
+            audienceInput.value = prof.audience || '';
+            if (sampleInput) sampleInput.value = prof.sample || '';
+        }
+    });
+
+    renderProfileSelect();
+}
+
+function renderDiffView() {
+    const original = $('#humanizerInput')?.value || '';
+    const refined = $('#humanizerOutput')?.value || '';
+    const diffContainer = $('#humanizerDiffContainer');
+    if (!diffContainer) return;
+
+    if (!original) {
+        diffContainer.textContent = 'Paste original text first to view diff.';
+        return;
+    }
+
+    const diff = Diff.diffWords(original, refined);
+    let html = '';
+    diff.forEach(part => {
+        const colorClass = part.added ? 'diff-added' : part.removed ? 'diff-removed' : '';
+        const tag = colorClass ? 'span' : 'span';
+        const attrs = colorClass ? ` class="${colorClass}"` : '';
+        const text = escapeHtml(part.value);
+        html += `<${tag}${attrs}>${text}</${tag}>`;
+    });
+    diffContainer.innerHTML = html;
+}
+
+function initDiffModeToggler() {
+    const btnEdit = $('#btnModeEdit');
+    const btnDiff = $('#btnModeDiff');
+    const output = $('#humanizerOutput');
+    const diffContainer = $('#humanizerDiffContainer');
+
+    if (!btnEdit || !btnDiff || !output || !diffContainer) return;
+
+    btnEdit.addEventListener('click', () => {
+        btnEdit.style.background = '#fff';
+        btnEdit.style.color = '#111827';
+        btnEdit.style.fontWeight = '600';
+        btnEdit.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
+
+        btnDiff.style.background = 'transparent';
+        btnDiff.style.color = '#4b5563';
+        btnDiff.style.fontWeight = '500';
+        btnDiff.style.boxShadow = 'none';
+
+        output.style.display = 'block';
+        diffContainer.style.display = 'none';
+    });
+
+    btnDiff.addEventListener('click', () => {
+        btnDiff.style.background = '#fff';
+        btnDiff.style.color = '#111827';
+        btnDiff.style.fontWeight = '600';
+        btnDiff.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
+
+        btnEdit.style.background = 'transparent';
+        btnEdit.style.color = '#4b5563';
+        btnEdit.style.fontWeight = '500';
+        btnEdit.style.boxShadow = 'none';
+
+        output.style.display = 'none';
+        diffContainer.style.display = 'block';
+        renderDiffView();
+    });
+}
+
+function initToneAdjusters() {
+    const adjustBtns = $$('.tone-adjust-btn');
+    const output = $('#humanizerOutput');
+
+    adjustBtns.forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const text = output?.value.trim();
+            const adjustment = btn.dataset.adj;
+            if (!text || text.length < 10) {
+                showError('Generate refined text first before adjusting tone.');
+                return;
+            }
+
+            btn.disabled = true;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adjusting...';
+
+            try {
+                const data = await api('/api/content/humanize/adjust', {
+                    method: 'POST',
+                    body: JSON.stringify({ text, adjustment })
+                });
+
+                if (data.success && data.result?.refinedText) {
+                    output.value = data.result.refinedText;
+                    showSuccess('Tone adjusted successfully.');
+                    if ($('#humanizerDiffContainer').style.display === 'block') {
+                        renderDiffView();
+                    }
+                } else {
+                    showError(data.error || 'Tone adjustment failed.');
+                }
+            } catch (err) {
+                console.error(err);
+                showError('Could not adjust tone right now.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        });
+    });
 }

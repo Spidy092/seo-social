@@ -1,5 +1,5 @@
 /**
- * 🛠️ SEO Task Service
+ * 🛠️ SEO Task Service — Agency-scoped
  * 
  * Handles manual CRUD operations and AI-driven automated SEO task prioritization.
  */
@@ -11,12 +11,24 @@ const { createLogger } = require('../utils/logger');
 const log = createLogger('task-service');
 
 /**
+ * Get the agency_id for a user from their agency membership.
+ */
+async function getUserAgencyId(userId) {
+    if (!userId) return null;
+    const res = await db.query(
+        `SELECT agency_id FROM agency_members WHERE user_id = $1 ORDER BY joined_at ASC LIMIT 1`,
+        [userId]
+    );
+    return res.rows[0]?.agency_id || null;
+}
+
+/**
  * Gathers relevant SEO data for a project/client to serve as context for the AI.
  */
 async function gatherProjectContext(projectId, userId) {
     // 1. Get project and client info
     const projectRes = await db.query(
-        `SELECT p.*, c.user_id, c.name as client_name, c.website_url, c.industry, c.target_locations, c.competitors, c.services, c.goals
+        `SELECT p.*, c.agency_id, c.name as client_name, c.website_url, c.industry, c.target_locations, c.competitors, c.services, c.goals
          FROM seo_projects p
          JOIN seo_clients c ON c.id = p.client_id
          WHERE p.id = $1`,
@@ -54,10 +66,10 @@ async function gatherProjectContext(projectId, userId) {
     const technicalRes = await db.query(
         `SELECT ta.overall_score, ta.pages_crawled, ta.summary, ta.issues
          FROM technical_audits ta
-         WHERE ta.user_id = $1 OR ta.site_url ILIKE $2
+         WHERE ta.agency_id = $1 OR ta.site_url ILIKE $2
          ORDER BY ta.created_at DESC
          LIMIT 1`,
-        [userId || project.user_id, `%${domain}%`]
+        [project.agency_id, `%${domain}%`]
     );
 
     // 5. Get recent alert triggers
@@ -281,11 +293,12 @@ async function autoGenerateTasks(projectId, userId) {
 
             if (check.rows.length === 0) {
                 const insertRes = await db.query(
-                    `INSERT INTO seo_tasks (user_id, client_id, project_id, title, description, category, impact, effort, priority, status)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'todo')
+                    `INSERT INTO seo_tasks (user_id, agency_id, client_id, project_id, title, description, category, impact, effort, priority, status)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'todo')
                      RETURNING *`,
                     [
                         userId,
+                        project.agency_id,
                         project.client_id,
                         projectId,
                         title,
@@ -309,15 +322,17 @@ async function autoGenerateTasks(projectId, userId) {
 }
 
 async function getTaskContext(taskId, userId) {
+    const agencyId = await getUserAgencyId(userId);
     const taskRes = await db.query(
         `SELECT t.*, p.name AS project_name, p.project_type, p.target_location, p.goals AS project_goals,
-                c.name AS client_name, c.website_url, c.industry, c.target_locations, c.competitors, c.services, c.goals AS client_goals
+                c.name AS client_name, c.website_url, c.industry, c.target_locations, c.competitors, c.services, c.goals AS client_goals,
+                c.agency_id
          FROM seo_tasks t
          JOIN seo_projects p ON p.id = t.project_id
          JOIN seo_clients c ON c.id = p.client_id
-         WHERE t.id = $1 AND (t.user_id = $2 OR c.user_id = $2 OR t.user_id IS NULL)
+         WHERE t.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)
          LIMIT 1`,
-        [taskId, userId]
+        [taskId, agencyId]
     );
 
     const task = taskRes.rows[0];
@@ -339,10 +354,10 @@ async function getTaskContext(taskId, userId) {
         const technicalRes = await db.query(
             `SELECT site_url, overall_score, summary, issues, created_at
              FROM technical_audits
-             WHERE user_id = $1 OR site_url ILIKE $2
+             WHERE (agency_id = $1 OR agency_id IS NULL OR $1 IS NULL) OR site_url ILIKE $2
              ORDER BY created_at DESC
              LIMIT 1`,
-            [userId, domain ? `%${domain}%` : '']
+            [agencyId, domain ? `%${domain}%` : '']
         );
         technical = technicalRes.rows[0] || null;
     } catch (err) {
@@ -456,31 +471,37 @@ async function generateTaskAssistant(taskId, userId, mode = 'full') {
 }
 
 /**
- * Retrieve all tasks for a project or client.
+ * Retrieve all tasks for a project (agency-scoped).
  */
 async function getTasks(projectId, userId) {
+    const agencyId = await getUserAgencyId(userId);
     const res = await db.query(
-        `SELECT * FROM seo_tasks 
-         WHERE project_id = $1 AND (user_id = $2 OR user_id IS NULL)
+        `SELECT t.*, u.email AS assigned_email FROM seo_tasks t
+         JOIN seo_projects p ON p.id = t.project_id
+         JOIN seo_clients c ON c.id = p.client_id
+         LEFT JOIN users u ON u.id = t.assigned_to
+         WHERE t.project_id = $1
+           AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)
          ORDER BY 
-            CASE priority 
+            CASE t.priority 
                 WHEN 'critical' THEN 1 
                 WHEN 'high' THEN 2 
                 WHEN 'medium' THEN 3 
                 WHEN 'low' THEN 4 
                 ELSE 5 
             END ASC,
-            created_at DESC`,
-        [projectId, userId]
+            t.created_at DESC`,
+        [projectId, agencyId]
     );
     return res.rows;
 }
 
 /**
- * Add a custom task manually.
+ * Add a custom task manually (agency-scoped).
  */
 async function createTask(taskData, userId) {
-    const { projectId, clientId, title, description, category, impact, effort, priority, status } = taskData;
+    const { projectId, clientId, title, description, category, impact, effort, priority, status, assignedTo } = taskData;
+    const agencyId = await getUserAgencyId(userId);
     
     // Fallback client_id lookup if not provided
     let cid = clientId;
@@ -490,11 +511,12 @@ async function createTask(taskData, userId) {
     }
 
     const res = await db.query(
-        `INSERT INTO seo_tasks (user_id, client_id, project_id, title, description, category, impact, effort, priority, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `INSERT INTO seo_tasks (user_id, agency_id, client_id, project_id, title, description, category, impact, effort, priority, status, assigned_to)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          RETURNING *`,
         [
             userId,
+            agencyId,
             cid,
             projectId,
             title,
@@ -503,22 +525,24 @@ async function createTask(taskData, userId) {
             impact || 'medium',
             effort || 'medium',
             priority || 'medium',
-            status || 'todo'
+            status || 'todo',
+            assignedTo || null
         ]
     );
     return res.rows[0];
 }
 
 /**
- * Update a task (e.g. change status, priority, title, description).
+ * Update a task (agency-scoped).
  */
 async function updateTask(taskId, taskData, userId) {
+    const agencyId = await getUserAgencyId(userId);
     const fields = [];
     const values = [];
     let idx = 1;
 
     // Updatable fields
-    const allowed = ['title', 'description', 'category', 'impact', 'effort', 'priority', 'status', 'ai_notes'];
+    const allowed = ['title', 'description', 'category', 'impact', 'effort', 'priority', 'status', 'ai_notes', 'assigned_to'];
     for (const key of allowed) {
         if (taskData[key] !== undefined) {
             fields.push(`${key} = $${idx}`);
@@ -530,12 +554,17 @@ async function updateTask(taskId, taskData, userId) {
     if (fields.length === 0) return null;
 
     values.push(taskId);
-    values.push(userId);
+    values.push(agencyId);
 
     const query = `
         UPDATE seo_tasks 
         SET ${fields.join(', ')}, updated_at = NOW()
-        WHERE id = $${idx} AND (user_id = $${idx + 1} OR user_id IS NULL)
+        WHERE id = $${idx}
+          AND (
+              agency_id = $${idx + 1}
+              OR agency_id IS NULL
+              OR $${idx + 1} IS NULL
+          )
         RETURNING *`;
 
     const res = await db.query(query, values);
@@ -543,12 +572,18 @@ async function updateTask(taskId, taskData, userId) {
 }
 
 /**
- * Delete a task.
+ * Delete a task (agency-scoped).
  */
 async function deleteTask(taskId, userId) {
+    const agencyId = await getUserAgencyId(userId);
     const res = await db.query(
-        `DELETE FROM seo_tasks WHERE id = $1 AND (user_id = $2 OR user_id IS NULL) RETURNING *`,
-        [taskId, userId]
+        `DELETE FROM seo_tasks t
+         USING seo_projects p, seo_clients c
+         WHERE t.project_id = p.id AND p.client_id = c.id
+           AND t.id = $1
+           AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)
+         RETURNING t.*`,
+        [taskId, agencyId]
     );
     return res.rows[0] || null;
 }

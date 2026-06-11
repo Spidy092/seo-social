@@ -5,10 +5,12 @@
 const { analyzeOnPage } = require('../services/onpageService');
 const { resilientLlmRequest, extractJson } = require('../utils/aiHelper');
 const { createLogger }  = require('../utils/logger');
+const { requireAgencyContext } = require('../utils/authHelper');
 
 const log = createLogger('routes:onpage');
 
 async function onpageRoutes(fastify, options) {
+    const { db } = options;
 
     // POST /api/onpage/analyze
     fastify.post('/api/onpage/analyze', {
@@ -23,6 +25,8 @@ async function onpageRoutes(fastify, options) {
             },
         },
         handler: async (request, reply) => {
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
             const { url, html, keyword = '' } = request.body;
 
             if (!url && !html) {
@@ -57,6 +61,8 @@ async function onpageRoutes(fastify, options) {
             },
         },
         handler: async (request, reply) => {
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
             const { issue, context = {} } = request.body;
 
             try {

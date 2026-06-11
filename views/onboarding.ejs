@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Your Agency - Keyword Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .step { display: none; }
+        .step.active { display: block; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: #e2e8f0; transition: background 0.2s; }
+        .dot.active { background: #0f172a; }
+        .dot.done { background: #059669; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex items-center justify-center p-6">
+    <div class="max-w-lg w-full bg-white rounded-2xl shadow-xl shadow-slate-200/60 overflow-hidden border border-slate-100">
+
+        <!-- Header -->
+        <div class="p-8 pb-0 text-center">
+            <div class="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center mx-auto mb-5 rotate-2 shadow-lg">
+                <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-slate-900" id="wizardTitle">Set up your agency</h1>
+            <p class="text-slate-500 mt-1 text-sm" id="wizardSubtitle">Let's get your workspace ready in 60 seconds</p>
+        </div>
+
+        <!-- Progress dots -->
+        <div class="flex justify-center gap-2 mt-6" id="progressDots">
+            <div class="dot active" data-step="0"></div>
+            <div class="dot" data-step="1"></div>
+            <div class="dot" data-step="2"></div>
+        </div>
+
+        <form id="onboardingForm" class="p-8 pt-6">
+
+            <!-- Step 0: Name your agency -->
+            <div class="step active" data-step="0">
+                <label class="block text-sm font-semibold text-slate-700 mb-2">Agency Name</label>
+                <input type="text" id="agencyNameInput" placeholder="e.g. Acme Digital Marketing"
+                    class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-slate-900 focus:ring-0 outline-none transition-all placeholder:text-slate-400"
+                    value="<%= agencyName %>">
+                <p class="text-xs text-slate-400 mt-2">You can always change this later in Settings.</p>
+
+                <div class="flex gap-3 mt-8">
+                    <button type="button" class="btn-next flex-1 bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition active:scale-[0.98]">
+                        Continue
+                    </button>
+                </div>
+                <div class="mt-3 text-center">
+                    <button type="button" class="btn-skip text-xs text-slate-400 hover:text-slate-600 transition">Skip setup for now</button>
+                </div>
+            </div>
+
+            <!-- Step 1: First client (optional) -->
+            <div class="step" data-step="1">
+                <label class="block text-sm font-semibold text-slate-700 mb-2">Client Name <span class="text-slate-400 font-normal">(optional)</span></label>
+                <input type="text" id="clientNameInput" placeholder="e.g. Acme Corp"
+                    class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-slate-900 focus:ring-0 outline-none transition-all placeholder:text-slate-400">
+
+                <label class="block text-sm font-semibold text-slate-700 mb-2 mt-4">Website URL <span class="text-slate-400 font-normal">(optional)</span></label>
+                <input type="url" id="clientWebsiteInput" placeholder="https://example.com"
+                    class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-slate-900 focus:ring-0 outline-none transition-all placeholder:text-slate-400">
+
+                <div class="flex gap-3 mt-8">
+                    <button type="button" class="btn-back flex-1 bg-slate-100 text-slate-700 font-bold py-3 rounded-xl hover:bg-slate-200 transition">
+                        Back
+                    </button>
+                    <button type="button" class="btn-next flex-1 bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition active:scale-[0.98]">
+                        Continue
+                    </button>
+                </div>
+                <div class="mt-3 text-center">
+                    <button type="button" class="btn-skip text-xs text-slate-400 hover:text-slate-600 transition">Skip, I'll add clients later</button>
+                </div>
+            </div>
+
+            <!-- Step 2: Invite a team member (optional) -->
+            <div class="step" data-step="2">
+                <label class="block text-sm font-semibold text-slate-700 mb-2">Invite a teammate <span class="text-slate-400 font-normal">(optional)</span></label>
+                <input type="email" id="inviteEmailInput" placeholder="colleague@example.com"
+                    class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-slate-900 focus:ring-0 outline-none transition-all placeholder:text-slate-400">
+                <p class="text-xs text-slate-400 mt-2">They'll get access to your agency's clients and projects.</p>
+
+                <div id="inviteResult" class="mt-3 text-sm"></div>
+
+                <div class="flex gap-3 mt-8">
+                    <button type="button" class="btn-back flex-1 bg-slate-100 text-slate-700 font-bold py-3 rounded-xl hover:bg-slate-200 transition">
+                        Back
+                    </button>
+                    <button type="submit" class="flex-1 bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition active:scale-[0.98]">
+                        Finish Setup
+                    </button>
+                </div>
+                <div class="mt-3 text-center">
+                    <button type="button" class="btn-skip text-xs text-slate-400 hover:text-slate-600 transition">Skip, I'll invite later</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let currentStep = 0;
+        const totalSteps = 3;
+        const steps = document.querySelectorAll('.step');
+        const dots = document.querySelectorAll('.dot');
+        const titles = ['Set up your agency', 'Add your first client', 'Invite your team'];
+        const subtitles = [
+            "Let's get your workspace ready in 60 seconds",
+            "Add a client you're doing SEO work for (or skip)",
+            "Bring your team members on board (or skip)"
+        ];
+
+        function showStep(n) {
+            steps.forEach(s => s.classList.remove('active'));
+            dots.forEach((d, i) => {
+                d.classList.remove('active');
+                if (i < n) d.classList.add('done');
+                if (i === n) d.classList.add('active');
+            });
+            currentStep = n;
+            if (steps[n]) steps[n].classList.add('active');
+            document.getElementById('wizardTitle').textContent = titles[n];
+            document.getElementById('wizardSubtitle').textContent = subtitles[n];
+        }
+
+        document.querySelectorAll('.btn-next').forEach(btn => {
+            btn.addEventListener('click', () => showStep(currentStep + 1));
+        });
+
+        document.querySelectorAll('.btn-back').forEach(btn => {
+            btn.addEventListener('click', () => showStep(currentStep - 1));
+        });
+
+        document.querySelectorAll('.btn-skip').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (currentStep < totalSteps - 1) {
+                    showStep(currentStep + 1);
+                } else {
+                    finishSetup();
+                }
+            });
+        });
+
+        document.getElementById('onboardingForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            finishSetup();
+        });
+
+        async function finishSetup() {
+            const btn = document.querySelector('#onboardingForm [type="submit"]');
+            if (btn) { btn.disabled = true; btn.textContent = 'Setting up...'; }
+
+            try {
+                const res = await fetch('/api/agency/onboarding/setup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agencyName: document.getElementById('agencyNameInput').value.trim(),
+                        clientName: document.getElementById('clientNameInput').value.trim(),
+                        clientWebsite: document.getElementById('clientWebsiteInput').value.trim(),
+                        inviteEmail: document.getElementById('inviteEmailInput').value.trim(),
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Setup failed');
+
+                if (data.invite && !data.invite.addedDirectly) {
+                    document.getElementById('inviteResult').innerHTML =
+                        `<span style="color:#059669;">${data.invite.message}</span>`;
+                }
+
+                window.location.href = '/';
+            } catch (err) {
+                alert(err.message);
+                if (btn) { btn.disabled = false; btn.textContent = 'Finish Setup'; }
+            }
+        }
+    </script>
+</body>
+</html>

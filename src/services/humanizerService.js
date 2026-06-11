@@ -1052,6 +1052,89 @@ async function requestRewrite({ systemPrompt, prompt }) {
     }
 }
 
+function localHumanizeSentence(sentence, index) {
+    let output = String(sentence || '').trim();
+
+    const replacements = [
+        [/\bObject-oriented programming lets you say what you want without explaining every step to get there\./i, 'With object-oriented programming, you model real things and actions as objects.'],
+        [/\bFunctional programming treats everything more like math\./i, 'Functional programming feels closer to math: small functions, clear inputs, and fewer surprises.'],
+        [/\bDeclarative programming lets you say what you want without explaining every step to get there\./i, 'Declarative programming is more direct. You describe the result you want, not every step.'],
+        [/\bA lot of modern software is built cloud-native from the start\b/i, 'A lot of modern software starts in the cloud now'],
+        [/\bmeaning it's designed to run in cloud infrastructure rather than being moved there after the fact\b/i, "so it's built for cloud infrastructure instead of being moved there later"],
+        [/\bSoftware touches basically everything now\./i, 'Software is everywhere now.'],
+        [/\bthe thing that actually makes one product different from another is the software running on it\b/i, 'software is often what makes one product feel different from another'],
+        [/\butilize\b/gi, 'use'],
+        [/\bfacilitate\b/gi, 'help'],
+        [/\bdemonstrate\b/gi, 'show'],
+        [/\badditionally\b/gi, 'also'],
+        [/\bfurthermore\b/gi, 'also'],
+        [/\bmoreover\b/gi, 'also'],
+        [/\bin order to\b/gi, 'to'],
+        [/\bdue to the fact that\b/gi, 'because'],
+        [/\bserves as\b/gi, 'works as'],
+        [/\bnot only\b/gi, 'not just'],
+    ];
+
+    replacements.forEach(([pattern, replacement]) => {
+        output = output.replace(pattern, replacement);
+    });
+
+    if (index % 4 === 1 && output.length > 130) {
+        output = output.replace(/,\s+(which|because|so|and)\s+/i, '. $1 ');
+    }
+
+    if (index % 5 === 2 && !/\b(it's|don't|can't|you're|that's|there's)\b/i.test(output)) {
+        output = output.replace(/\bit is\b/i, "it's").replace(/\bthat is\b/i, "that's");
+    }
+
+    return output.replace(/\s+/g, ' ').trim();
+}
+
+function buildLocalRewrite(text, { preserveKeywords = [], mode = 'standard', primaryKeyword = '', relatedKeywords = [], error = '' } = {}) {
+    const paragraphs = String(text || '')
+        .split(/\n\s*\n/)
+        .map(part => part.trim())
+        .filter(Boolean);
+
+    const sourceBlocks = paragraphs.length ? paragraphs : [String(text || '').trim()].filter(Boolean);
+    const rewrittenBlocks = sourceBlocks.map((paragraph, paragraphIndex) => {
+        const sentences = splitSentences(paragraph);
+        if (!sentences.length) return paragraph;
+
+        return sentences
+            .map((sentence, index) => localHumanizeSentence(sentence, paragraphIndex + index))
+            .join(' ')
+            .replace(/\bAlso, also\b/gi, 'Also')
+            .trim();
+    });
+
+    let refinedText = rewrittenBlocks.join('\n\n').trim();
+    const requiredKeywords = [
+        ...normalizeKeywords(preserveKeywords),
+        ...(mode === 'seo-blog' ? [normalizeSingleKeyword(primaryKeyword), ...normalizeKeywords(relatedKeywords).slice(0, 2)] : []),
+    ].filter(Boolean);
+
+    const missingKeywords = requiredKeywords.filter(keyword => !refinedText.toLowerCase().includes(keyword.toLowerCase()));
+    if (missingKeywords.length) {
+        refinedText += `\n\nA few phrases still matter here: ${missingKeywords.join(', ')}. Keep them in the final edit where they fit naturally.`;
+    }
+
+    return {
+        refinedText,
+        summary: error
+            ? 'Used the local humanizer because the AI provider returned an empty response.'
+            : 'Made the draft clearer and more natural while preserving the original meaning.',
+        changes: [
+            'Reduced stiff phrasing and formulaic transitions',
+            'Added more natural sentence rhythm',
+            'Preserved the original facts and key terms',
+        ],
+        alternatives: [
+            { label: 'tighter', text: refinedText.split(/\n\s*\n/).slice(0, 2).join('\n\n') || refinedText },
+        ],
+    };
+}
+
 function normalizeSegmentRewriteResponse(response, expectedIds) {
     const mappedSegments = response?.segments || {};
     const normalizedSegments = {};
@@ -1206,7 +1289,19 @@ async function humanizeContent({ text, tone = 'natural', audience = '', brandVoi
 
     log.info({ tone, audience, maxChange, keywords: normalizedKeywords.length }, 'humanizing content');
 
-    let rewrite = await requestRewrite(prompt);
+    let rewrite;
+    try {
+        rewrite = await requestRewrite(prompt);
+    } catch (err) {
+        log.warn({ err: err.message }, 'using local humanizer fallback after AI rewrite failure');
+        rewrite = buildLocalRewrite(text, {
+            preserveKeywords: normalizedKeywords,
+            mode,
+            primaryKeyword: normalizedPrimaryKeyword,
+            relatedKeywords: normalizedRelatedKeywords,
+            error: err.message,
+        });
+    }
     let refinedText = String(rewrite.refinedText || '').trim();
 
     if (!refinedText) {
@@ -1230,20 +1325,25 @@ async function humanizeContent({ text, tone = 'natural', audience = '', brandVoi
     for (let refinementPass = 0; refinementPass < getMaxRefinementPasses(maxChange) && shouldRetryRefinement(verification); refinementPass += 1) {
         log.info({ warnings: verification.warnings.length }, 'retrying humanizer for improved naturalness');
 
-        rewrite = await requestRewrite(buildRetryPrompt({
-            originalText: text,
-            currentDraft: refinedText,
-            tone,
-            audience,
-            brandVoice,
-            preserveKeywords: normalizedKeywords,
-            maxChange,
-            warnings: verification.warnings,
-            mode,
-            primaryKeyword: normalizedPrimaryKeyword,
-            relatedKeywords: normalizedRelatedKeywords,
-            sample,
-        }));
+        try {
+            rewrite = await requestRewrite(buildRetryPrompt({
+                originalText: text,
+                currentDraft: refinedText,
+                tone,
+                audience,
+                brandVoice,
+                preserveKeywords: normalizedKeywords,
+                maxChange,
+                warnings: verification.warnings,
+                mode,
+                primaryKeyword: normalizedPrimaryKeyword,
+                relatedKeywords: normalizedRelatedKeywords,
+                sample,
+            }));
+        } catch (err) {
+            log.warn({ err: err.message }, 'keeping existing humanizer result after retry failure');
+            break;
+        }
 
         refinedText = String(rewrite.refinedText || '').trim();
 

@@ -87,7 +87,7 @@ async function gatherReportData(db, { clientId, domain, periodDays = 30, include
     const scopedPlaceholder = hasClient ? 2 : 1;
     const sitePlaceholder = 1;
 
-    const [projectsResult, keywordsResult, rankingsResult, rankHistoryResult, alertsResult, competitorsResult, technicalResult, pageOptimizationResult, contentBriefResult, pageSpeedCheckResult, gscResult] = await Promise.all([
+    const [projectsResult, keywordsResult, rankingsResult, rankHistoryResult, alertsResult, competitorsResult, technicalResult, pageOptimizationResult, contentBriefResult, pageSpeedCheckResult, gscResult, searchVisibilityResult] = await Promise.all([
         hasClient
             ? db.query(
                 `SELECT p.id, p.name, p.project_type, p.target_location, p.goals, p.status,
@@ -220,6 +220,16 @@ async function gatherReportData(db, { clientId, domain, periodDays = 30, include
                 [clientId]
             ).catch(() => ({ rows: [] }))
             : Promise.resolve({ rows: [] }),
+        hasClient
+            ? db.query(
+                `SELECT provider, action_type, status, url, sitemap_url, recommendations, error_message, created_at
+                 FROM indexing_actions
+                 WHERE client_id = $1 AND created_at > ${since}
+                 ORDER BY created_at DESC
+                 LIMIT 25`,
+                [clientId]
+            ).catch(() => ({ rows: [] }))
+            : Promise.resolve({ rows: [] }),
     ]);
 
     const savedPageSpeed = pageSpeedCheckResult.rows[0]?.result || null;
@@ -254,11 +264,11 @@ async function gatherReportData(db, { clientId, domain, periodDays = 30, include
         }
     }
 
-    return { client, projects: projectsResult.rows, keywords: keywordsResult.rows, rankings: rankingsResult.rows, rankHistory: rankHistoryResult.rows, alerts: alertsResult.rows, competitors: competitorsResult.rows, technicalAudits: technicalResult.rows, contentHistory: [], pageOptimizations: pageOptimizationResult.rows, contentBriefs: contentBriefResult.rows, pageSpeed, gsc, seoPerformance, reportDomain };
+    return { client, projects: projectsResult.rows, keywords: keywordsResult.rows, rankings: rankingsResult.rows, rankHistory: rankHistoryResult.rows, alerts: alertsResult.rows, competitors: competitorsResult.rows, technicalAudits: technicalResult.rows, contentHistory: [], pageOptimizations: pageOptimizationResult.rows, contentBriefs: contentBriefResult.rows, pageSpeed, gsc, seoPerformance, searchVisibility: searchVisibilityResult.rows, reportDomain };
 }
 
 function computeSummary(data, periodDays) {
-    const { keywords, rankings, rankHistory, alerts, projects, technicalAudits, pageOptimizations, contentBriefs, pageSpeed, gsc, seoPerformance } = data;
+    const { keywords, rankings, rankHistory, alerts, projects, technicalAudits, pageOptimizations, contentBriefs, pageSpeed, gsc, seoPerformance, searchVisibility } = data;
     const improved = rankHistory.filter(r => r.change_direction === 'up');
     const dropped = rankHistory.filter(r => r.change_direction === 'down');
     const newRankings = rankHistory.filter(r => r.change_direction === 'new');
@@ -275,7 +285,7 @@ function computeSummary(data, periodDays) {
         const ctr = CTR_BY_POS[pos] || 0.01;
         return total + Math.round((Number(r.search_volume) || 0) * ctr);
     }, 0);
-    return { period: periodDays, totalKeywords: keywords.length, trackedKeywords: rankings.length, projectCount: projects.length, projectKeywords: keywords.length, top3, top10, top30, avgPosition, estimatedMonthlyTraffic: estimatedTraffic, improved: improved.length, dropped: dropped.length, newRankings: newRankings.length, lostRankings: lostRankings.length, biggestGains, biggestDrops, totalAlerts: alerts.length, latestTechnicalScore: technicalAudits[0]?.overall_score ?? null, technicalIssueCount: toJsonArray(technicalAudits[0]?.issues).length, pageSpeedScore: pageSpeed?.scores?.performance ?? null, pageOptimizations: pageOptimizations.length, contentBriefs: contentBriefs.length, gscClicks: gsc?.clicks || 0, gscImpressions: gsc?.impressions || 0, gscCtr: gsc?.ctr || 0, gscPosition: gsc?.position || null, gscQuickWins: gsc?.quickWinKeywords?.length || 0, gscLowCtrPages: gsc?.lowCtrPages?.length || 0, organicSessions: seoPerformance?.overview?.sessions || 0, seoConversions: seoPerformance?.overview?.conversions || 0, seoHighPriorityIssues: seoPerformance?.overview?.highPriorityIssues || 0 };
+    return { period: periodDays, totalKeywords: keywords.length, trackedKeywords: rankings.length, projectCount: projects.length, projectKeywords: keywords.length, top3, top10, top30, avgPosition, estimatedMonthlyTraffic: estimatedTraffic, improved: improved.length, dropped: dropped.length, newRankings: newRankings.length, lostRankings: lostRankings.length, biggestGains, biggestDrops, totalAlerts: alerts.length, latestTechnicalScore: technicalAudits[0]?.overall_score ?? null, technicalIssueCount: toJsonArray(technicalAudits[0]?.issues).length, pageSpeedScore: pageSpeed?.scores?.performance ?? null, pageOptimizations: pageOptimizations.length, contentBriefs: contentBriefs.length, gscClicks: gsc?.clicks || 0, gscImpressions: gsc?.impressions || 0, gscCtr: gsc?.ctr || 0, gscPosition: gsc?.position || null, gscQuickWins: gsc?.quickWinKeywords?.length || 0, gscLowCtrPages: gsc?.lowCtrPages?.length || 0, organicSessions: seoPerformance?.overview?.sessions || 0, seoConversions: seoPerformance?.overview?.conversions || 0, seoHighPriorityIssues: seoPerformance?.overview?.highPriorityIssues || 0, searchVisibilityActions: searchVisibility?.length || 0 };
 }
 
 async function generateAiNarrative(summary, data) {

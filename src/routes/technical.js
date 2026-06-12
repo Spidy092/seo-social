@@ -16,17 +16,18 @@ async function technicalRoutes(fastify, options) {
                 properties: {
                     url: { type: 'string' },
                     maxPages: { type: 'integer', minimum: 5, maximum: 50, default: 20 },
+                    checkSecurityHeaders: { type: 'boolean', default: false },
                 },
             },
         },
         handler: async (request, reply) => {
-            const { url, maxPages = 20 } = request.body;
+            const { url, maxPages = 20, checkSecurityHeaders = false } = request.body;
             const ctx = await requireAgencyContext(request, reply, db);
             if (!ctx) return;
 
             try {
                 log.info({ url, maxPages }, 'technical seo audit started');
-                const result = await auditSite(url, { maxPages });
+                const result = await auditSite(url, { maxPages, checkSecurityHeaders });
                 const insert = await db.query(
                     `INSERT INTO technical_audits
                      (user_id, agency_id, site_url, status, pages_crawled, overall_score, summary, issues, pages, robots_txt, sitemaps)

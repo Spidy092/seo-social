@@ -166,7 +166,7 @@ async function ensureAgencyForeignKeys() {
         'agency_members', 'agency_invites', 'seo_clients', 'seo_tasks', 'technical_audits',
         'page_optimizations', 'page_speed_checks', 'content_briefs', 'content_rewrite_history',
         'posts', 'platform_connections', 'seo_reports', 'gsc_search_analytics', 'gsc_sync_runs',
-        'ga4_page_analytics', 'ga4_sync_runs', 'my_domains'
+        'ga4_page_analytics', 'ga4_sync_runs', 'indexing_actions', 'my_domains'
     ];
 
     for (const table of tables) {
@@ -525,6 +525,20 @@ async function initializeDatabase() {
     `);
 
     await query(`
+        CREATE TABLE IF NOT EXISTS onpage_audits (
+            id SERIAL PRIMARY KEY,
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            project_id UUID REFERENCES seo_projects(id) ON DELETE CASCADE,
+            url TEXT NOT NULL,
+            keyword TEXT,
+            overall_score INTEGER DEFAULT 0,
+            summary JSONB DEFAULT '{}'::jsonb,
+            issues JSONB DEFAULT '[]'::jsonb,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+
+    await query(`
         CREATE TABLE IF NOT EXISTS technical_audits (
             id SERIAL PRIMARY KEY,
             user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -692,7 +706,32 @@ async function initializeDatabase() {
     await query(`ALTER TABLE seo_clients ADD COLUMN IF NOT EXISTS ga4_property_name TEXT`);
     await query(`ALTER TABLE seo_clients ADD COLUMN IF NOT EXISTS ga4_connected_at TIMESTAMPTZ`);
     await query(`ALTER TABLE seo_clients ADD COLUMN IF NOT EXISTS ga4_last_synced_at TIMESTAMPTZ`);
+    await query(`ALTER TABLE seo_clients ADD COLUMN IF NOT EXISTS indexnow_key TEXT`);
+    await query(`ALTER TABLE seo_clients ADD COLUMN IF NOT EXISTS indexnow_key_location TEXT`);
+    await query(`ALTER TABLE seo_clients ADD COLUMN IF NOT EXISTS indexnow_connected_at TIMESTAMPTZ`);
     await query(`ALTER TABLE gsc_search_analytics ADD COLUMN IF NOT EXISTS normalized_url TEXT`);
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS indexing_actions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+            agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL,
+            client_id UUID REFERENCES seo_clients(id) ON DELETE CASCADE,
+            provider TEXT NOT NULL,
+            action_type TEXT NOT NULL,
+            status TEXT NOT NULL,
+            url TEXT,
+            normalized_url TEXT,
+            site_url TEXT,
+            sitemap_url TEXT,
+            page_type TEXT,
+            request_payload JSONB DEFAULT '{}'::jsonb,
+            response_payload JSONB DEFAULT '{}'::jsonb,
+            recommendations JSONB DEFAULT '[]'::jsonb,
+            error_message TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
 
     await query(`ALTER TABLE content_rewrite_history ADD COLUMN IF NOT EXISTS primary_keyword TEXT`);
     await query(`ALTER TABLE content_rewrite_history ADD COLUMN IF NOT EXISTS related_keywords JSONB DEFAULT '[]'::jsonb`);
@@ -712,6 +751,11 @@ async function initializeDatabase() {
     await query(`CREATE INDEX IF NOT EXISTS idx_ga4_page_analytics_source ON ga4_page_analytics(client_id, source_medium, channel_group)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_ga4_sync_runs_client ON ga4_sync_runs(client_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_ga4_sync_runs_created ON ga4_sync_runs(created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_indexing_actions_client ON indexing_actions(client_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_indexing_actions_agency ON indexing_actions(agency_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_indexing_actions_created ON indexing_actions(created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_indexing_actions_url ON indexing_actions(client_id, normalized_url)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_indexing_actions_provider ON indexing_actions(client_id, provider, action_type)`);
 
     await query(`CREATE INDEX IF NOT EXISTS idx_technical_audits_site_created ON technical_audits(site_url, created_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_technical_audits_user_created ON technical_audits(user_id, created_at DESC)`);

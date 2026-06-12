@@ -37,7 +37,9 @@ async function auditSite(siteUrl, options = {}) {
         visited.add(next.url);
 
         try {
-            const page = await crawlPage(next.url, next.depth, next.source, siteOrigin);
+            const page = await crawlPage(next.url, next.depth, next.source, siteOrigin, {
+                checkSecurityHeaders: options.checkSecurityHeaders,
+            });
             page.inboundLinks = inboundLinkCounts.get(page.url) || 0;
             crawledPages.push(page);
             pageByUrl.set(page.url, page);
@@ -111,12 +113,15 @@ async function auditSite(siteUrl, options = {}) {
         pages: sitewide.pages,
         robotsTxt,
         sitemaps: discoveredSitemaps,
-        crawlConfig: { maxPages },
+        crawlConfig: {
+            maxPages,
+            checkSecurityHeaders: Boolean(options.checkSecurityHeaders),
+        },
         analyzedAt: new Date().toISOString(),
     };
 }
 
-async function crawlPage(url, depth, source, siteOrigin) {
+async function crawlPage(url, depth, source, siteOrigin, options = {}) {
     const startedAt = Date.now();
     const response = await fetchUrl(url, { maxRedirects: 0 });
     const contentType = String(response.headers['content-type'] || '').toLowerCase();
@@ -220,6 +225,86 @@ async function crawlPage(url, depth, source, siteOrigin) {
         } catch { /* skip invalid JSON-LD */ }
     });
 
+    // Heading structure audit
+    const headings = [];
+    $('h1, h2, h3, h4, h5, h6').each((_, el) => {
+        headings.push({ tag: el.name.toUpperCase(), text: $(el).text().trim() });
+    });
+    page.headings = headings;
+    page.h1Count = headings.filter(h => h.tag === 'H1').length;
+    page.h2Count = headings.filter(h => h.tag === 'H2').length;
+    page.headingHierarchyValid = validateHeadingHierarchy(headings);
+
+    // Image audit
+    const images = [];
+    $('img').each((_, el) => {
+        const src = $(el).attr('src') || '';
+        const alt = $(el).attr('alt') || '';
+        const width = $(el).attr('width');
+        const height = $(el).attr('height');
+        images.push({
+            src: absolutizeUrl(src, url),
+            alt,
+            hasAlt: alt.trim().length > 0,
+            hasDimensions: !!width && !!height,
+        });
+    });
+    page.images = images;
+    page.imageCount = images.length;
+    page.imagesMissingAlt = images.filter(img => !img.hasAlt).length;
+    page.imagesMissingDimensions = images.filter(img => !img.hasDimensions).length;
+
+    // Word count & thin content detection
+    const bodyText = $('body').text().replace(/\s+/g, ' ').trim();
+    const wordCount = bodyText ? bodyText.split(/\s+/).length : 0;
+    page.wordCount = wordCount;
+    page.isThinContent = wordCount < 300;
+
+    // Mixed content detection (HTTP resources on HTTPS page)
+    if (url.startsWith('https:')) {
+        const mixedContent = [];
+        const resourceSelectors = [
+            'img[src^="http:"]',
+            'script[src^="http:"]',
+            'link[href^="http:"]',
+            'iframe[src^="http:"]',
+            'video[src^="http:"]',
+            'audio[src^="http:"]',
+            'source[src^="http:"]',
+        ];
+        resourceSelectors.forEach(selector => {
+            $(selector).each((_, el) => {
+                const attr = el.name === 'link' ? 'href' : 'src';
+                const resourceUrl = $(el).attr(attr);
+                if (resourceUrl && resourceUrl.startsWith('http:')) {
+                    mixedContent.push({ tag: el.name, url: resourceUrl, attribute: attr });
+                }
+            });
+        });
+        page.mixedContent = mixedContent;
+        page.hasMixedContent = mixedContent.length > 0;
+    } else {
+        page.mixedContent = [];
+        page.hasMixedContent = false;
+    }
+
+    // Security headers (from response)
+    page.securityHeaders = {
+        hsts: !!response.headers['strict-transport-security'],
+        csp: !!response.headers['content-security-policy'],
+        xFrameOptions: !!response.headers['x-frame-options'],
+        xContentTypeOptions: !!response.headers['x-content-type-options'],
+        referrerPolicy: !!response.headers['referrer-policy'],
+        permissionsPolicy: !!response.headers['permissions-policy'],
+        crossOriginOpenerPolicy: !!response.headers['cross-origin-opener-policy'],
+        crossOriginResourcePolicy: !!response.headers['cross-origin-resource-policy'],
+    };
+    page.missingSecurityHeaders = options.checkSecurityHeaders
+        ? Object.entries(page.securityHeaders)
+            .filter(([_, present]) => !present)
+            .map(([header]) => header)
+        : [];
+
     if (!title) {
         page.issues.push('Missing title');
     }
@@ -237,6 +322,27 @@ async function crawlPage(url, depth, source, siteOrigin) {
     }
     if (page.internalLinks === 0 && depth > 0) {
         page.issues.push('No internal links out');
+    }
+    if (page.h1Count === 0) {
+        page.issues.push('Missing H1 heading');
+    }
+    if (page.h1Count > 1) {
+        page.issues.push('Multiple H1 headings');
+    }
+    if (!page.headingHierarchyValid) {
+        page.issues.push('Invalid heading hierarchy (skipped levels)');
+    }
+    if (page.imagesMissingAlt > 0) {
+        page.issues.push(`${page.imagesMissingAlt} image(s) missing alt text`);
+    }
+    if (page.hasMixedContent) {
+        page.issues.push(`${page.mixedContent.length} mixed content resource(s) (HTTP on HTTPS page)`);
+    }
+    if (page.missingSecurityHeaders.length > 0) {
+        page.issues.push(`Missing security headers: ${page.missingSecurityHeaders.join(', ')}`);
+    }
+    if (page.isThinContent) {
+        page.issues.push(`Thin content (${page.wordCount} words)`);
     }
 
     return page;
@@ -431,6 +537,127 @@ function buildSitewideAnalysis({ siteUrl, siteOrigin, pages, robotsTxt, sitemaps
         );
     }
 
+    const missingH1Pages = htmlPages.filter((page) => page.status === 200 && page.h1Count === 0);
+    const multipleH1Pages = htmlPages.filter((page) => page.status === 200 && page.h1Count > 1);
+    const invalidHeadingHierarchyPages = htmlPages.filter((page) => page.status === 200 && page.headingHierarchyValid === false);
+    const pagesWithMissingAltImages = htmlPages.filter((page) => page.status === 200 && page.imagesMissingAlt > 0);
+    const pagesWithMissingDimensionImages = htmlPages.filter((page) => page.status === 200 && page.imagesMissingDimensions > 0);
+    const thinContentPages = htmlPages.filter((page) => page.status === 200 && page.isThinContent);
+    const mixedContentPages = htmlPages.filter((page) => page.status === 200 && page.hasMixedContent);
+    const missingSecurityHeadersPages = htmlPages.filter((page) => page.status === 200 && page.missingSecurityHeaders && page.missingSecurityHeaders.length > 0);
+    const missingSecurityHeaderCounts = htmlPages
+        .filter((page) => page.status === 200 && page.missingSecurityHeaders && page.missingSecurityHeaders.length > 0)
+        .reduce((counts, page) => {
+            page.missingSecurityHeaders.forEach((header) => {
+                counts[header] = (counts[header] || 0) + 1;
+            });
+            return counts;
+        }, {});
+
+    if (missingH1Pages.length) {
+        addIssue(
+            'content',
+            'important',
+            `${missingH1Pages.length} page(s) missing H1 heading`,
+            'Every indexable page should have one clear H1 that communicates the primary topic to users and search engines.',
+            'Add a unique, descriptive H1 to each page. Avoid hiding the H1 with CSS; use one H1 near the top of the main content.',
+            `${missingH1Pages.length} pages without H1`,
+            'One unique H1 per indexable page',
+            missingH1Pages.slice(0, 20).map((page) => page.url)
+        );
+    }
+
+    if (multipleH1Pages.length) {
+        addIssue(
+            'content',
+            'good',
+            `${multipleH1Pages.length} page(s) with multiple H1 headings`,
+            'Multiple H1 tags can dilute the main topic signal and make content structure less clear.',
+            'Keep one primary H1 per page and use H2-H6 for subsections.',
+            `${multipleH1Pages.length} pages with multiple H1s`,
+            'One H1 per page',
+            multipleH1Pages.slice(0, 20).map((page) => page.url)
+        );
+    }
+
+    if (invalidHeadingHierarchyPages.length) {
+        addIssue(
+            'content',
+            'good',
+            `${invalidHeadingHierarchyPages.length} page(s) with skipped heading levels`,
+            'Skipped heading levels, such as H2 directly to H4, make page structure harder to understand.',
+            'Use heading levels sequentially: H1, then H2, then H3. Do not skip levels for styling.',
+            `${invalidHeadingHierarchyPages.length} pages with invalid heading hierarchy`,
+            'Sequential heading structure',
+            invalidHeadingHierarchyPages.slice(0, 20).map((page) => page.url)
+        );
+    }
+
+    if (pagesWithMissingAltImages.length) {
+        addIssue(
+            'content',
+            'important',
+            `${pagesWithMissingAltImages.length} page(s) with image alt text gaps`,
+            'Images without alt text reduce accessibility and miss image-search/context signals.',
+            'Add descriptive alt text for meaningful images. Use alt="" only for decorative images.',
+            `${pagesWithMissingAltImages.length} pages with missing alt text`,
+            'All meaningful images should have alt text',
+            pagesWithMissingAltImages.slice(0, 20).map((page) => page.url)
+        );
+    }
+
+    if (pagesWithMissingDimensionImages.length) {
+        addIssue(
+            'performance',
+            'good',
+            `${pagesWithMissingDimensionImages.length} page(s) with images missing width/height`,
+            'Images without explicit dimensions can contribute to layout shift and slower rendering.',
+            'Add width and height attributes or CSS aspect-ratio for responsive images.',
+            `${pagesWithMissingDimensionImages.length} pages with images missing dimensions`,
+            'Images should reserve layout space',
+            pagesWithMissingDimensionImages.slice(0, 20).map((page) => page.url)
+        );
+    }
+
+    if (thinContentPages.length) {
+        addIssue(
+            'content',
+            'important',
+            `${thinContentPages.length} thin content page(s) found`,
+            'Pages with very little visible text may struggle to satisfy search intent or rank for meaningful queries.',
+            'Add original, useful content that fully answers the page intent. Review boilerplate-heavy pages and merge or improve low-value pages.',
+            `${thinContentPages.length} pages under 300 words`,
+            'At least 300 words on indexable content pages',
+            thinContentPages.slice(0, 20).map((page) => page.url)
+        );
+    }
+
+    if (mixedContentPages.length) {
+        addIssue(
+            'security',
+            'critical',
+            `${mixedContentPages.length} page(s) loading mixed content`,
+            'HTTPS pages should not load HTTP resources because browsers may block them and users lose trust.',
+            'Update all HTTP image, script, stylesheet, iframe, video, and audio URLs to HTTPS or protocol-relative URLs.',
+            `${mixedContentPages.length} HTTPS pages with HTTP resources`,
+            'No mixed content on HTTPS pages',
+            mixedContentPages.slice(0, 20).map((page) => page.url)
+        );
+    }
+
+    if (missingSecurityHeadersPages.length) {
+        addIssue(
+            'security',
+            'important',
+            `${missingSecurityHeadersPages.length} page(s) missing recommended security headers`,
+            'Security headers help protect users and improve browser trust. Missing headers can expose the site to clickjacking, MIME sniffing, and policy gaps.',
+            `Add recommended headers: ${Object.keys(missingSecurityHeaderCounts).sort().join(', ') || 'HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy'}.`,
+            `Missing headers detected on ${missingSecurityHeadersPages.length} page(s)`,
+            'HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy',
+            missingSecurityHeadersPages.slice(0, 20).map((page) => page.url)
+        );
+    }
+
     // ─── Hreflang Checks ─────────────────────────────────────────────────
     const pagesWithHreflang = htmlPages.filter(p => p.hreflang && p.hreflang.length > 0);
     const hreflangErrors = [];
@@ -622,6 +849,15 @@ function buildSitewideAnalysis({ siteUrl, siteOrigin, pages, robotsTxt, sitemaps
             hreflangIssues: hreflangErrors.length,
             paginationIssues: paginationErrors.length,
             canonicalChainIssues: canonicalErrors.length,
+            missingH1Pages: missingH1Pages.length,
+            multipleH1Pages: multipleH1Pages.length,
+            invalidHeadingHierarchyPages: invalidHeadingHierarchyPages.length,
+            imagesMissingAlt: htmlPages.filter((page) => page.status === 200).reduce((sum, page) => sum + (page.imagesMissingAlt || 0), 0),
+            imagesMissingDimensions: htmlPages.filter((page) => page.status === 200).reduce((sum, page) => sum + (page.imagesMissingDimensions || 0), 0),
+            thinContentPages: thinContentPages.length,
+            mixedContentPages: mixedContentPages.length,
+            missingSecurityHeadersPages: missingSecurityHeadersPages.length,
+            missingSecurityHeaderCounts,
             pagesWithSchema,
             schemaTypes: Object.fromEntries(schemaTypes),
         },
@@ -644,6 +880,17 @@ function buildSitewideAnalysis({ siteUrl, siteOrigin, pages, robotsTxt, sitemaps
             hreflang: page.hreflang || [],
             pagination: page.pagination || {},
             structuredData: (page.structuredData || []).flatMap(sd => sd.types),
+            h1Count: page.h1Count || 0,
+            h2Count: page.h2Count || 0,
+            headingHierarchyValid: page.headingHierarchyValid,
+            headings: (page.headings || []).slice(0, 12),
+            imageCount: page.imageCount || 0,
+            imagesMissingAlt: page.imagesMissingAlt || 0,
+            imagesMissingDimensions: page.imagesMissingDimensions || 0,
+            wordCount: page.wordCount || 0,
+            hasMixedContent: page.hasMixedContent || false,
+            mixedContentCount: (page.mixedContent || []).length,
+            missingSecurityHeaders: page.missingSecurityHeaders || [],
         })),
     };
 }
@@ -737,6 +984,9 @@ function buildCategoryScores(issues) {
         indexability: 35,
         sitemaps: 15,
         architecture: 20,
+        content: 20,
+        performance: 15,
+        security: 15,
     };
     const categories = {};
 
@@ -780,6 +1030,19 @@ function getCanonicalStatus(pageUrl, canonicalUrl, siteOrigin) {
         return 'cross-domain';
     }
     return cleanUrl(canonicalUrl, siteOrigin) === cleanUrl(pageUrl, siteOrigin) ? 'self' : 'other-internal';
+}
+
+function validateHeadingHierarchy(headings) {
+    if (headings.length === 0) return true;
+    const levels = headings.map(h => parseInt(h.tag.replace('H', ''), 10));
+    let prevLevel = levels[0];
+    if (prevLevel !== 1) return false;
+    for (let i = 1; i < levels.length; i++) {
+        const curr = levels[i];
+        if (curr > prevLevel + 1) return false;
+        prevLevel = curr;
+    }
+    return true;
 }
 
 function getStatusLabel(status) {

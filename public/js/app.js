@@ -39,6 +39,7 @@ const breadcrumbMap = {
     tracking: [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-search', label: 'Research' }, { label: 'Rank Tracking' }],
     gsc: [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-search', label: 'Research' }, { label: 'Search Console' }],
     'seo-performance': [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-chart-line', label: 'Analytics' }, { label: 'SEO Performance' }],
+    'search-visibility': [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-chart-line', label: 'Analytics' }, { label: 'Search Visibility' }],
     alerts: [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-search', label: 'Research' }, { label: 'Alerts' }],
     onpage: [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-spider', label: 'Audit' }, { label: 'On-Page SEO' }],
     'page-optimization': [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-spider', label: 'Audit' }, { label: 'Page Optimization' }],
@@ -67,6 +68,7 @@ const commandPages = [
     { page: 'tracking', title: 'Rank Tracking', desc: 'Track domain rankings over time', icon: 'fa-chart-bar' },
     { page: 'gsc', title: 'Search Console', desc: 'Google Search Console data', icon: 'fa-chart-column' },
     { page: 'seo-performance', title: 'SEO Performance', desc: 'GSC + GA4 combined insights', icon: 'fa-chart-line' },
+    { page: 'search-visibility', title: 'Search Visibility', desc: 'Inspect URLs, submit sitemaps, and request discovery', icon: 'fa-magnifying-glass-chart' },
     { page: 'alerts', title: 'Alerts', desc: 'Rank changes and notifications', icon: 'fa-bell' },
     { page: 'onpage', title: 'On-Page SEO', desc: 'Analyze on-page SEO factors', icon: 'fa-file-invoice' },
     { page: 'page-optimization', title: 'Page Optimization', desc: 'Compare page vs top competitors', icon: 'fa-bullseye' },
@@ -440,6 +442,7 @@ function navigateTo(page, isHashChange = false) {
         technical: 'Technical SEO Audit',
         gsc: 'Google Search Console',
         'seo-performance': 'SEO Performance',
+        'search-visibility': 'Search Visibility',
         humanizer: 'Content Humanizer',
         'content-brief': 'Content Brief Generator',
         'social-upload': 'Upload Content',
@@ -478,6 +481,7 @@ function navigateTo(page, isHashChange = false) {
         case 'technical': break;
         case 'gsc': initGscPage(); break;
         case 'seo-performance': if (typeof initSeoPerformancePage === 'function') initSeoPerformancePage(); break;
+        case 'search-visibility': if (typeof initSearchVisibilityPage === 'function') initSearchVisibilityPage(); break;
         case 'humanizer': loadHumanizerHistory(); break;
         case 'reports': if (typeof loadSavedReports === 'function') loadSavedReports(); break;
         case 'tasks': if (typeof initTasksPage === 'function') initTasksPage(); break;
@@ -2270,7 +2274,7 @@ $('#analyzeBtn')?.addEventListener('click', async () => {
     try {
         const data = await api('/api/analysis/compare', {
             method: 'POST',
-            body: JSON.stringify({ myDomain, competitorDomain, keyword, myUrl, competitorUrl }),
+            body: JSON.stringify({ myDomain, competitorDomain, keyword, myUrl, competitorUrl, includePageSpeed: !!$('#analysisIncludePageSpeed')?.checked }),
         });
         if (progressText) progressText.textContent = 'Rendering results…';
         renderAnalysisResults(data.comparison);
@@ -2669,6 +2673,323 @@ function renderAnalysisResults(comparison) {
     renderComparisonGrid(comparison);
     renderDifferences(comparison);
     renderSuggestions(comparison);
+    renderPhase2Metrics(comparison);
+}
+
+// ─── Phase 2: Enhanced Analysis Metrics ───
+function renderPhase2Metrics(comparison) {
+    const container = $('#analysisResults');
+    if (!container) return;
+
+    // Remove any previously injected Phase 2 sections
+    container.querySelectorAll('.phase2-section').forEach(el => el.remove());
+
+    const sections = [];
+
+    // Confidence & Score Breakdown
+    if (comparison.confidence != null) {
+        sections.push(renderConfidenceSection(comparison));
+    }
+
+    // Entity Coverage
+    const entity = comparison.scores?.entityCoverage;
+    if (entity) {
+        sections.push(renderEntityCoverageSection(entity));
+    }
+
+    // Schema Validation
+    const schema = comparison.scores?.schemaValidation;
+    if (schema) {
+        sections.push(renderSchemaValidationSection(schema));
+    }
+
+    // E-E-A-T Signals
+    const eat = comparison.scores?.eatSignals;
+    if (eat) {
+        sections.push(renderEEATSection(eat));
+    }
+
+    // PageSpeed / CWV
+    const ps = comparison.scores?.pageSpeed;
+    if (ps) {
+        sections.push(renderPageSpeedSection(ps));
+    }
+
+    // Top-10 Benchmarks
+    const benchmarks = comparison.benchmarks;
+    if (benchmarks) {
+        sections.push(renderBenchmarksSection(benchmarks, comparison));
+    }
+
+    // Inject all sections after suggestions
+    const suggestionsCard = container.querySelector('.suggestions');
+    if (suggestionsCard && sections.length) {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = sections.join('');
+        suggestionsCard.after(wrapper);
+    }
+}
+
+function renderConfidenceSection(comp) {
+    const score = comp.overallScore || 0;
+    const confidence = comp.confidence || 0;
+    const breakdown = comp.scoreBreakdown || {};
+    const tone = overallTone(score);
+
+    const factorRows = [
+        ['Domain Authority', breakdown.domainAuthority, 'DA points'],
+        ['Content Length', breakdown.contentLength, 'words'],
+        ['SEO Score', breakdown.seoScore, 'pts'],
+        ['Entity Coverage', breakdown.entityCoverage, '%'],
+        ['Schema Types', breakdown.schemaCount, 'types'],
+        ['E-E-A-T Score', breakdown.eatScore, '/100'],
+        ['PageSpeed', breakdown.pageSpeed, '/100'],
+    ].filter(([, v]) => v != null)
+     .map(([label, value, unit]) => {
+         const color = value > 0 ? 'var(--secondary)' : value < 0 ? 'var(--danger)' : 'var(--text-muted)';
+         const sign = value > 0 ? '+' : '';
+         return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);">
+             <span style="font-size:13px;color:var(--text);">${label}</span>
+             <span style="font-size:13px;font-weight:600;color:${color};">${sign}${value} ${unit}</span>
+         </div>`;
+     }).join('');
+
+    return `<div class="card phase2-section" style="margin-top:20px;">
+        <div class="card-header">
+            <h3><i class="fas fa-brain"></i> Weighted Score & Confidence</h3>
+        </div>
+        <div class="card-body">
+            <div style="display:flex;gap:24px;align-items:center;margin-bottom:16px;">
+                <div style="text-align:center;">
+                    <div style="font-size:2.5rem;font-weight:800;color:var(--${tone === 'good' ? 'secondary' : tone === 'bad' ? 'danger' : 'brand'});">${score}</div>
+                    <div style="font-size:12px;color:var(--text-muted);">Overall Score</div>
+                </div>
+                <div style="flex:1;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                        <span style="font-size:12px;color:var(--text-muted);min-width:80px;">Confidence</span>
+                        <div style="flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+                            <div style="width:${confidence}%;height:100%;background:${confidence >= 60 ? 'var(--secondary)' : confidence >= 30 ? 'var(--brand)' : 'var(--danger)'};border-radius:4px;"></div>
+                        </div>
+                        <span style="font-size:12px;font-weight:600;">${confidence}%</span>
+                    </div>
+                    <p style="font-size:12px;color:var(--text-muted);margin:0;">
+                        ${confidence >= 60 ? 'High confidence — score based on multiple data signals.' 
+                          : confidence >= 30 ? 'Moderate confidence — add page URLs for deeper analysis.' 
+                          : 'Low confidence — provide both page URLs to get reliable scores.'}
+                    </p>
+                </div>
+            </div>
+            ${factorRows ? `<div style="border-top:1px solid var(--border);padding-top:12px;">
+                <h4 style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);">Score Breakdown (you vs competitor)</h4>
+                ${factorRows}
+            </div>` : ''}
+        </div>
+    </div>`;
+}
+
+function renderEntityCoverageSection(entity) {
+    const coveragePct = entity.coveragePct || 0;
+    const barColor = coveragePct >= 70 ? 'var(--secondary)' : coveragePct >= 40 ? 'var(--brand)' : 'var(--danger)';
+
+    const missingTags = (entity.missingFromMine || []).slice(0, 8)
+        .map(e => `<span class="tag tag-outline" style="font-size:11px;">${escapeHtml(e.word)}</span>`).join(' ');
+
+    return `<div class="card phase2-section" style="margin-top:20px;">
+        <div class="card-header">
+            <h3><i class="fas fa-tags"></i> Entity & Topic Coverage</h3>
+            <span class="header-hint">Keywords and topics your competitor covers that you don't</span>
+        </div>
+        <div class="card-body">
+            <div style="display:flex;gap:20px;margin-bottom:16px;">
+                <div style="flex:1;">
+                    <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Your entities</div>
+                    <div style="font-size:1.5rem;font-weight:700;">${entity.myEntityCount || 0}</div>
+                </div>
+                <div style="flex:1;">
+                    <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Competitor entities</div>
+                    <div style="font-size:1.5rem;font-weight:700;">${entity.competitorEntityCount || 0}</div>
+                </div>
+                <div style="flex:1;">
+                    <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Shared</div>
+                    <div style="font-size:1.5rem;font-weight:700;">${entity.sharedCount || 0}</div>
+                </div>
+                <div style="flex:2;">
+                    <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Coverage</div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <div style="flex:1;height:10px;background:var(--border);border-radius:5px;overflow:hidden;">
+                            <div style="width:${coveragePct}%;height:100%;background:${barColor};border-radius:5px;"></div>
+                        </div>
+                        <span style="font-size:14px;font-weight:700;">${coveragePct}%</span>
+                    </div>
+                </div>
+            </div>
+            ${missingTags ? `<div style="border-top:1px solid var(--border);padding-top:12px;">
+                <h4 style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);">Topics missing from your page</h4>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;">${missingTags}</div>
+            </div>` : ''}
+        </div>
+    </div>`;
+}
+
+function renderSchemaValidationSection(schema) {
+    const myTypes = schema.mine?.types || [];
+    const compTypes = schema.competitor?.types || [];
+    const gapTypes = schema.schemaGap || [];
+
+    return `<div class="card phase2-section" style="margin-top:20px;">
+        <div class="card-header">
+            <h3><i class="fas fa-code"></i> Schema & Structured Data</h3>
+        </div>
+        <div class="card-body">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                <div>
+                    <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px;">YOUR SCHEMA</div>
+                    ${myTypes.length ? myTypes.map(t => `<span class="tag" style="margin:2px;">${escapeHtml(t)}</span>`).join(' ')
+                      : '<span style="color:var(--text-muted);font-size:13px;">No schema detected</span>'}
+                    <div style="margin-top:6px;font-size:12px;color:${schema.mine?.isValid ? 'var(--secondary)' : 'var(--danger)'};">
+                        ${schema.mine?.isValid ? 'Valid' : schema.mine?.errors?.length ? `${schema.mine.errors.length} error(s)` : 'Unknown'}
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px;">COMPETITOR SCHEMA</div>
+                    ${compTypes.length ? compTypes.map(t => `<span class="tag" style="margin:2px;">${escapeHtml(t)}</span>`).join(' ')
+                      : '<span style="color:var(--text-muted);font-size:13px;">No schema detected</span>'}
+                    <div style="margin-top:6px;font-size:12px;color:${schema.competitor?.isValid ? 'var(--secondary)' : 'var(--danger)'};">
+                        ${schema.competitor?.isValid ? 'Valid' : 'Has errors'}
+                    </div>
+                </div>
+            </div>
+            ${gapTypes.length ? `<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;">
+                <h4 style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);">Schema types to add</h4>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                    ${gapTypes.map(t => `<span class="tag tag-outline" style="border-color:var(--danger);color:var(--danger);">${escapeHtml(t)}</span>`).join('')}
+                </div>
+            </div>` : ''}
+        </div>
+    </div>`;
+}
+
+function renderEEATSection(eat) {
+    const mine = eat.mine || {};
+    const comp = eat.competitor || {};
+    const scoreColor = (v) => v ? 'var(--secondary)' : 'var(--danger)';
+
+    const signals = [
+        ['H1 Tag', mine.hasH1, comp.hasH1],
+        ['Meta Description', mine.hasMetaDescription, comp.hasMetaDescription],
+        ['Author Info', mine.hasAuthor, comp.hasAuthor],
+        ['Schema Markup', mine.hasSchema, comp.hasSchema],
+        ['Breadcrumbs', mine.hasBreadcrumb, comp.hasBreadcrumb],
+        ['FAQ Section', mine.hasFaq, comp.hasFaq],
+    ];
+
+    const rows = signals.map(([label, my, co]) => `
+        <tr>
+            <td style="font-size:13px;">${label}</td>
+            <td style="text-align:center;color:${scoreColor(my)};">${my ? '<i class="fas fa-check"></i>' : '<i class="fas fa-times"></i>'}</td>
+            <td style="text-align:center;color:${scoreColor(co)};">${co ? '<i class="fas fa-check"></i>' : '<i class="fas fa-times"></i>'}</td>
+        </tr>
+    `).join('');
+
+    return `<div class="card phase2-section" style="margin-top:20px;">
+        <div class="card-header">
+            <h3><i class="fas fa-shield-halved"></i> E-E-A-T Signals</h3>
+            <span class="header-hint">Experience, Expertise, Authoritativeness, Trustworthiness</span>
+        </div>
+        <div class="card-body">
+            <div style="display:flex;gap:20px;margin-bottom:16px;">
+                <div style="text-align:center;">
+                    <div style="font-size:1.8rem;font-weight:700;">${mine.score || 0}</div>
+                    <div style="font-size:12px;color:var(--text-muted);">Your E-E-A-T</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:1.8rem;font-weight:700;">${comp.score || 0}</div>
+                    <div style="font-size:12px;color:var(--text-muted);">Competitor</div>
+                </div>
+            </div>
+            <table class="data-table" style="width:100%;">
+                <thead><tr><th>Signal</th><th style="text-align:center;">You</th><th style="text-align:center;">Competitor</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+    </div>`;
+}
+
+function renderPageSpeedSection(ps) {
+    const mine = ps.mine || {};
+    const comp = ps.competitor || {};
+    const diffs = ps.differences || {};
+
+    const scoreColor = (v) => v == null ? 'var(--text-muted)' : v >= 90 ? 'var(--secondary)' : v >= 50 ? 'var(--brand)' : 'var(--danger)';
+
+    const fmtMs = (v) => v ? `${(v / 1000).toFixed(1)}s` : '-';
+    const fmtCls = (v) => v != null ? v.toFixed(3) : '-';
+
+    const metrics = [
+        ['Performance', mine.performance, comp.performance, '/100', v => v ?? '-'],
+        ['LCP', mine.lcp, comp.lcp, '', fmtMs],
+        ['CLS', mine.cls, comp.cls, '', fmtCls],
+        ['INP', mine.inp, comp.inp, 'ms', v => v ?? '-'],
+    ];
+
+    const rows = metrics.map(([label, my, co, unit, fmt]) => {
+        const w = diffs[label.toLowerCase()]?.winner;
+        const myStyle = w === 'mine' ? 'font-weight:700;color:var(--secondary)' : '';
+        const coStyle = w === 'competitor' ? 'font-weight:700;color:var(--secondary)' : '';
+        return `<tr>
+            <td style="font-size:13px;">${label}</td>
+            <td style="text-align:center;font-size:14px;${myStyle}">${fmt(my)}${unit}</td>
+            <td style="text-align:center;font-size:14px;${coStyle}">${fmt(co)}${unit}</td>
+        </tr>`;
+    }).join('');
+
+    return `<div class="card phase2-section" style="margin-top:20px;">
+        <div class="card-header">
+            <h3><i class="fas fa-gauge-high"></i> PageSpeed & Core Web Vitals</h3>
+        </div>
+        <div class="card-body">
+            <table class="data-table" style="width:100%;">
+                <thead><tr><th>Metric</th><th style="text-align:center;">You</th><th style="text-align:center;">Competitor</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+    </div>`;
+}
+
+function renderBenchmarksSection(benchmarks, comparison) {
+    const myPage = comparison.myPage || {};
+    const wc = benchmarks.wordCount || {};
+    const da = benchmarks.domainAuthority || {};
+    const il = benchmarks.internalLinks || {};
+
+    const compareRow = (label, myVal, avg, unit) => {
+        const diff = (myVal || 0) - (avg || 0);
+        const color = diff >= 0 ? 'var(--secondary)' : 'var(--danger)';
+        const sign = diff >= 0 ? '+' : '';
+        return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+            <span style="font-size:13px;color:var(--text);">${label}</span>
+            <span style="font-size:13px;">
+                <strong>${(myVal || 0).toLocaleString()}</strong> ${unit}
+                <span style="color:${color};margin-left:8px;font-weight:600;">(${sign}${Math.round(diff)} vs avg)</span>
+            </span>
+        </div>`;
+    };
+
+    return `<div class="card phase2-section" style="margin-top:20px;">
+        <div class="card-header">
+            <h3><i class="fas fa-chart-bar"></i> Top-${benchmarks.count || 10} Competitor Benchmarks</h3>
+            <span class="header-hint">How you compare to the average of the top-ranking pages</span>
+        </div>
+        <div class="card-body">
+            ${compareRow('Word Count', myPage.wordCount, wc.average, 'words')}
+            ${compareRow('Domain Authority', comparison.scores?.domainAuthority?.mine, da.average, 'DA')}
+            ${compareRow('Internal Links', myPage.internalLinks, il.average, 'links')}
+            <div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--text-muted);">
+                <strong>Benchmark data:</strong> Based on ${benchmarks.count || 0} top-ranking competitors.
+                Median word count: ${wc.median || 0} | Median DA: ${da.median || 0}
+            </div>
+        </div>
+    </div>`;
 }
 
 // ─── Rank Tracking ─── (uses new POST /api/domains)
@@ -3555,46 +3876,29 @@ function renderGscClientManager(clients) {
     const container = document.getElementById('gscClientManagerList');
     if (!container) return;
     if (!clients.length) {
-        container.innerHTML = '<p style="color:#64748b;font-size:.85rem;margin:0;">No clients found. Add clients first, then connect each GSC property here.</p>';
+        container.innerHTML = '<p class="text-muted">No clients found. Add clients first, then connect each GSC property here.</p>';
         return;
     }
 
-    container.innerHTML = `
-        <div style="overflow:auto;">
-            <table style="width:100%;border-collapse:collapse;font-size:.83rem;color:#e2e8f0;min-width:760px;">
-                <thead><tr style="color:#94a3b8;text-align:left;">
-                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Client</th>
-                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">GSC Property</th>
-                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Latest Clicks</th>
-                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Impressions</th>
-                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Last Sync</th>
-                    <th style="padding:10px 8px;border-bottom:1px solid #334155;text-align:right;">Actions</th>
-                </tr></thead>
-                <tbody>${clients.map(client => {
-                    const connected = Boolean(client.gsc_site_url);
-                    const syncText = client.last_synced_at ? new Date(client.last_synced_at).toLocaleDateString() : 'Not synced';
-                    return `
-                        <tr>
-                            <td style="padding:10px 8px;border-bottom:1px solid #334155;">
-                                <div style="font-weight:700;color:#f8fafc;">${escapeHtml(client.name || client.company || 'Client')}</div>
-                                <div style="color:#64748b;font-size:.76rem;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(client.website_url || 'No website')}</div>
-                            </td>
-                            <td style="padding:10px 8px;border-bottom:1px solid #334155;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(client.gsc_site_url || '')}">
-                                ${connected ? escapeHtml(client.gsc_site_url) : '<span style="color:#f59e0b;">Not connected</span>'}
-                            </td>
-                            <td style="padding:10px 8px;border-bottom:1px solid #334155;">${formatNumber(client.clicks || 0)}</td>
-                            <td style="padding:10px 8px;border-bottom:1px solid #334155;">${formatNumber(client.impressions || 0)}</td>
-                            <td style="padding:10px 8px;border-bottom:1px solid #334155;color:#94a3b8;">${escapeHtml(syncText)}</td>
-                            <td style="padding:10px 8px;border-bottom:1px solid #334155;text-align:right;white-space:nowrap;">
-                                <button onclick="gscSelectClient('${escapeHtml(client.id)}')" style="padding:7px 10px;background:#334155;color:#e2e8f0;border:none;border-radius:7px;cursor:pointer;font-size:.78rem;margin-left:4px;">Select</button>
-                                <button onclick="gscSyncClient('${escapeHtml(client.id)}')" ${connected ? '' : 'disabled'} style="padding:7px 10px;background:${connected ? '#6366f1' : '#475569'};color:#fff;border:none;border-radius:7px;cursor:${connected ? 'pointer' : 'not-allowed'};font-size:.78rem;margin-left:4px;">Sync</button>
-                                <button onclick="gscGenerateClientReport('${escapeHtml(client.id)}')" style="padding:7px 10px;background:#7c3aed;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:.78rem;margin-left:4px;">Report</button>
-                                <button onclick="gscDisconnect('${escapeHtml(client.id)}')" ${connected ? '' : 'disabled'} style="padding:7px 10px;background:${connected ? '#7f1d1d' : '#475569'};color:#fff;border:none;border-radius:7px;cursor:${connected ? 'pointer' : 'not-allowed'};font-size:.78rem;margin-left:4px;">Disconnect</button>
-                            </td>
-                        </tr>`;
-                }).join('')}</tbody>
-            </table>
-        </div>`;
+    const rows = clients.map(client => {
+        const connected = Boolean(client.gsc_site_url);
+        const syncText = client.last_synced_at ? new Date(client.last_synced_at).toLocaleDateString() : 'Not synced';
+        return '<tr>' +
+            '<td><strong>' + escapeHtml(client.name || client.company || 'Client') + '</strong><br><span class="text-muted" style="font-size:.78rem;display:block;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(client.website_url || 'No website') + '</span></td>' +
+            '<td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(client.gsc_site_url || '') + '">' + (connected ? escapeHtml(client.gsc_site_url) : '<span class="badge orange">Not connected</span>') + '</td>' +
+            '<td>' + formatNumber(client.clicks || 0) + '</td>' +
+            '<td>' + formatNumber(client.impressions || 0) + '</td>' +
+            '<td><span class="text-muted">' + escapeHtml(syncText) + '</span></td>' +
+            '<td style="text-align:right;white-space:nowrap;">' +
+                '<button class="btn btn-sm btn-outline" onclick="gscSelectClient(\'' + escapeHtml(client.id) + '\')">Select</button> ' +
+                '<button class="btn btn-sm btn-primary" onclick="gscSyncClient(\'' + escapeHtml(client.id) + '\')" ' + (connected ? '' : 'disabled') + '>Sync</button> ' +
+                '<button class="btn btn-sm btn-outline" onclick="gscGenerateClientReport(\'' + escapeHtml(client.id) + '\')">Report</button> ' +
+                '<button class="btn btn-sm btn-danger" onclick="gscDisconnect(\'' + escapeHtml(client.id) + '\')" ' + (connected ? '' : 'disabled') + '>Disconnect</button>' +
+            '</td>' +
+        '</tr>';
+    }).join('');
+
+    container.innerHTML = '<div style="overflow:auto;"><table class="data-table premium" style="min-width:780px;"><thead><tr><th>Client</th><th>GSC Property</th><th>Clicks</th><th>Impressions</th><th>Last Sync</th><th style="text-align:right;">Actions</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
 }
 
 
@@ -3616,44 +3920,26 @@ function renderGscSyncLog(runs) {
     const container = document.getElementById('gscSyncLogList');
     if (!container) return;
     if (!runs.length) {
-        container.innerHTML = '<p style="color:#64748b;font-size:.85rem;margin:0;">No GSC syncs recorded yet. Run Sync Now or Sync All Connected to create the first log.</p>';
+        container.innerHTML = '<p class="text-muted">No GSC syncs recorded yet. Run Sync or Sync All to create the first log.</p>';
         return;
     }
 
-    container.innerHTML = `
-        <div style="overflow:auto;">
-            <table style="width:100%;border-collapse:collapse;font-size:.83rem;color:#e2e8f0;min-width:760px;">
-                <thead><tr style="color:#94a3b8;text-align:left;">
-                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Client</th>
-                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Type</th>
-                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Status</th>
-                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Rows</th>
-                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Window</th>
-                    <th style="padding:10px 8px;border-bottom:1px solid #334155;">Finished</th>
-                </tr></thead>
-                <tbody>${runs.map(run => {
-                    const ok = run.status === 'success';
-                    const finished = run.finished_at ? new Date(run.finished_at).toLocaleString() : '—';
-                    const windowText = run.date_start && run.date_end ? `${run.date_start} to ${run.date_end}` : '—';
-                    const error = run.error_message ? `<div style="color:#fca5a5;font-size:.76rem;margin-top:3px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(run.error_message)}">${escapeHtml(run.error_message)}</div>` : '';
-                    return `
-                        <tr>
-                            <td style="padding:10px 8px;border-bottom:1px solid #334155;">
-                                <div style="font-weight:700;color:#f8fafc;">${escapeHtml(run.client_name || 'Client')}</div>
-                                <div style="color:#64748b;font-size:.76rem;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(run.site_url || '')}">${escapeHtml(run.site_url || '')}</div>
-                            </td>
-                            <td style="padding:10px 8px;border-bottom:1px solid #334155;text-transform:capitalize;">${escapeHtml(run.sync_type || 'manual')}</td>
-                            <td style="padding:10px 8px;border-bottom:1px solid #334155;">
-                                <span style="display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:${ok ? '#064e3b' : '#7f1d1d'};color:${ok ? '#bbf7d0' : '#fecaca'};font-size:.75rem;font-weight:700;">${ok ? 'Success' : 'Failed'}</span>
-                                ${error}
-                            </td>
-                            <td style="padding:10px 8px;border-bottom:1px solid #334155;">${formatNumber(run.rows_synced || 0)}</td>
-                            <td style="padding:10px 8px;border-bottom:1px solid #334155;color:#94a3b8;">${escapeHtml(windowText)}</td>
-                            <td style="padding:10px 8px;border-bottom:1px solid #334155;color:#94a3b8;">${escapeHtml(finished)}</td>
-                        </tr>`;
-                }).join('')}</tbody>
-            </table>
-        </div>`;
+    const rows = runs.map(run => {
+        const ok = run.status === 'success';
+        const finished = run.finished_at ? new Date(run.finished_at).toLocaleString() : '-';
+        const windowText = run.date_start && run.date_end ? run.date_start + ' to ' + run.date_end : '-';
+        const error = run.error_message ? '<div class="text-danger" style="font-size:.76rem;margin-top:3px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(run.error_message) + '">' + escapeHtml(run.error_message) + '</div>' : '';
+        return '<tr>' +
+            '<td><strong>' + escapeHtml(run.client_name || 'Client') + '</strong><br><span class="text-muted" style="font-size:.76rem;max-width:240px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(run.site_url || '') + '">' + escapeHtml(run.site_url || '') + '</span></td>' +
+            '<td style="text-transform:capitalize;">' + escapeHtml(run.sync_type || 'manual') + '</td>' +
+            '<td><span class="badge ' + (ok ? 'green' : 'red') + '">' + (ok ? 'Success' : 'Failed') + '</span>' + error + '</td>' +
+            '<td>' + formatNumber(run.rows_synced || 0) + '</td>' +
+            '<td>' + escapeHtml(windowText) + '</td>' +
+            '<td><span class="text-muted">' + escapeHtml(finished) + '</span></td>' +
+        '</tr>';
+    }).join('');
+
+    container.innerHTML = '<div style="overflow:auto;"><table class="data-table premium" style="min-width:780px;"><thead><tr><th>Client</th><th>Type</th><th>Status</th><th>Rows</th><th>Window</th><th>Finished</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
 }
 
 function gscSelectedClientId() {
@@ -3827,30 +4113,19 @@ function renderGscRows(containerId, rows, keyName) {
     const container = document.getElementById(containerId);
     if (!container) return;
     if (!rows.length) {
-        container.innerHTML = '<p style="color:#64748b;font-size:.85rem;">No data yet. Sync GSC first.</p>';
+        container.innerHTML = '<p class="text-muted">No data yet. Sync GSC first.</p>';
         return;
     }
-    container.innerHTML = `
-        <div style="overflow:auto;">
-            <table style="width:100%;border-collapse:collapse;font-size:.83rem;color:#e2e8f0;">
-                <thead><tr style="color:#94a3b8;text-align:left;">
-                    <th style="padding:8px;border-bottom:1px solid #334155;">${keyName === 'page' ? 'Page' : 'Query'}</th>
-                    <th style="padding:8px;border-bottom:1px solid #334155;">Clicks</th>
-                    <th style="padding:8px;border-bottom:1px solid #334155;">Impr.</th>
-                    <th style="padding:8px;border-bottom:1px solid #334155;">CTR</th>
-                    <th style="padding:8px;border-bottom:1px solid #334155;">Pos</th>
-                </tr></thead>
-                <tbody>${rows.map(row => `
-                    <tr>
-                        <td style="padding:8px;border-bottom:1px solid #334155;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(row[keyName] || '')}">${escapeHtml(row[keyName] || '')}</td>
-                        <td style="padding:8px;border-bottom:1px solid #334155;">${formatNumber(row.clicks || 0)}</td>
-                        <td style="padding:8px;border-bottom:1px solid #334155;">${formatNumber(row.impressions || 0)}</td>
-                        <td style="padding:8px;border-bottom:1px solid #334155;">${Number(row.ctr_pct || 0).toFixed(2)}%</td>
-                        <td style="padding:8px;border-bottom:1px solid #334155;">${Number(row.avg_position || 0).toFixed(1)}</td>
-                    </tr>
-                `).join('')}</tbody>
-            </table>
-        </div>`;
+
+    const tableRows = rows.map(row => '<tr>' +
+        '<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(row[keyName] || '') + '">' + escapeHtml(row[keyName] || '') + '</td>' +
+        '<td>' + formatNumber(row.clicks || 0) + '</td>' +
+        '<td>' + formatNumber(row.impressions || 0) + '</td>' +
+        '<td>' + Number(row.ctr_pct || 0).toFixed(2) + '%</td>' +
+        '<td>' + Number(row.avg_position || 0).toFixed(1) + '</td>' +
+    '</tr>').join('');
+
+    container.innerHTML = '<div style="overflow:auto;"><table class="data-table premium"><thead><tr><th>' + (keyName === 'page' ? 'Page' : 'Query') + '</th><th>Clicks</th><th>Impr.</th><th>CTR</th><th>Pos.</th></tr></thead><tbody>' + tableRows + '</tbody></table></div>';
 }
 
 function initVoiceProfiles() {

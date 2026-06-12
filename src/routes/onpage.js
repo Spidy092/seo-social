@@ -18,16 +18,17 @@ async function onpageRoutes(fastify, options) {
             body: {
                 type: 'object',
                 properties: {
-                    url:     { type: 'string' },
-                    html:    { type: 'string' },
-                    keyword: { type: 'string', default: '' },
+                    url:       { type: 'string' },
+                    html:      { type: 'string' },
+                    keyword:   { type: 'string', default: '' },
+                    projectId: { type: 'string', default: '' },
                 },
             },
         },
         handler: async (request, reply) => {
             const ctx = await requireAgencyContext(request, reply, db);
             if (!ctx) return;
-            const { url, html, keyword = '' } = request.body;
+            const { url, html, keyword = '', projectId = '' } = request.body;
 
             if (!url && !html) {
                 return reply.code(400).send({ error: 'Provide a URL or paste HTML.' });
@@ -40,12 +41,106 @@ async function onpageRoutes(fastify, options) {
                     keyword,
                     !url
                 );
+
+                if (projectId) {
+                    try {
+                        await db.query(
+                            `INSERT INTO onpage_audits (user_id, project_id, url, keyword, overall_score, summary, issues) 
+                             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                            [ctx.userId, projectId, url || 'html-paste', keyword, result.score || 0, JSON.stringify(result.summary || {}), JSON.stringify(result.issues || [])]
+                        );
+                    } catch (saveErr) {
+                        log.error({ err: saveErr.message }, 'failed to save onpage audit');
+                    }
+                }
+
                 return { success: true, result };
             } catch (err) {
                 log.error({ err: err.message }, 'on-page analysis failed');
                 return reply.code(500).send({ error: err.message });
             }
         },
+    });
+
+    // GET /api/projects/:projectId/onpage-audits
+    fastify.get('/api/projects/:projectId/onpage-audits', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
+        const { projectId } = request.params;
+        
+        try {
+            const audits = await db.query(
+                `SELECT id, url, keyword, overall_score, summary, created_at
+                 FROM onpage_audits
+                 WHERE project_id = $1 AND user_id = $2
+                 ORDER BY created_at DESC LIMIT 15`,
+                [projectId, ctx.userId]
+            );
+            return { success: true, audits: audits.rows };
+        } catch (err) {
+            log.error({ err: err.message }, 'Failed to fetch onpage audits');
+            return reply.code(500).send({ error: 'Failed to fetch onpage audits' });
+        }
+    });
+
+    // GET /api/projects/:projectId/suggested-urls
+    fastify.get('/api/projects/:projectId/suggested-urls', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
+        const { projectId } = request.params;
+
+        try {
+            // First, get client_id and domain for this project
+            const projectResult = await db.query(
+                `SELECT p.client_id, c.website_url 
+                 FROM seo_projects p 
+                 JOIN seo_clients c ON p.client_id = c.id
+                 WHERE p.id = $1 AND p.client_id IN (
+                     SELECT id FROM seo_clients WHERE user_id = $2
+                 )`,
+                [projectId, ctx.userId]
+            );
+
+            if (!projectResult.rows.length) {
+                return { success: true, urls: [] };
+            }
+
+            const { client_id, website_url } = projectResult.rows[0];
+            const urls = new Set();
+            if (website_url) urls.add(website_url);
+
+            // Fetch from GSC
+            const gscResult = await db.query(
+                `SELECT DISTINCT page FROM gsc_search_analytics 
+                 WHERE client_id = $1 AND page IS NOT NULL AND page != ''
+                 ORDER BY page LIMIT 50`,
+                [client_id]
+            );
+            gscResult.rows.forEach(r => urls.add(r.page));
+
+            // Fetch from ranking_pages
+            try {
+                let domain = '';
+                if (website_url) {
+                    domain = new URL(website_url.startsWith('http') ? website_url : `https://${website_url}`).hostname.replace('www.', '');
+                }
+                if (domain) {
+                    const rpResult = await db.query(
+                        `SELECT DISTINCT url FROM ranking_pages WHERE domain LIKE $1 LIMIT 50`,
+                        [`%${domain}%`]
+                    );
+                    rpResult.rows.forEach(r => urls.add(r.url));
+                }
+            } catch (e) {
+                // ignore URL parsing error
+            }
+
+            return { success: true, urls: Array.from(urls).slice(0, 50) };
+
+        } catch (err) {
+            log.error({ err: err.message }, 'Failed to fetch suggested URLs');
+            return reply.code(500).send({ error: 'Failed to fetch suggested URLs' });
+        }
     });
 
     // POST /api/onpage/ai-fix

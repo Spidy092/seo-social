@@ -26,6 +26,7 @@ const reportRoutes = require('./src/routes/reports');
 const gscRoutes    = require('./src/routes/gsc');
 const ga4Routes    = require('./src/routes/ga4');
 const seoPerformanceRoutes = require('./src/routes/seoPerformance');
+const searchVisibilityRoutes = require('./src/routes/searchVisibility');
 const agencyRoutes = require('./src/routes/agency');
 const scheduledReportRoutes = require('./src/routes/scheduledReports');
 
@@ -166,6 +167,7 @@ async function main() {
     await fastify.register(gscRoutes,    { db });
     await fastify.register(ga4Routes,    { db });
     await fastify.register(seoPerformanceRoutes, { db });
+    await fastify.register(searchVisibilityRoutes, { db });
     await fastify.register(agencyRoutes, { db });
     await fastify.register(scheduledReportRoutes, { db });
     await fastify.register(require('./src/routes/tasks'), { db });

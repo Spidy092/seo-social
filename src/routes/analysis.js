@@ -4,6 +4,7 @@
 
 const analysisService = require('../services/analysisService');
 const keywordService = require('../services/keywordService');
+const { safeRunPageSpeed } = require('../services/pageSpeedService');
 const { extractDomain } = require('../utils/domainUtils');
 const { createLogger } = require('../utils/logger');
 const { requireAgencyContext } = require('../utils/authHelper');
@@ -25,13 +26,14 @@ async function analysisRoutes(fastify, options) {
                     keyword: { type: 'string' },
                     myUrl: { type: 'string' },
                     competitorUrl: { type: 'string' },
+                    includePageSpeed: { type: 'boolean', default: false },
                 },
             },
         },
         handler: async (request, reply) => {
             const ctx = await requireAgencyContext(request, reply, db);
             if (!ctx) return;
-            const { myDomain, competitorDomain, keyword, myUrl, competitorUrl } = request.body;
+            const { myDomain, competitorDomain, keyword, myUrl, competitorUrl, includePageSpeed } = request.body;
 
             try {
                 log.info({ myDomain, competitorDomain, keyword }, 'comparing domains');
@@ -48,21 +50,66 @@ async function analysisRoutes(fastify, options) {
                     competitorPageData = await keywordService.analyzePageContent(competitorUrl, keyword);
                 }
 
-                // Compare domains
+                // Phase 2: Gather top-10 competitor data for benchmarks
+                const top10Data = [];
+                try {
+                    const serpResults = await keywordService.getSERPResults(keyword, 'India', 20);
+                    const myClean = extractDomain(myDomain);
+                    const top10 = serpResults.filter(r => !r.domain?.includes(myClean)).slice(0, 10);
+                    for (const entry of top10) {
+                        try {
+                            const page = await keywordService.analyzePageContent(entry.url, keyword);
+                            top10Data.push({
+                                domain: entry.domain,
+                                position: entry.position,
+                                wordCount: page.wordCount || 0,
+                                keywordDensity: page.keywordAnalysis?.density || 0,
+                                internalLinks: page.seoElements?.internalLinks || 0,
+                                headingCount: page.seoElements?.headings?.h2 || 0,
+                                schemaCount: page.seoElements?.schemaDetails?.detectedTypes?.length || 0,
+                                domainAuthority: await keywordService.getDomainAuthority(entry.domain),
+                            });
+                        } catch (pageErr) {
+                            top10Data.push({ domain: entry.domain, error: pageErr.message });
+                        }
+                    }
+                } catch (serpErr) {
+                    log.warn({ err: serpErr.message }, 'top-10 data gathering failed (non-fatal)');
+                }
+
+                // Phase 2: Optional PageSpeed data
+                let myPageSpeed = null;
+                let competitorPageSpeed = null;
+                if (includePageSpeed && myUrl) {
+                    try {
+                        myPageSpeed = await safeRunPageSpeed(myUrl);
+                    } catch (psErr) {
+                        log.warn({ err: psErr.message }, 'my PageSpeed failed (non-fatal)');
+                    }
+                }
+                if (includePageSpeed && competitorUrl) {
+                    try {
+                        competitorPageSpeed = await safeRunPageSpeed(competitorUrl);
+                    } catch (psErr) {
+                        log.warn({ err: psErr.message }, 'competitor PageSpeed failed (non-fatal)');
+                    }
+                }
+
+                // Compare domains with enhanced Phase 2 metrics
                 const comparison = await analysisService.compareDomains(
                     myDomain,
                     competitorDomain,
                     keyword,
                     myPageData,
-                    competitorPageData
+                    competitorPageData,
+                    { myPageSpeed, competitorPageSpeed, top10Data }
                 );
 
-                // Attach raw page snapshots (H1, meta, page type, headings, etc.)
-                // so the UI can render a "Page Snapshot" card without a second call.
+                // Attach raw page snapshots
                 comparison.myPage = myPageData ? buildPageSnapshot(myPageData) : null;
                 comparison.competitorPage = competitorPageData ? buildPageSnapshot(competitorPageData) : null;
 
-                // Best-effort SERP enrichment (does not block the response if it fails).
+                // SERP enrichment
                 try {
                     const serpResults = await keywordService.getSERPResults(keyword, 'India', 20);
                     const myClean = extractDomain(myDomain);
@@ -444,6 +491,8 @@ function buildPageSnapshot(pageData) {
         hasH1: !!seo.hasH1,
         hasMetaDescription: !!seo.hasMetaDescription,
         hasSchema: !!seo.hasSchema,
+        hasAuthor: !!seo.hasAuthor,
+        hasBreadcrumb: !!seo.hasBreadcrumb,
         schemaTypes: seo.schemaDetails?.detectedTypes || [],
         pageType: seo.pageType?.primary || 'WebPage',
         headings: seo.headings || { h1: 0, h2: 0, h3: 0 },
@@ -451,6 +500,8 @@ function buildPageSnapshot(pageData) {
         imagesWithAlt: seo.imagesWithAlt || 0,
         internalLinks: seo.internalLinks || 0,
         externalLinks: seo.externalLinks || 0,
+        bodyText: pageData.bodyText || '',
+        content: pageData.content || {},
     };
 }
 

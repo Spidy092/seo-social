@@ -51,9 +51,17 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
     const robots       = $('meta[name="robots"]').attr('content') || '';
     const viewport     = $('meta[name="viewport"]').attr('content') || '';
     const langAttr     = $('html').attr('lang') || '';
+    // E-E-A-T author signals
+    const metaAuthor   = $('meta[name="author"]').attr('content') || '';
+    const relAuthor    = $('link[rel="author"]').attr('href') || '';
+    const hasAuthor    = !!(metaAuthor || relAuthor);
     const ogTitle      = $('meta[property="og:title"]').attr('content') || '';
     const ogDesc       = $('meta[property="og:description"]').attr('content') || '';
     const ogImage      = $('meta[property="og:image"]').attr('content') || '';
+    // Twitter / X card tags
+    const twitterCard  = $('meta[name="twitter:card"]').attr('content') || '';
+    const twitterTitle = $('meta[name="twitter:title"]').attr('content') || '';
+    const twitterImage = $('meta[name="twitter:image"]').attr('content') || '';
 
     // Headings
     const h1s   = $('h1').map((_, el) => $(el).text().trim()).get();
@@ -61,8 +69,18 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
     const h3s   = $('h3').map((_, el) => $(el).text().trim()).get();
     const h4s   = $('h4').map((_, el) => $(el).text().trim()).get();
 
-    // Body text
-    $('script,style,nav,footer,header').remove();
+    // Body text — strip non-content elements before extracting to avoid inflating word count
+    // with cookie banners, sidebars, comments, hidden elements, and decorative content.
+    $([
+        'script', 'style',                      // code
+        'nav', 'header', 'footer',               // chrome
+        'aside',                                 // sidebars/widgets
+        '.cookie-banner', '.cookie-notice',      // cookie popups
+        '[aria-hidden="true"]',                  // decorative / screen-reader-hidden
+        'form',                                  // forms add stop words, not content
+        '#comments', '.comments-section',        // blog comments
+        'noscript',                              // fallback content
+    ].join(',')).remove();
     const bodyText  = $('body').text().replace(/\s+/g, ' ').trim();
     const wordCount = bodyText.split(/\s+/).filter(Boolean).length;
     const first100  = bodyText.split(/\s+/).slice(0, 100).join(' ').toLowerCase();
@@ -82,6 +100,7 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
         href:   $(el).attr('href') || '',
         text:   $(el).text().trim(),
         target: $(el).attr('target') || '',
+        rel:    $(el).attr('rel')   || '',
     })).get();
     const internalLinks = allLinks.filter(l =>
         l.href.startsWith('/') || (domain && l.href.includes(domain))
@@ -130,7 +149,9 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
     const kwInH1       = kw && h1s.some(h => h.toLowerCase().includes(kw));
     const kwInFirst100 = kw && first100.includes(kw);
     const kwMatches    = kw ? (bodyText.toLowerCase().match(new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')) || []).length : 0;
-    const kwDensity    = wordCount > 0 ? parseFloat(((kwMatches * kwWords.length) / wordCount * 100).toFixed(2)) : 0;
+    // Keyword density = phrase occurrences / total words (industry-standard definition).
+    // Previously multiplied by kwWords.length which inflated density for multi-word keywords.
+    const kwDensity    = wordCount > 0 ? parseFloat((kwMatches / wordCount * 100).toFixed(2)) : 0;
 
     // Heading order check
     const headingOrder = checkHeadingOrder($);
@@ -149,6 +170,17 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
     // HTTPS
     const isHttps = url.startsWith('https://') || isHtml;
 
+    // hreflang links (multi-region/multi-language signal)
+    const hreflangLinks = $('link[rel="alternate"][hreflang]').map((_, el) => ({
+        hreflang: $(el).attr('hreflang') || '',
+        href:     $(el).attr('href') || '',
+    })).get();
+    const hasHreflang = hreflangLinks.length > 0;
+
+    // Sitemap link in <head>
+    const sitemapLink = $('head link[rel="sitemap"]').attr('href') || '';
+    const hasSitemapLink = !!sitemapLink;
+
     // Render-blocking scripts
     const headScripts = [];
     $('head script[src]:not([async]):not([defer])').each((_, el) => {
@@ -160,6 +192,9 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
     const imgsNoDimension = allImgs.filter(i => !i.width || !i.height);
     const imgsNoLazy     = allImgs.filter(i => i.loading !== 'lazy');
     const kwInAnyAlt     = kw && allImgs.some(i => (i.alt || '').toLowerCase().includes(kw));
+    // Detect generic/meaningless alt text (passes "has alt" check but provides zero SEO value)
+    const GENERIC_ALT_RE = /^(image|img|photo|banner|picture|pic|icon|logo\d*|graphic|thumbnail|undefined|null|\.(jpg|jpeg|png|webp|gif|svg))$/i;
+    const imgsGenericAlt = allImgs.filter(i => i.alt && GENERIC_ALT_RE.test(i.alt.trim()));
 
     // URL checks
     const urlPath        = url ? (new URL(url.startsWith('http') ? url : 'https://example.com').pathname) : '';
@@ -276,6 +311,15 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
         `Headings skip levels (e.g. H1 → H3). Always go H1 → H2 → H3 in order.`,
         `Fix order: ${headingOrder.suggestion}`,
         headingOrder.found, 'H1 → H2 → H3 in sequence');
+    // Detect duplicate heading text — same H2/H3 appearing more than once signals thin structure
+    const allSubheadings = [...h2s, ...h3s].map(h => h.toLowerCase().trim()).filter(Boolean);
+    const headingCounts  = allSubheadings.reduce((acc, h) => { acc[h] = (acc[h] || 0) + 1; return acc; }, {});
+    const dupHeadings    = Object.entries(headingCounts).filter(([, count]) => count > 1).map(([h]) => h);
+    if (dupHeadings.length > 0) addIssue('headings', 'important',
+        `${dupHeadings.length} duplicate heading(s) found`,
+        'Repeating the same H2/H3 text signals weak content structure. Each section should cover a unique topic.',
+        `Make these headings unique by adding specifics:\\n${dupHeadings.slice(0, 3).map(h => `"${h}" → rename to a more specific version`).join('\\n')}`,
+        dupHeadings.map(h => `"${h}"`).join(', '), 'Every heading should be unique');
 
     // ── CONTENT ───────────────────────────────────────────────────────────────
     if (kw && !kwInFirst100) addIssue('content', 'critical', 'Keyword not in first 100 words',
@@ -298,10 +342,14 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
         'Competitors in your niche likely have more content. More depth = better rankings.',
         'Add more sections: FAQs, case studies, process explanation, pricing info.',
         `${wordCount} words`, '800–2000 words recommended');
-    if (flesch < 60 && flesch > 0) addIssue('content', 'important', `Content hard to read (Flesch score: ${flesch})`,
+    // flesch > 0 guards against pages with no sentences (would report false "hard to read")
+    // flesch < 121 guards against broken calculations from very sparse content
+    const fleschValid = flesch > 0 && flesch < 121;
+    const fleschLabel = flesch >= 90 ? 'Very Easy' : flesch >= 70 ? 'Easy' : flesch >= 60 ? 'Standard' : flesch >= 50 ? 'Fairly Difficult' : 'Difficult';
+    if (fleschValid && flesch < 60) addIssue('content', 'important', `Content hard to read (Flesch: ${flesch} — ${fleschLabel})`,
         'Complex writing loses visitors. Short sentences and simple words rank better.',
-        'Break long sentences. Use bullet points. Aim for Flesch score above 60.',
-        `Score: ${flesch}/100`, 'Target: 60+ (easy to read)');
+        'Break long sentences into shorter ones. Use bullet points. Write like you\'re explaining to a friend.',
+        `Score: ${flesch}/100 (${fleschLabel})`, 'Target: 60+ (Standard or easier)');
     if (!hasFaq) addIssue('content', 'good', 'No FAQ section found',
         'FAQ sections win "People Also Ask" boxes in Google — free extra traffic.',
         `Add an FAQ section with H2:\n<h2>Frequently Asked Questions</h2>\nThen use FAQ schema markup.`,
@@ -313,6 +361,10 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
             'Alt text tells Google what the image is. Missing alt = missed SEO opportunity + accessibility issue.',
             `Add descriptive alt text to each image:\n${imgsNoAlt.slice(0, 3).map(i => `<img src="${i.src}" alt="Describe what this image shows">`).join('\n')}`,
             `${imgsNoAlt.length} images have no alt`, 'All images need alt text');
+        if (imgsGenericAlt.length > 0) addIssue('images', 'important', `${imgsGenericAlt.length} image(s) have generic/meaningless alt text`,
+            'Alt text like "image", "banner", or "photo" provides zero SEO value. Google ignores them.',
+            `Replace with descriptive alts:\n${imgsGenericAlt.slice(0, 3).map(i => `<img src="${i.src}" alt="Describe exactly what this image shows — include ${keyword || 'your keyword'} if relevant">`).join('\n')}`,
+            imgsGenericAlt.map(i => `"${i.alt}"`).join(', '), 'Descriptive alt text for each image');
         if (kw && allImgs.length > 0 && !kwInAnyAlt) addIssue('images', 'important', 'Keyword not in any image alt text',
             `At least one image should have "${keyword}" in its alt text.`,
             `Update your main image:\n<img src="main.jpg" alt="${keyword} - professional services">`,
@@ -346,11 +398,17 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
 
         // Validation-based issues
         for (const v of schemaValidationResults) {
-            if (v.errors.length > 0) {
+            if (v.errors && v.errors.length > 0) {
                 addIssue('schema', 'important', `${v.type}: missing required properties`,
                     `${v.type} schema is missing: ${v.errors.join(', ')}. Google requires these for rich results.`,
                     `Add the missing properties to your ${v.type} schema. See: https://developers.google.com/search/docs/appearance/structured-data`,
                     `Missing: ${v.errors.join(', ')}`, `Required: ${v.errors.join(', ')}`);
+            }
+            if (v.warnings && v.warnings.length > 0) {
+                addIssue('schema', 'good', `${v.type}: missing recommended properties`,
+                    `${v.type} schema is valid, but adding recommended fields can unlock richer search features (e.g. review stars, price range).`,
+                    `Consider adding these properties to your ${v.type} schema: ${v.warnings.join(', ')}.`,
+                    `Missing recommended: ${v.warnings.join(', ')}`, `Recommended: ${v.warnings.join(', ')}`);
             }
         }
     }
@@ -372,9 +430,17 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
         `${internalLinks.length} internal links`, 'At least 3–5 links');
     if (weakAnchors.length > 0) addIssue('links', 'important', `${weakAnchors.length} weak anchor text(s) ("click here" etc.)`,
         'Anchor text tells Google what the linked page is about. "Click here" tells it nothing.',
-        `Replace weak anchors:\n${weakAnchors.slice(0, 2).map(l => `"${l.text}" → "View our ${keyword || 'services'} portfolio"`).join('\n')}`,
+        `Replace weak anchors:\n${weakAnchors.slice(0, 2).map(l => `"${l.text}" \u2192 "View our ${keyword || 'services'} portfolio"`).join('\n')}`,
         weakAnchors.map(l => l.text).join(', '), 'Descriptive anchor text');
-    const extNoRel = externalLinks.filter(l => !l.href.includes('rel='));
+    // External links: check for missing rel="noopener" on target="_blank" links (security + technical SEO)
+    const unsafeExternalLinks = externalLinks.filter(l =>
+        l.target === '_blank' && !l.rel.includes('noopener')
+    );
+    if (unsafeExternalLinks.length > 0) addIssue('links', 'important',
+        `${unsafeExternalLinks.length} external link(s) missing rel="noopener"`,
+        'Links that open in a new tab without rel="noopener" allow the linked page to access your window object (reverse tabnapping). This is both a security risk and a technical SEO signal.',
+        `Add rel="noopener noreferrer" to all external links that open in a new tab:\n${unsafeExternalLinks.slice(0, 3).map(l => `<a href="${l.href}" target="_blank" rel="noopener noreferrer">${l.text || 'Link text'}</a>`).join('\n')}`,
+        `${unsafeExternalLinks.length} links use target="_blank" without noopener`, 'Add rel="noopener noreferrer"');
     if (externalLinks.length === 0) addIssue('links', 'good', 'No external links found',
         'Linking to authoritative external sources (Wikipedia, official sites) builds trust.',
         'Add 2–3 links to reputable sources related to your topic.',
@@ -401,14 +467,31 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
         'The lang attribute tells Google what language your page is in.',
         `Change:\n<html>\nTo:\n<html lang="en">`,
         'No lang', 'Add lang="en"');
+    if (!hasAuthor) addIssue('technical', 'good', 'No author meta tag (E-E-A-T signal)',
+        'Google\'s quality guidelines reward explicit author signals (Experience, Expertise, Authoritativeness, Trust). Adding author metadata helps with YMYL content (health, finance, legal).',
+        `Add inside <head>:\n<meta name="author" content="Author Name">\n<!-- OR link to author profile: -->\n<link rel="author" href="https://yoursite.com/about-author/">`,
+        'No author metadata found', 'Add meta[name="author"] or link[rel="author"]');
     if (!ogTitle) addIssue('technical', 'important', 'No Open Graph title (og:title)',
         'OG tags control how your page looks when shared on WhatsApp, Facebook, LinkedIn.',
         `Add inside <head>:\n<meta property="og:title" content="${title || (keyword || 'Page Title')}">\n<meta property="og:description" content="${metaDesc || 'Your description here'}">\n<meta property="og:image" content="https://yoursite.com/share-image.jpg">`,
         'No OG tags', 'Add og:title, og:description, og:image');
+    if (!twitterCard) addIssue('technical', 'good', 'No Twitter/X Card meta tags',
+        'Twitter Card tags control how your page appears when shared on X (Twitter). Without them X auto-generates a plain link.',
+        `Add inside <head>:\n<meta name="twitter:card" content="summary_large_image">\n<meta name="twitter:title" content="${title || (keyword || 'Page Title')}">\n<meta name="twitter:description" content="${metaDesc || 'Your description'}">\n<meta name="twitter:image" content="${ogImage || 'https://yoursite.com/share-image.jpg'}">`,
+        'No twitter:card tag', 'Add twitter:card, twitter:title, twitter:image');
     if (headScripts.length > 0) addIssue('technical', 'good', `${headScripts.length} render-blocking script(s) in <head>`,
         'Scripts in <head> without async/defer slow your page load time.',
         `Add defer to scripts:\n${headScripts.slice(0, 2).map(s => `<script src="${s}" defer></script>`).join('\n')}`,
         `${headScripts.length} blocking scripts`, 'Add async or defer');
+    // hreflang: only flag if page has a lang attribute but no hreflang alternatives set up
+    if (langAttr && !hasHreflang) addIssue('technical', 'good', 'No hreflang tags for multi-region targeting',
+        'If you serve multiple languages or regional versions, hreflang tells Google which URL to show to which audience. Missing it causes wrong-language pages to appear in search results.',
+        `Add inside <head> for each language/region version:\n<link rel="alternate" hreflang="en" href="https://yoursite.com/">\n<link rel="alternate" hreflang="en-gb" href="https://yoursite.com/gb/">\n<link rel="alternate" hreflang="x-default" href="https://yoursite.com/">`,
+        `lang="${langAttr}" set but no hreflang found`, 'Add hreflang for each locale if multi-region');
+    if (!hasSitemapLink && !isHtml) addIssue('technical', 'good', 'No sitemap link in <head>',
+        'A <link rel="sitemap"> tag in <head> lets crawlers discover your sitemap instantly, without parsing robots.txt.',
+        `Add inside <head>:\n<link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml">`,
+        'No link[rel="sitemap"] found in head', 'Add sitemap link to <head>');
 
     // ── Scores ────────────────────────────────────────────────────────────────
     const categoryOrder = ['title','meta','url','headings','content','images','schema','breadcrumb','links','technical'];
@@ -424,8 +507,9 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
         categories[cat] = { score, issues: catIssues, critical, important, good };
     });
 
-    // Weighted overall score
-    const weights = { title:15, meta:12, url:8, headings:15, content:18, images:10, schema:10, breadcrumb:5, links:5, technical:12 };
+    // Weighted overall score. Schema raised to 12% (rich results); lower-impact cats reduced to compensate.
+    // Verification: 15+12+5+13+18+9+12+3+5+8 = 100 ✓
+    const weights = { title:15, meta:12, url:5, headings:13, content:18, images:9, schema:12, breadcrumb:3, links:5, technical:8 };
     let overall = 0;
     categoryOrder.forEach(cat => {
         overall += (categories[cat].score * weights[cat]) / 100;
@@ -443,11 +527,11 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
         },
         headings: { h1s, h2s, h3s, h4s },
         content:  { wordCount, kwDensity, kwMatches, flesch, hasFaq, kwInFirst100 },
-        images:   { total: allImgs.length, noAlt: imgsNoAlt.length, noDimension: imgsNoDimension.length, noLazy: imgsNoLazy.length },
-        links:    { internal: internalLinks.length, external: externalLinks.length, weakAnchors: weakAnchors.length },
+        images:   { total: allImgs.length, noAlt: imgsNoAlt.length, noDimension: imgsNoDimension.length, noLazy: imgsNoLazy.length, allImgs: allImgs.slice(0, 50) },
+        links:    { internal: internalLinks.length, external: externalLinks.length, weakAnchors: weakAnchors.length, internalList: internalLinks.slice(0, 50) },
         schema:   { types: schemaTypes, valid: schemaValid, count: schemaScripts.length, validation: schemaValidationResults },
         breadcrumb: { hasNav: hasBreadcrumbNav, hasSchema: hasBreadcrumbSchema },
-        technical: { isHttps, hasCanonical: !!canonical, hasViewport: !!viewport, hasLang: !!langAttr, hasOg: !!ogTitle, blockingScripts: headScripts.length },
+        technical: { isHttps, hasCanonical: !!canonical, hasViewport: !!viewport, hasLang: !!langAttr, hasOg: !!ogTitle, hasTwitterCard: !!twitterCard, blockingScripts: headScripts.length, sitemapLink },
         analyzedAt: new Date().toISOString(),
     };
 }
@@ -512,7 +596,7 @@ function generateSchemaSnippet(type, keyword, url) {
     return `<script type="application/ld+json">\n${JSON.stringify(base, null, 2)}\n</script>`;
 }
 
-// ── Structured Data Validation ───────────────────────────────────────────────
+// Required fields — missing these makes structured data invalid
 const SCHEMA_REQUIRED_FIELDS = {
     'Product': ['name', 'image'],
     'Product[]': ['name', 'image'],
@@ -550,6 +634,27 @@ const SCHEMA_REQUIRED_FIELDS = {
     'ItemList[]': ['itemListElement'],
 };
 
+// Recommended fields — missing these won't break validation but reduces rich-result eligibility
+const SCHEMA_RECOMMENDED_FIELDS = {
+    'Article':       ['dateModified', 'description', 'publisher'],
+    'NewsArticle':   ['dateModified', 'description'],
+    'BlogPosting':   ['dateModified', 'description', 'image'],
+    'Product':       ['aggregateRating', 'offers', 'description', 'brand'],
+    'Product[]':     ['aggregateRating', 'offers'],
+    'LocalBusiness': ['aggregateRating', 'telephone', 'openingHours', 'priceRange', 'image'],
+    'LocalBusiness[]':['aggregateRating', 'telephone', 'priceRange'],
+    'Organization':  ['sameAs', 'logo', 'contactPoint', 'description'],
+    'Recipe':        ['totalTime', 'nutrition', 'recipeYield', 'aggregateRating'],
+    'Event':         ['description', 'image', 'organizer', 'offers'],
+    'VideoObject':   ['duration', 'embedUrl'],
+    'JobPosting':    ['jobLocation', 'baseSalary', 'employmentType'],
+    'Course':        ['description', 'hasCourseInstance'],
+    'WebSite':       ['potentialAction'],
+    'Service':       ['description', 'areaServed'],
+    'SoftwareApplication': ['description', 'aggregateRating', 'screenshot'],
+};
+
+// ── Structured Data Validation ───────────────────────────────────────────────
 function validateSchema(schemaObj) {
     if (!schemaObj || typeof schemaObj !== 'object') return null;
 
@@ -560,10 +665,18 @@ function validateSchema(schemaObj) {
     const results = [];
 
     for (const t of types) {
-        const required = SCHEMA_REQUIRED_FIELDS[t] || SCHEMA_REQUIRED_FIELDS[t + '[]'];
-        if (!required) continue;
+        const required    = SCHEMA_REQUIRED_FIELDS[t] || SCHEMA_REQUIRED_FIELDS[t + '[]'] || [];
+        const recommended = SCHEMA_RECOMMENDED_FIELDS[t] || SCHEMA_RECOMMENDED_FIELDS[t + '[]'] || [];
 
         const missing = required.filter(field => {
+            const value = schemaObj[field];
+            if (value === undefined || value === null || value === '') return true;
+            if (Array.isArray(value) && value.length === 0) return true;
+            return false;
+        });
+
+        // Recommended fields missing — these unlock richer search features
+        const warnings = recommended.filter(field => {
             const value = schemaObj[field];
             if (value === undefined || value === null || value === '') return true;
             if (Array.isArray(value) && value.length === 0) return true;
@@ -573,7 +686,7 @@ function validateSchema(schemaObj) {
         results.push({
             type: t,
             errors: missing,
-            warnings: [],
+            warnings,
             valid: missing.length === 0,
         });
     }

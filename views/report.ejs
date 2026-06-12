@@ -601,6 +601,25 @@
         </div>
     </div>
     <% } %>
+    <% if (report.data.searchVisibility && report.data.searchVisibility.length) { %>
+    <div class="section">
+        <div class="section-title">Search Visibility Actions</div>
+        <div class="card">
+            <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 12px;">URL inspection, sitemap submission, and discovery notifications help search engines discover and evaluate important URLs. They do not guarantee immediate crawling, indexing, or ranking.</p>
+            <table class="data-table"><thead><tr><th>Action</th><th>Status</th><th>URL</th><th>Recommendation</th></tr></thead><tbody>
+            <% report.data.searchVisibility.slice(0, 10).forEach(row => { const recs = Array.isArray(row.recommendations) ? row.recommendations : []; %>
+                <tr>
+                    <td><strong><%= row.provider %></strong><br><span style="color:var(--text-muted);font-size:12px;"><%= row.action_type %></span></td>
+                    <td><span class="badge <%= row.status === 'success' ? 'green' : row.status === 'blocked' ? 'orange' : 'red' %>"><%= row.status %></span></td>
+                    <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= row.url || row.sitemap_url || '-' %></td>
+                    <td><%= recs[0] || row.error_message || 'Monitor later in Search Console.' %></td>
+                </tr>
+            <% }) %>
+            </tbody></table>
+        </div>
+    </div>
+    <% } %>
+
 
     <!-- ─── Technical Fixes ─── -->
     <div class="section">

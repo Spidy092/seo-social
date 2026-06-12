@@ -9,11 +9,344 @@ const keywordService = require('./keywordService');
 const { extractDomain } = require('../utils/domainUtils');
 const aiService = require('./aiService');
 
-
 const log = createLogger('analysis-service');
 
+// ── Entity / Topic Extraction ────────────────────────────────────────────────
+const ENTITY_STOP_WORDS = new Set([
+    'about','after','again','also','and','are','best','but','can','for','from',
+    'get','has','have','how','into','near','not','the','this','top','use','what',
+    'when','where','which','with','your','that','with','will','each','them','than',
+    'then','more','some','just','like','well','back','much','good','new','make',
+    'may','our','over','such','take','own','most','other','been','does','had',
+    'his','her','its','she','him','they','were','being','very','could','would',
+    'should','might','shall','here','there','these','those','those','all','any',
+]);
+
+function extractEntities(text, max = 20) {
+    if (!text) return [];
+    const counts = new Map();
+    String(text).toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, ' ')
+        .split(/\s+/)
+        .map(w => w.replace(/-+/g, '').trim())
+        .filter(w => w.length >= 3 && !ENTITY_STOP_WORDS.has(w) && !/^\d+$/.test(w))
+        .forEach(w => counts.set(w, (counts.get(w) || 0) + 1));
+    return Array.from(counts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, max)
+        .map(([word, count]) => ({ word, count }));
+}
+
+// ── Entity Coverage Comparison ───────────────────────────────────────────────
+function compareEntityCoverage(myPage, competitorPage) {
+    const myText = myPage?.bodyText || '';
+    const compText = competitorPage?.bodyText || '';
+    const myEntities = extractEntities(myText, 30);
+    const compEntities = extractEntities(compText, 30);
+
+    const mySet = new Set(myEntities.map(e => e.word));
+    const compSet = new Set(compEntities.map(e => e.word));
+
+    const missingFromMine = compEntities.filter(e => !mySet.has(e.word)).slice(0, 12);
+    const missingFromComp = myEntities.filter(e => !compSet.has(e.word)).slice(0, 12);
+    const shared = compEntities.filter(e => mySet.has(e.word));
+
+    const coveragePct = compEntities.length > 0
+        ? Math.round((shared.length / compEntities.length) * 100)
+        : 100;
+
+    return {
+        myEntityCount: myEntities.length,
+        competitorEntityCount: compEntities.length,
+        sharedCount: shared.length,
+        coveragePct,
+        missingFromMine,
+        missingFromComp,
+        myTopEntities: myEntities.slice(0, 10),
+        competitorTopEntities: compEntities.slice(0, 10),
+    };
+}
+
+// ── PageSpeed / CWV Comparison ───────────────────────────────────────────────
+function comparePageSpeed(myPageSpeed, competitorPageSpeed) {
+    const extract = (ps) => {
+        if (!ps) return null;
+        return {
+            performance: ps.scores?.performance ?? null,
+            accessibility: ps.scores?.accessibility ?? null,
+            seo: ps.scores?.seo ?? null,
+            fcp: ps.metrics?.fcp?.numericValue ?? null,
+            lcp: ps.metrics?.lcp?.numericValue ?? null,
+            cls: ps.metrics?.cls?.numericValue ?? null,
+            inp: ps.metrics?.inp?.numericValue ?? null,
+            tbt: ps.metrics?.tbt?.numericValue ?? null,
+        };
+    };
+    const mine = extract(myPageSpeed);
+    const comp = extract(competitorPageSpeed);
+    if (!mine && !comp) return null;
+
+    const winner = (a, b, lowerIsBetter = false) => {
+        if (a == null || b == null) return 'unknown';
+        if (a === b) return 'tie';
+        return lowerIsBetter ? (a < b ? 'mine' : 'competitor') : (a > b ? 'mine' : 'competitor');
+    };
+
+    return {
+        mine,
+        competitor: comp,
+        differences: {
+            performance: {
+                mine: mine?.performance,
+                competitor: comp?.performance,
+                winner: winner(mine?.performance, comp?.performance),
+            },
+            lcp: {
+                mine: mine?.lcp,
+                competitor: comp?.lcp,
+                winner: winner(mine?.lcp, comp?.lcp, true),
+                mineDisplay: mine?.lcp ? `${(mine.lcp / 1000).toFixed(1)}s` : '-',
+                competitorDisplay: comp?.lcp ? `${(comp.lcp / 1000).toFixed(1)}s` : '-',
+            },
+            cls: {
+                mine: mine?.cls,
+                competitor: comp?.cls,
+                winner: winner(mine?.cls, comp?.cls, true),
+            },
+            inp: {
+                mine: mine?.inp,
+                competitor: comp?.inp,
+                winner: winner(mine?.inp, comp?.inp, true),
+            },
+        },
+    };
+}
+
+// ── Schema Validation Comparison ─────────────────────────────────────────────
+function compareSchemaValidation(myPage, competitorPage) {
+    const extract = (page) => {
+        const seo = page?.seoElements || {};
+        return {
+            hasSchema: !!seo.hasSchema,
+            types: seo.schemaDetails?.detectedTypes || [],
+            isValid: seo.schemaDetails?.isValid ?? true,
+            errors: seo.schemaDetails?.errors || [],
+            hasFaqSchema: (seo.schemaDetails?.detectedTypes || []).includes('FAQPage'),
+            hasBreadcrumbSchema: (seo.schemaDetails?.detectedTypes || []).includes('BreadcrumbList'),
+            hasArticleSchema: (seo.schemaDetails?.detectedTypes || []).some(t =>
+                ['Article', 'NewsArticle', 'BlogPosting'].includes(t)),
+            hasLocalBusinessSchema: (seo.schemaDetails?.detectedTypes || []).some(t =>
+                ['LocalBusiness', 'Restaurant', 'MedicalBusiness'].includes(t)),
+        };
+    };
+    const mine = extract(myPage);
+    const comp = extract(competitorPage);
+
+    return {
+        mine,
+        competitor: comp,
+        schemaGap: comp.types.filter(t => !mine.types.includes(t)),
+        winner: (comp.types.length > mine.types.length) ? 'competitor'
+            : (mine.types.length > comp.types.length) ? 'mine' : 'tie',
+    };
+}
+
+// ── E-E-A-T Signals Comparison ───────────────────────────────────────────────
+function compareEEATSignals(myPage, competitorPage) {
+    const extract = (page) => {
+        const seo = page?.seoElements || {};
+        const content = page?.content || {};
+        return {
+            hasH1: !!seo.hasH1,
+            hasMetaDescription: !!seo.hasMetaDescription,
+            hasAuthor: !!seo.hasAuthor,
+            hasSchema: !!seo.hasSchema,
+            hasBreadcrumb: !!seo.hasBreadcrumb,
+            hasAboutPage: false,
+            hasContactPage: false,
+            hasFaq: !!content.hasFaq,
+            wordCount: page?.wordCount || 0,
+            readabilityScore: content.flesch || 0,
+            internalLinks: seo.internalLinks || 0,
+            externalLinks: seo.externalLinks || 0,
+            imagesWithAlt: seo.imagesWithAlt || 0,
+            images: seo.images || 0,
+        };
+    };
+    const mine = extract(myPage);
+    const comp = extract(competitorPage);
+
+    const calcScore = (signals) => {
+        let score = 0;
+        if (signals.hasH1) score += 10;
+        if (signals.hasMetaDescription) score += 10;
+        if (signals.hasAuthor) score += 15;
+        if (signals.hasSchema) score += 15;
+        if (signals.hasBreadcrumb) score += 10;
+        if (signals.hasFaq) score += 10;
+        if (signals.wordCount >= 1500) score += 10;
+        else if (signals.wordCount >= 800) score += 5;
+        if (signals.internalLinks >= 5) score += 10;
+        if (signals.externalLinks >= 2) score += 5;
+        const altRatio = signals.images > 0 ? signals.imagesWithAlt / signals.images : 1;
+        if (altRatio >= 0.8) score += 5;
+        return Math.min(100, score);
+    };
+
+    return {
+        mine: { ...mine, score: calcScore(mine) },
+        competitor: { ...comp, score: calcScore(comp) },
+        winner: calcScore(mine) > calcScore(comp) ? 'mine'
+            : calcScore(comp) > calcScore(mine) ? 'competitor' : 'tie',
+    };
+}
+
+// ── Weighted Scoring with Confidence ─────────────────────────────────────────
+function calculateWeightedScore(scores, myPage, competitorPage) {
+    const weights = {
+        domainAuthority: 0.20,
+        content: 0.20,
+        seo: 0.15,
+        entityCoverage: 0.10,
+        schemaValidation: 0.10,
+        eatSignals: 0.10,
+        pageSpeed: 0.15,
+    };
+
+    let totalScore = 50;
+    let confidence = 0;
+    let factorsUsed = 0;
+
+    if (scores.domainAuthority) {
+        const daDiff = scores.domainAuthority.mine - scores.domainAuthority.competitor;
+        totalScore += daDiff * weights.domainAuthority * 0.5;
+        confidence += 30;
+        factorsUsed++;
+    }
+
+    if (scores.content) {
+        const wcMine = scores.content.wordCount?.mine || 0;
+        const wcComp = scores.content.wordCount?.competitor || 1;
+        const wcRatio = Math.min(wcMine / wcComp, 1.5);
+        totalScore += (wcRatio - 1) * 20 * weights.content;
+        confidence += 20;
+        factorsUsed++;
+    }
+
+    if (scores.seo?.scores) {
+        const seoDiff = (scores.seo.scores.mine - scores.seo.scores.competitor) * 0.3;
+        totalScore += seoDiff * weights.seo;
+        confidence += 15;
+        factorsUsed++;
+    }
+
+    if (scores.entityCoverage) {
+        const covDiff = (scores.entityCoverage.coveragePct - 50) * 0.3;
+        totalScore += covDiff * weights.entityCoverage;
+        confidence += 10;
+        factorsUsed++;
+    }
+
+    if (scores.schemaValidation) {
+        const schemaDiff = (scores.schemaValidation.mine?.types?.length || 0)
+            - (scores.schemaValidation.competitor?.types?.length || 0);
+        totalScore += schemaDiff * 5 * weights.schemaValidation;
+        confidence += 10;
+        factorsUsed++;
+    }
+
+    if (scores.eatSignals) {
+        const eatDiff = (scores.eatSignals.mine?.score - scores.eatSignals.competitor?.score) * 0.3;
+        totalScore += eatDiff * weights.eatSignals;
+        confidence += 10;
+        factorsUsed++;
+    }
+
+    if (scores.pageSpeed) {
+        const psMine = scores.pageSpeed.mine?.performance ?? 50;
+        const psComp = scores.pageSpeed.competitor?.performance ?? 50;
+        const psDiff = (psMine - psComp) * 0.3;
+        totalScore += psDiff * weights.pageSpeed;
+        confidence += 15;
+        factorsUsed++;
+    }
+
+    const finalScore = Math.max(0, Math.min(100, Math.round(totalScore)));
+    const finalConfidence = Math.min(100, Math.round(confidence));
+
+    return {
+        score: finalScore,
+        confidence: finalConfidence,
+        factorsUsed,
+        breakdown: {
+            domainAuthority: scores.domainAuthority ? Math.round(scores.domainAuthority.mine - scores.domainAuthority.competitor) : null,
+            contentLength: scores.content?.wordCount ? Math.round(scores.content.wordCount.mine - scores.content.wordCount.competitor) : null,
+            seoScore: scores.seo?.scores ? Math.round(scores.seo.scores.mine - scores.seo.scores.competitor) : null,
+            entityCoverage: scores.entityCoverage?.coveragePct ?? null,
+            schemaCount: scores.schemaValidation?.mine?.types?.length ?? null,
+            eatScore: scores.eatSignals?.mine?.score ?? null,
+            pageSpeed: scores.pageSpeed?.mine?.performance ?? null,
+        },
+    };
+}
+
+// ── Top-10 Competitor Benchmarks ─────────────────────────────────────────────
+function computeTop10Benchmarks(competitorDataArray) {
+    if (!competitorDataArray.length) return null;
+
+    const valid = competitorDataArray.filter(d => d && !d.error);
+    if (!valid.length) return null;
+
+    const avg = (arr) => arr.length ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length) : 0;
+    const median = (arr) => {
+        if (!arr.length) return 0;
+        const sorted = [...arr].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+    };
+
+    const wordCounts = valid.map(d => d.wordCount || 0).filter(v => v > 0);
+    const das = valid.map(d => d.domainAuthority || 0).filter(v => v > 0);
+    const densities = valid.map(d => d.keywordDensity || 0).filter(v => v > 0);
+    const internalLinks = valid.map(d => d.internalLinks || 0);
+    const headings = valid.map(d => d.headingCount || 0);
+    const schemaCounts = valid.map(d => d.schemaCount || 0);
+
+    return {
+        count: valid.length,
+        wordCount: {
+            average: avg(wordCounts),
+            median: median(wordCounts),
+            min: Math.min(...wordCounts),
+            max: Math.max(...wordCounts),
+        },
+        domainAuthority: {
+            average: avg(das),
+            median: median(das),
+            min: Math.min(...das),
+            max: Math.max(...das),
+        },
+        keywordDensity: {
+            average: densities.length ? parseFloat((densities.reduce((s, v) => s + v, 0) / densities.length).toFixed(2)) : 0,
+            median: parseFloat(median(densities).toFixed(2)),
+        },
+        internalLinks: {
+            average: avg(internalLinks),
+            median: median(internalLinks),
+        },
+        headings: {
+            average: avg(headings),
+            median: median(headings),
+        },
+        schemaCount: {
+            average: avg(schemaCounts),
+            withSchema: valid.filter(d => (d.schemaCount || 0) > 0).length,
+        },
+    };
+}
+
 // ─── Compare My Domain vs Competitor ───
-async function compareDomains(myDomain, competitorDomain, keyword, myPageData = null, competitorPageData = null) {
+async function compareDomains(myDomain, competitorDomain, keyword, myPageData = null, competitorPageData = null, options = {}) {
     log.info({ myDomain, competitorDomain, keyword }, 'comparing domains');
 
     const comparison = {
@@ -46,10 +379,29 @@ async function compareDomains(myDomain, competitorDomain, keyword, myPageData = 
             difference: competitorDA - myDA,
         };
 
-        // If we have page data, compare content
+        // If we have page data, compare content + new metrics
         if (myPageData && competitorPageData) {
             comparison.scores.content = compareContent(myPageData, competitorPageData);
             comparison.scores.seo = compareSEO(myPageData, competitorPageData);
+
+            // Phase 2: Entity/topic coverage
+            comparison.scores.entityCoverage = compareEntityCoverage(myPageData, competitorPageData);
+
+            // Phase 2: Schema validation
+            comparison.scores.schemaValidation = compareSchemaValidation(myPageData, competitorPageData);
+
+            // Phase 2: E-E-A-T signals
+            comparison.scores.eatSignals = compareEEATSignals(myPageData, competitorPageData);
+        }
+
+        // Phase 2: PageSpeed / CWV comparison (if data provided)
+        if (options.myPageSpeed || options.competitorPageSpeed) {
+            comparison.scores.pageSpeed = comparePageSpeed(options.myPageSpeed, options.competitorPageSpeed);
+        }
+
+        // Phase 2: Top-10 benchmarks (if provided)
+        if (options.top10Data) {
+            comparison.benchmarks = computeTop10Benchmarks(options.top10Data);
         }
 
         // Analyze key differences (for both sides)
@@ -68,8 +420,11 @@ async function compareDomains(myDomain, competitorDomain, keyword, myPageData = 
             keyword
         );
 
-        // Calculate overall score
-        comparison.overallScore = calculateOverallScore(comparison.scores);
+        // Phase 2: Weighted scoring with confidence
+        const weightedResult = calculateWeightedScore(comparison.scores, myPageData, competitorPageData);
+        comparison.overallScore = weightedResult.score;
+        comparison.confidence = weightedResult.confidence;
+        comparison.scoreBreakdown = weightedResult.breakdown;
 
         // Perform AI Analysis for expert feedback
         comparison.aiAnalysis = await aiService.analyzeComparison(comparison);

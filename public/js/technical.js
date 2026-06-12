@@ -3,6 +3,9 @@ const TECHNICAL_CATEGORY_LABELS = {
     indexability: { label: 'Indexability', icon: 'fa-binoculars', weight: 35 },
     sitemaps: { label: 'Sitemaps', icon: 'fa-sitemap', weight: 15 },
     architecture: { label: 'Site Architecture', icon: 'fa-diagram-project', weight: 20 },
+    content: { label: 'Content Quality', icon: 'fa-pen-nib', weight: 20 },
+    performance: { label: 'Performance', icon: 'fa-gauge-high', weight: 15 },
+    security: { label: 'Security', icon: 'fa-shield-halved', weight: 15 },
 };
 
 const TECHNICAL_SEV_ORDER = { critical: 0, important: 1, good: 2 };
@@ -94,6 +97,7 @@ function formatPageSpeedDate(value) {
 async function runTechnicalAudit() {
     const url = document.getElementById('technical-site-input')?.value.trim() || '';
     const maxPages = Number(document.getElementById('technical-max-pages')?.value || 20);
+    const checkSecurityHeaders = document.getElementById('technical-check-security-headers')?.checked || false;
 
     if (!url) {
         showToast('Enter a site URL to audit', 'error');
@@ -107,7 +111,7 @@ async function runTechnicalAudit() {
         const res = await fetch('/api/technical/audit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, maxPages }),
+            body: JSON.stringify({ url, maxPages, checkSecurityHeaders }),
         });
         const data = await res.json();
         if (!data.success) {
@@ -136,7 +140,7 @@ function setTechnicalLoading(on) {
 
 function renderTechnicalResults(result) {
     renderTechnicalScore(result.overall, result.summary.pagesCrawled, result.issues.length);
-    renderTechnicalSummary(result.summary, result.robotsTxt, result.sitemaps);
+    renderTechnicalSummary(result.summary, result.robotsTxt, result.sitemaps, result.crawlConfig || {});
     renderTechnicalCategories(result.categories || {});
     renderTechnicalIssues(result.issues || []);
     renderTechnicalPages(result.pages || []);
@@ -165,7 +169,7 @@ function renderTechnicalScore(score, pagesCrawled, issuesFound) {
     }
 }
 
-function renderTechnicalSummary(summary = {}, robotsTxt = {}, sitemaps = []) {
+function renderTechnicalSummary(summary = {}, robotsTxt = {}, sitemaps = [], crawlConfig = {}) {
     const container = document.getElementById('technical-summary-grid');
     if (!container) return;
 
@@ -179,6 +183,13 @@ function renderTechnicalSummary(summary = {}, robotsTxt = {}, sitemaps = []) {
         { label: 'Hreflang Issues', value: summary.hreflangIssues || 0, tone: (summary.hreflangIssues || 0) ? 'orange' : 'green' },
         { label: 'Pagination Issues', value: summary.paginationIssues || 0, tone: (summary.paginationIssues || 0) ? 'orange' : 'green' },
         { label: 'Pages with Schema', value: summary.pagesWithSchema || 0, tone: (summary.pagesWithSchema || 0) ? 'green' : 'orange' },
+        { label: 'Missing H1', value: summary.missingH1Pages || 0, tone: (summary.missingH1Pages || 0) ? 'red' : 'green' },
+        { label: 'Invalid Heading Hierarchy', value: summary.invalidHeadingHierarchyPages || 0, tone: (summary.invalidHeadingHierarchyPages || 0) ? 'orange' : 'green' },
+        { label: 'Images Missing Alt', value: summary.imagesMissingAlt || 0, tone: (summary.imagesMissingAlt || 0) ? 'orange' : 'green' },
+        { label: 'Images Missing Dimensions', value: summary.imagesMissingDimensions || 0, tone: (summary.imagesMissingDimensions || 0) ? 'orange' : 'green' },
+        { label: 'Thin Content Pages', value: summary.thinContentPages || 0, tone: (summary.thinContentPages || 0) ? 'orange' : 'green' },
+        { label: 'Mixed Content Pages', value: summary.mixedContentPages || 0, tone: (summary.mixedContentPages || 0) ? 'red' : 'green' },
+        { label: 'Missing Security Headers', value: summary.missingSecurityHeadersPages || 0, tone: (summary.missingSecurityHeadersPages || 0) ? 'orange' : 'green' },
         { label: 'Sitemaps Found', value: sitemaps.length || 0, tone: sitemaps.length ? 'green' : 'orange' },
         { label: 'Orphan Sitemap URLs', value: summary.orphanSitemapUrls || 0, tone: (summary.orphanSitemapUrls || 0) ? 'orange' : 'green' },
         { label: 'robots.txt', value: robotsTxt.found ? 'Present' : 'Missing', tone: robotsTxt.found ? 'green' : 'red' },
@@ -196,6 +207,7 @@ function renderTechnicalSummary(summary = {}, robotsTxt = {}, sitemaps = []) {
         infra.innerHTML = `
             <div class="technical-infra-item"><strong>robots.txt:</strong> ${robotsTxt.found ? 'Found' : 'Not found'}${robotsTxt.status ? ` (${robotsTxt.status})` : ''}</div>
             <div class="technical-infra-item"><strong>Sitemaps:</strong> ${sitemaps.length ? sitemaps.map((item) => technicalEscHtml(item.url)).join('<br>') : 'None discovered'}</div>
+            <div class="technical-infra-item"><strong>Security headers:</strong> ${crawlConfig.checkSecurityHeaders ? (summary.missingSecurityHeaderCounts && Object.keys(summary.missingSecurityHeaderCounts).length ? technicalEscHtml(Object.entries(summary.missingSecurityHeaderCounts).map(([header, count]) => `${header}: ${count}`).join(', ')) : 'Recommended headers present') : 'Optional check not enabled'}</div>
         `;
     }
 }
@@ -266,16 +278,35 @@ function renderTechnicalPages(pages) {
         return;
     }
 
-    tbody.innerHTML = pages.map((page) => `
-        <tr>
-            <td><span class="technical-status-badge status-${technicalStatusClass(page.status)}">${technicalEscHtml(String(page.status || '—'))}</span></td>
-            <td><div class="technical-url-cell" title="${technicalEscHtml(page.url || '')}">${technicalEscHtml(page.url || '')}</div></td>
-            <td>${technicalEscHtml(page.title || '—')}</td>
-            <td>${technicalEscHtml(String(page.depth ?? '—'))}</td>
-            <td>${technicalEscHtml(page.canonicalStatus || '—')}</td>
-            <td>${technicalEscHtml((page.issues || []).join(', ') || 'OK')}</td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = pages.map((page) => {
+        const headingSummary = page.h1Count
+            ? `H1 ${technicalEscHtml(page.h1Count)} · H2 ${technicalEscHtml(page.h2Count || 0)}${page.headingHierarchyValid === false ? ' · skipped levels' : ''}`
+            : 'No H1';
+        const imageSummary = page.imageCount
+            ? `${technicalEscHtml(page.imageCount)} total · ${technicalEscHtml(page.imagesMissingAlt || 0)} missing alt${page.imagesMissingDimensions ? ' · ' + technicalEscHtml(page.imagesMissingDimensions) + ' missing dims' : ''}`
+            : 'No images';
+        const wordSummary = page.wordCount
+            ? `${technicalEscHtml(page.wordCount)} words${page.wordCount < 300 ? ' · thin' : ''}`
+            : '—';
+        const securitySummary = page.missingSecurityHeaders && page.missingSecurityHeaders.length
+            ? `Missing ${technicalEscHtml(page.missingSecurityHeaders.slice(0, 3).join(', '))}${page.missingSecurityHeaders.length > 3 ? ', ...' : ''}`
+            : 'OK';
+
+        return `
+            <tr>
+                <td><span class="technical-status-badge status-${technicalStatusClass(page.status)}">${technicalEscHtml(String(page.status || '—'))}</span></td>
+                <td><div class="technical-url-cell" title="${technicalEscHtml(page.url || '')}">${technicalEscHtml(page.url || '')}</div></td>
+                <td>${technicalEscHtml(page.title || '—')}</td>
+                <td>${technicalEscHtml(String(page.depth ?? '—'))}</td>
+                <td>${technicalEscHtml(page.canonicalStatus || '—')}</td>
+                <td>${headingSummary}</td>
+                <td>${imageSummary}</td>
+                <td>${wordSummary}</td>
+                <td>${securitySummary}</td>
+                <td>${technicalEscHtml((page.issues || []).join(', ') || 'OK')}</td>
+            </tr>
+        `;
+    }).join('');
 }
 
 

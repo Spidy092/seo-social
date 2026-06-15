@@ -421,6 +421,136 @@ function renderPdActions(data) {
     `).join('');
 }
 
+function renderPdRankedKeywords(data) {
+    const container = document.querySelector('#pdRankedKeywordsBlock');
+    if (!container) return;
+    const rk = data.rankedKeywords;
+    if (!rk || !rk.url) {
+        container.innerHTML = pdEmpty('No domain or URL configured for this project. Set the client website or a project tracking domain to see ranked keywords.', 'fa-magnifying-glass');
+        return;
+    }
+
+    const source = rk.source || 'none';
+    const keywords = Array.isArray(rk.keywords) ? rk.keywords : [];
+    const count = Number(rk.count) || keywords.length;
+    const sourceLabels = {
+        gsc: 'Google Search Console',
+        serper: 'Serper.dev',
+        rank_tracker: 'Internal rank tracker',
+        cache: 'Cached',
+        none: 'No data',
+    };
+    const sourceLabel = sourceLabels[source] || source;
+    const cached = rk.cached || source === 'cache';
+    const defaultUrl = rk.url || (data.project?.client?.domain || '');
+    const inputId = 'pdRankedKwInput';
+    const btnId = 'pdRankedKwRefreshBtn';
+
+    if (count === 0) {
+        container.innerHTML = `
+            <div class="pd-ranked-kw-bar">
+                <input id="${inputId}" type="text" placeholder="example.com or https://example.com/page"
+                       value="${pdEscape(defaultUrl)}" autocomplete="off" spellcheck="false">
+                <button class="btn btn-primary" id="${btnId}" type="button">
+                    <i class="fas fa-rotate"></i> Refresh
+                </button>
+            </div>
+            <div class="pd-ranked-kw-empty">
+                ${pdEmpty(`No keywords found for <strong>${pdEscape(defaultUrl)}</strong> via ${pdEscape(sourceLabel)}.`, 'fa-key')}
+            </div>
+            <div class="pd-ranked-kw-meta">
+                <span class="pd-source-badge ${pdEscape(source)}">${pdEscape(sourceLabel)}</span>
+                <span>Last checked ${pdFormatTimeAgo(rk.checkedAt)}</span>
+            </div>
+        `;
+        bindRankedKwHandlers({ inputId, btnId });
+        return;
+    }
+
+    const top = keywords.slice(0, 20);
+    const rowsHtml = top.map(k => {
+        const pos = k.position ? Number(k.position) : null;
+        const posHtml = pos
+            ? `<span class="pd-ranked-kw-pos ${pdRankClass(pos)}">#${pos}</span>`
+            : `<span class="pd-ranked-kw-pos none">—</span>`;
+        const meta = [
+            k.clicks != null ? `${pdFormatNumber(k.clicks)} clicks` : null,
+            k.impressions != null ? `${pdFormatNumber(k.impressions)} impr.` : null,
+        ].filter(Boolean).join(' · ');
+        return `
+            <div class="pd-ranked-kw-row">
+                <div class="pd-ranked-kw-keyword">
+                    <strong>${pdEscape(k.keyword)}</strong>
+                    ${meta ? `<div class="pd-meta">${pdEscape(meta)}</div>` : ''}
+                </div>
+                ${posHtml}
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = `
+        <div class="pd-ranked-kw-bar">
+            <input id="${inputId}" type="text" placeholder="example.com or https://example.com/page"
+                   value="${pdEscape(defaultUrl)}" autocomplete="off" spellcheck="false">
+            <button class="btn btn-primary" id="${btnId}" type="button">
+                <i class="fas fa-rotate"></i> Refresh
+            </button>
+        </div>
+        <div class="pd-ranked-kw-summary">
+            <div class="pd-ranked-kw-count">${pdFormatNumber(count)}</div>
+            <div class="pd-ranked-kw-meta">
+                <span>keywords this URL ranks for</span>
+                <span class="pd-source-badge ${pdEscape(source)}">${pdEscape(sourceLabel)}</span>
+                ${cached ? '<span class="pd-source-badge cache">cached</span>' : ''}
+                <span>· Last checked ${pdFormatTimeAgo(rk.checkedAt)}</span>
+            </div>
+        </div>
+        <div class="pd-ranked-kw-list">${rowsHtml}</div>
+    `;
+    bindRankedKwHandlers({ inputId, btnId });
+}
+
+function bindRankedKwHandlers({ inputId, btnId }) {
+    const input = document.getElementById(inputId);
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+
+    const doRefresh = async (force) => {
+        if (!PD.currentProjectId) return;
+        const url = input ? input.value.trim() : '';
+        btn.disabled = true;
+        const original = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing…';
+        try {
+            const params = new URLSearchParams();
+            if (url) params.set('url', url);
+            if (force) params.set('refresh', 'true');
+            const data = await api(`/api/projects/${PD.currentProjectId}/ranked-keywords?${params.toString()}`);
+            // Re-render only the ranked-keywords card without reloading the whole dashboard
+            const payload = PD.cache.get(PD.currentProjectId) || {};
+            payload.rankedKeywords = data;
+            PD.cache.set(PD.currentProjectId, payload);
+            renderPdRankedKeywords(payload);
+            showSuccess(`Found ${pdFormatNumber(data.count || 0)} keywords via ${data.source || 'data source'}`);
+        } catch (err) {
+            showError(err.message || 'Could not refresh ranked keywords');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
+    };
+
+    btn.addEventListener('click', () => doRefresh(true));
+    if (input) {
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                doRefresh(false);
+            }
+        });
+    }
+}
+
 function renderPdDashboard(data) {
     renderPdHeader(data);
     renderPdSummary(data);
@@ -428,6 +558,7 @@ function renderPdDashboard(data) {
     renderPdCompetitors(data);
     renderPdTechnical(data);
     renderPdGsc(data);
+    renderPdRankedKeywords(data);
     renderPdContentGaps(data);
     renderPdAlerts(data);
     renderPdActions(data);
@@ -557,3 +688,417 @@ window.openProjectDashboard = function (projectId) {
 window.initProjectDashboard = initProjectDashboard;
 window.loadProjectDashboard = loadProjectDashboard;
 window.populateProjectDashboardSelect = populateProjectDashboardSelect;
+
+// ─────────────────────────────────────────────────────────────────────
+// Full Project Audit widget
+//
+// Drop one file's worth of UI + polling into the existing project
+// dashboard. The widget:
+//   1. Shows a "▶ Run Full Audit" button next to the refresh button
+//   2. On click, POSTs /api/projects/:id/audits and polls the result
+//   3. Renders a score + prioritized action list when done
+//   4. Auto-loads the latest completed audit on dashboard open
+// ─────────────────────────────────────────────────────────────────────
+const PD_AUDIT_BTN_ID   = 'pdRunAuditBtn';
+const PD_AUDIT_PANEL_ID = 'pdAuditPanel';
+const PD_AUDIT_POLL_MS  = 2000;
+
+function pdEnsureAuditButton() {
+    if (document.getElementById(PD_AUDIT_BTN_ID)) return;
+    const refreshBtn = document.querySelector('#pdRefreshBtn');
+    if (!refreshBtn || !refreshBtn.parentElement) return;
+    const btn = document.createElement('button');
+    btn.id = PD_AUDIT_BTN_ID;
+    btn.className = 'pd-btn pd-btn-accent';
+    btn.innerHTML = '<i class="fas fa-rocket"></i> Run Full Audit';
+    btn.title = 'Run a complete SEO audit (technical, on-page, keywords, competitors, GSC, GA4, performance)';
+    refreshBtn.parentElement.appendChild(btn);
+    btn.addEventListener('click', pdStartFullAudit);
+}
+
+function pdEnsureAuditPanel() {
+    if (document.getElementById(PD_AUDIT_PANEL_ID)) return;
+    const body = document.querySelector(PD_BODY);
+    if (!body) return;
+    const panel = document.createElement('div');
+    panel.id = PD_AUDIT_PANEL_ID;
+    panel.className = 'pd-audit-panel';
+    panel.style.display = 'none';
+    body.insertBefore(panel, body.firstChild);
+}
+
+async function pdStartFullAudit() {
+    if (!PD.currentProjectId) return;
+    const btn = document.getElementById(PD_AUDIT_BTN_ID);
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Queuing…';
+    }
+    try {
+        const resp = await api(`/api/projects/${PD.currentProjectId}/audits`, {
+            method: 'POST',
+            body: JSON.stringify({ triggerSource: 'manual' }),
+        });
+        if (resp && resp.error) throw new Error(resp.error);
+        pdRenderAuditPanel({
+            status: 'pending',
+            progress: 0,
+            checksTotal: resp.audit.checksTotal,
+        }, 'Audit queued — running in background…');
+        pdPollAudit(resp.audit.id);
+    } catch (err) {
+        pdRenderAuditPanel({ status: 'failed' }, `Failed to queue audit: ${err.message}`);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-rocket"></i> Run Full Audit';
+        }
+    }
+}
+
+async function pdPollAudit(auditId) {
+    const tick = async () => {
+        try {
+            const resp = await api(`/api/projects/${PD.currentProjectId}/audits/${auditId}`);
+            const audit = resp.audit;
+            if (!audit) return;
+            pdRenderAuditPanel(audit);
+            if (audit.status === 'pending' || audit.status === 'running') {
+                setTimeout(tick, PD_AUDIT_POLL_MS);
+            }
+        } catch (err) {
+            pdRenderAuditPanel({ status: 'failed' }, `Polling failed: ${err.message}`);
+        }
+    };
+    setTimeout(tick, PD_AUDIT_POLL_MS);
+}
+
+async function pdLoadLatestAudit() {
+    if (!PD.currentProjectId) return;
+    try {
+        const resp = await api(`/api/projects/${PD.currentProjectId}/audits/latest`);
+        if (resp && resp.audit) pdRenderAuditPanel(resp.audit);
+    } catch (err) {
+        // silent — not all projects have an audit yet
+    }
+}
+
+function pdRenderAuditPanel(audit, fallbackMessage) {
+    pdEnsureAuditPanel();
+    const panel = document.getElementById(PD_AUDIT_PANEL_ID);
+    if (!panel) return;
+
+    const status = audit.status || 'unknown';
+    const progress = audit.progress != null ? audit.progress : 0;
+    const checksTotal = audit.checks_total || audit.checksTotal || 0;
+    const checksDone = audit.checks_done || 0;
+
+    if (status === 'pending' || status === 'running') {
+        panel.style.display = '';
+        panel.innerHTML = `
+            <div class="pd-audit-running">
+                <div class="pd-audit-title"><i class="fas fa-spinner fa-spin"></i> Full audit in progress…</div>
+                <div class="pd-audit-progress-bar"><div class="pd-audit-progress-fill" style="width:${progress}%"></div></div>
+                <div class="pd-audit-progress-meta">${checksDone} / ${checksTotal} checks complete · ${progress}%</div>
+                <div class="pd-audit-actions-row">
+                    <button class="pd-btn-secondary pd-btn-sm" data-cancel-audit="${pdEscape(audit.id || '')}">
+                        <i class="fas fa-stop"></i> Cancel audit
+                    </button>
+                </div>
+                ${fallbackMessage ? `<div class="pd-audit-note">${pdEscape(fallbackMessage)}</div>` : ''}
+            </div>`;
+        const cancelBtn = panel.querySelector('[data-cancel-audit]');
+        if (cancelBtn) cancelBtn.addEventListener('click', () => pdCancelAudit(audit.id));
+        return;
+    }
+
+    if (status === 'cancelled') {
+        panel.style.display = '';
+        panel.innerHTML = `
+            <div class="pd-audit-cancelled">
+                <div class="pd-audit-title"><i class="fas fa-ban"></i> Audit cancelled</div>
+                <div class="pd-audit-progress-meta">${checksDone} / ${checksTotal} checks had completed before cancellation</div>
+                <div class="pd-audit-actions-row">
+                    <button class="pd-btn-primary pd-btn-sm" data-retry-audit="${pdEscape(audit.id || '')}">
+                        <i class="fas fa-redo"></i> Run again
+                    </button>
+                </div>
+            </div>`;
+        const retryBtn = panel.querySelector('[data-retry-audit]');
+        if (retryBtn) retryBtn.addEventListener('click', () => pdRetryAudit(audit.id));
+        return;
+    }
+
+    if (status === 'failed' && !audit.summary) {
+        panel.style.display = '';
+        panel.innerHTML = `
+            <div class="pd-audit-failed">
+                <div class="pd-audit-title"><i class="fas fa-exclamation-triangle"></i> Audit failed</div>
+                <div class="pd-audit-note">${pdEscape(audit.error_message || fallbackMessage || 'Unknown error')}</div>
+            </div>`;
+        return;
+    }
+
+    // Completed (success or partial)
+    const summary = audit.summary || {};
+    const score = summary.score;
+    const headline = summary.headline || 'Audit complete';
+    const actions = summary.actions || [];
+    const scoreClass = score == null ? '' : (score >= 80 ? 'good' : score >= 60 ? 'ok' : 'bad');
+
+    panel.style.display = '';
+    panel.innerHTML = `
+        <div class="pd-audit-report">
+            <div class="pd-audit-headline">
+                <div class="pd-audit-score ${scoreClass}">
+                    <div class="pd-audit-score-num">${score != null ? score : '—'}</div>
+                    <div class="pd-audit-score-label">/ 100</div>
+                </div>
+                <div class="pd-audit-headline-text">
+                    <h3>${pdEscape(headline)}</h3>
+                    <div class="pd-audit-meta">
+                        <span><i class="fas fa-check-circle"></i> ${checksDone} / ${checksTotal} checks</span>
+                        <span><i class="fas fa-${summary.checksCompleted === checksTotal ? 'check' : 'info-circle'}"></i>
+                              ${status === 'success' ? 'All checks passed' : 'Some checks skipped/failed'}</span>
+                        <span><i class="fas fa-clock"></i> ${pdFormatTimeAgo(audit.completed_at || audit.created_at)}</span>
+                    </div>
+                </div>
+            </div>
+            ${actions.length ? `
+                <div class="pd-audit-actions">
+                    <h4>Top actions</h4>
+                    <ol>
+                        ${actions.map(a => `
+                            <li class="pd-audit-action priority-${a.priority}">
+                                <span class="pd-audit-priority">${a.priority}</span>
+                                <div>
+                                    <div class="pd-audit-action-title">${pdEscape(a.title)}</div>
+                                    <div class="pd-audit-action-detail">${pdEscape(a.detail || '')}</div>
+                                </div>
+                            </li>`).join('')}
+                    </ol>
+                </div>
+            ` : ''}
+            <div class="pd-audit-footer">
+                <small>Triggered by ${pdEscape(audit.trigger_source || 'manual')} · run a new audit to refresh</small>
+            </div>
+        </div>`;
+}
+
+// Hook into initProjectDashboard: when the page is ready, inject the
+// audit button + auto-load the latest audit.
+const _pdOrigInit = initProjectDashboard;
+window.initProjectDashboard = async function patchedInit() {
+    await _pdOrigInit();
+    pdEnsureAuditButton();
+    pdEnsureAuditPanel();
+    await pdLoadLatestAudit();
+};
+
+// ─── Audit settings panel ────────────────────────────────────────────
+// Lets the user toggle individual checks, opt out of auto-audit on
+// create, opt out of the weekly re-audit, and set custom keywords.
+const PD_AUDIT_SETTINGS_PANEL = 'pdAuditSettingsPanel';
+const PD_AUDIT_SETTINGS_TOGGLE = 'pdAuditSettingsToggle';
+
+function pdEnsureSettingsToggle() {
+    if (document.getElementById(PD_AUDIT_SETTINGS_TOGGLE)) return;
+    const refreshBtn = document.querySelector('#pdRefreshBtn');
+    if (!refreshBtn || !refreshBtn.parentElement) return;
+    const btn = document.createElement('button');
+    btn.id = PD_AUDIT_SETTINGS_TOGGLE;
+    btn.className = 'pd-btn-secondary';
+    btn.innerHTML = '<i class="fas fa-sliders-h"></i> Audit Settings';
+    refreshBtn.parentElement.appendChild(btn);
+    btn.addEventListener('click', () => pdToggleSettingsPanel());
+}
+
+async function pdToggleSettingsPanel() {
+    pdEnsureSettingsPanel();
+    const panel = document.getElementById(PD_AUDIT_SETTINGS_PANEL);
+    if (!panel) return;
+    if (panel.style.display === 'none' || !panel.style.display) {
+        await pdLoadAndRenderSettings();
+        panel.style.display = '';
+    } else {
+        panel.style.display = 'none';
+    }
+}
+
+function pdEnsureSettingsPanel() {
+    if (document.getElementById(PD_AUDIT_SETTINGS_PANEL)) return;
+    const body = document.querySelector(PD_BODY);
+    if (!body) return;
+    const panel = document.createElement('div');
+    panel.id = PD_AUDIT_SETTINGS_PANEL;
+    panel.className = 'pd-audit-settings-panel';
+    panel.style.display = 'none';
+    body.insertBefore(panel, body.firstChild);
+}
+
+async function pdLoadAndRenderSettings() {
+    if (!PD.currentProjectId) return;
+    const panel = document.getElementById(PD_AUDIT_SETTINGS_PANEL);
+    if (!panel) return;
+    panel.innerHTML = '<div class="pd-audit-settings-loading"><i class="fas fa-spinner fa-spin"></i> Loading settings…</div>';
+    try {
+        const resp = await api(`/api/projects/${PD.currentProjectId}/audit-config`);
+        pdRenderSettingsPanel(resp);
+    } catch (err) {
+        panel.innerHTML = `<div class="pd-audit-settings-error">Failed to load settings: ${pdEscape(err.message)}</div>`;
+    }
+}
+
+function pdRenderSettingsPanel(resp) {
+    const panel = document.getElementById(PD_AUDIT_SETTINGS_PANEL);
+    if (!panel) return;
+    const s = resp.settings || {};
+    const checks = resp.availableChecks || [];
+    const enabledSet = new Set(s.enabledChecks || []);
+
+    panel.innerHTML = `
+        <div class="pd-audit-settings-head">
+            <h3><i class="fas fa-sliders-h"></i> Audit Settings</h3>
+            <p>Control what the full-audit feature does for this project. Inherited defaults from global settings appear in parentheses.</p>
+        </div>
+
+        <div class="pd-audit-settings-section">
+            <h4>Checks to run</h4>
+            <p class="pd-audit-settings-hint">Untick the checks you don't want. Unticking all = use global default.</p>
+            <div class="pd-audit-checks-grid" id="pdAuditChecksGrid">
+                ${checks.map(c => `
+                    <label class="pd-audit-check">
+                        <input type="checkbox" data-check="${pdEscape(c)}" ${enabledSet.has(c) ? 'checked' : ''}>
+                        <span>${pdEscape(c)}</span>
+                    </label>
+                `).join('')}
+            </div>
+        </div>
+
+        <div class="pd-audit-settings-section">
+            <h4>Auto-audit on project creation</h4>
+            <label class="pd-audit-toggle">
+                <input type="checkbox" id="pdAutoOnCreate" ${s.autoAuditOnCreate ? 'checked' : ''}>
+                <span>Run a full audit automatically whenever a new project is created</span>
+            </label>
+        </div>
+
+        <div class="pd-audit-settings-section">
+            <h4>Weekly re-audit</h4>
+            <label class="pd-audit-toggle">
+                <input type="checkbox" id="pdWeeklyEnabled" ${s.weeklyEnabled ? 'checked' : ''}>
+                <span>Re-audit this project once a week</span>
+            </label>
+            <div class="pd-audit-inline">
+                <label>Day of week
+                    <select id="pdWeeklyDow">
+                        ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d, i) => `<option value="${i}" ${(s.weeklyDayOfWeek||0)===i?'selected':''}>${d}</option>`).join('')}
+                    </select>
+                </label>
+                <label>Hour
+                    <input type="number" id="pdWeeklyHour" min="0" max="23" value="${s.weeklyHour != null ? s.weeklyHour : 2}">
+                </label>
+            </div>
+        </div>
+
+        <div class="pd-audit-settings-section">
+            <h4>Custom keywords <small>(included in the keyword check)</small></h4>
+            <textarea id="pdCustomKeywords" rows="3" placeholder="one keyword per line">${pdEscape((s.customKeywords||[]).join('\n'))}</textarea>
+        </div>
+
+        <div class="pd-audit-settings-section">
+            <h4>Notifications on completion</h4>
+            <label class="pd-audit-toggle">
+                <input type="checkbox" id="pdNotifyOnComplete" ${s.notifyOnComplete ? 'checked' : ''}>
+                <span>Notify when an audit finishes</span>
+            </label>
+            <div class="pd-audit-inline">
+                <label>Emails (comma-separated)
+                    <input type="text" id="pdNotifyEmails" value="${pdEscape((s.notifyEmails||[]).join(', '))}" placeholder="alice@acme.com, bob@acme.com">
+                </label>
+            </div>
+            <div class="pd-audit-inline">
+                <label>Webhook URL (optional)
+                    <input type="text" id="pdNotifyWebhook" value="${pdEscape(s.notifyWebhook||'')}" placeholder="https://hooks.slack.com/…">
+                </label>
+            </div>
+        </div>
+
+        <div class="pd-audit-settings-actions">
+            <button class="pd-btn-primary" id="pdSaveAuditSettings"><i class="fas fa-save"></i> Save settings</button>
+            <button class="pd-btn-secondary" id="pdCancelAuditSettings"><i class="fas fa-times"></i> Close</button>
+            <span class="pd-audit-settings-status" id="pdSettingsStatus"></span>
+        </div>
+    `;
+
+    document.getElementById('pdSaveAuditSettings').addEventListener('click', pdSaveSettings);
+    document.getElementById('pdCancelAuditSettings').addEventListener('click', () => {
+        panel.style.display = 'none';
+    });
+}
+
+async function pdSaveSettings() {
+    const projectId = PD.currentProjectId;
+    if (!projectId) return;
+    const status = document.getElementById('pdSettingsStatus');
+    status.textContent = 'Saving…';
+
+    const checks = Array.from(document.querySelectorAll('#pdAuditChecksGrid input[type=checkbox]'))
+        .filter(cb => cb.checked)
+        .map(cb => cb.dataset.check);
+
+    const body = {
+        enabledChecks: checks,
+        autoAuditOnCreate: document.getElementById('pdAutoOnCreate').checked,
+        weeklyEnabled: document.getElementById('pdWeeklyEnabled').checked,
+        weeklyDayOfWeek: parseInt(document.getElementById('pdWeeklyDow').value, 10),
+        weeklyHour: parseInt(document.getElementById('pdWeeklyHour').value, 10),
+        customKeywords: document.getElementById('pdCustomKeywords').value
+            .split('\n').map(s => s.trim()).filter(Boolean),
+        notifyOnComplete: document.getElementById('pdNotifyOnComplete').checked,
+        notifyEmails: document.getElementById('pdNotifyEmails').value
+            .split(',').map(s => s.trim()).filter(Boolean),
+        notifyWebhook: document.getElementById('pdNotifyWebhook').value.trim() || null,
+    };
+
+    try {
+        const resp = await api(`/api/projects/${projectId}/audit-config`, {
+            method: 'PUT',
+            body: JSON.stringify(body),
+        });
+        status.textContent = '✓ Saved';
+        setTimeout(() => { status.textContent = ''; }, 2000);
+    } catch (err) {
+        status.textContent = '✗ ' + (err.message || 'save failed');
+    }
+}
+
+// Wire up the settings toggle in the patched init
+const _pdOrigInit2 = window.initProjectDashboard;
+window.initProjectDashboard = async function patchedInit2() {
+    await _pdOrigInit2();
+    pdEnsureSettingsToggle();
+};
+
+// ─── Cancel + retry ───────────────────────────────────────────────────
+async function pdCancelAudit(auditId) {
+    if (!PD.currentProjectId || !auditId) return;
+    if (!confirm('Cancel this audit? Checks that have already started will be skipped.')) return;
+    try {
+        await api(`/api/projects/${PD.currentProjectId}/audits/${auditId}/cancel`, { method: 'POST' });
+        await pdLoadLatestAudit();
+    } catch (err) {
+        alert('Cancel failed: ' + err.message);
+    }
+}
+
+async function pdRetryAudit(auditId) {
+    if (!PD.currentProjectId || !auditId) return;
+    try {
+        await api(`/api/projects/${PD.currentProjectId}/audits/${auditId}/retry`, { method: 'POST' });
+        await pdLoadLatestAudit();
+    } catch (err) {
+        alert('Retry failed: ' + err.message);
+    }
+}
+

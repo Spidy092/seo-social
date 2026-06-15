@@ -472,9 +472,9 @@ function navigateTo(page, isHashChange = false) {
         case 'clients': loadClientWorkspace(); break;
         case 'project-dashboard': initProjectDashboard(); break;
         case 'research': loadResearchProjects(); break;
-        case 'competitors': loadTopCompetitors(); break;
-        case 'tracking': loadTrackedDomains(); break;
-        case 'alerts': loadAlerts(); break;
+        case 'competitors': loadCompetitorProjectFilters().then(() => loadTopCompetitors()); break;
+        case 'tracking': initRankTrackingPage(); break;
+        case 'alerts': loadAlertProjectFilters().then(() => loadAlerts()); break;
         case 'onpage': break;
         case 'page-optimization': initPageOptimization(); break;
         case 'page-speed': break;
@@ -483,6 +483,7 @@ function navigateTo(page, isHashChange = false) {
         case 'seo-performance': if (typeof initSeoPerformancePage === 'function') initSeoPerformancePage(); break;
         case 'search-visibility': if (typeof initSearchVisibilityPage === 'function') initSearchVisibilityPage(); break;
         case 'humanizer': loadHumanizerHistory(); break;
+        case 'content-brief': if (typeof initContentBriefPage === 'function') initContentBriefPage(); break;
         case 'reports': if (typeof loadSavedReports === 'function') loadSavedReports(); break;
         case 'tasks': if (typeof initTasksPage === 'function') initTasksPage(); break;
         case 'agency-settings': if (typeof loadAgencySettingsPage === 'function') loadAgencySettingsPage(); break;
@@ -2096,10 +2097,14 @@ async function loadTopCompetitors(page = 1) {
     PG.competitors.page = page;
     const offset = (page - 1) * PG.competitors.perPage;
     try {
-        const data = await api(`/api/competitors/top?limit=${PG.competitors.perPage}&offset=${offset}`);
+        const projectId = document.getElementById('competitorProjectSelect')?.value || '';
+        const endpoint = projectId
+            ? `/api/projects/${encodeURIComponent(projectId)}/competitors?limit=${PG.competitors.perPage}&offset=${offset}`
+            : `/api/competitors/top?limit=${PG.competitors.perPage}&offset=${offset}`;
+        const data = await api(endpoint);
         PG.competitors.total = data.total || 0;
         renderTopCompetitors(data.competitors || []);
-        renderPagination('competitorsPagination', PG.competitors, loadTopCompetitors);
+        renderPagination('topCompetitorsPagination', PG.competitors, loadTopCompetitors);
     } catch (err) {
         console.error('Failed to load competitors:', err);
     }
@@ -2115,7 +2120,7 @@ function renderTopCompetitors(competitors) {
     tbody.innerHTML = competitors.map(comp => `
         <tr>
             <td class="domain">${comp.domain}</td>
-            <td>${comp.keyword_count}</td>
+            <td>${comp.keyword_overlap || comp.keyword_count || 0}</td>
             <td>#${Math.round(comp.avg_position)}</td>
             <td>#${comp.best_position}</td>
             <td>
@@ -2992,6 +2997,213 @@ function renderBenchmarksSection(benchmarks, comparison) {
     </div>`;
 }
 
+
+let rankSetupChecklistContext = null;
+
+async function loadProjectOptions(selectId, { includeAllLabel = 'All projects' } = {}) {
+    const select = document.getElementById(selectId);
+    if (!select) return [];
+    try {
+        const data = await api('/api/projects');
+        const projects = data.projects || [];
+        const current = select.value;
+        select.innerHTML = `<option value="">${includeAllLabel}</option>` + projects.map(project => `
+            <option value="${escapeHtml(project.id)}" data-domain="${escapeHtml(project.tracking_domain || project.website_url || '')}">${escapeHtml(project.client_name)} · ${escapeHtml(project.name)}</option>
+        `).join('');
+        if (current && projects.some(project => String(project.id) === String(current))) select.value = current;
+        return projects;
+    } catch (err) {
+        console.error('Failed to load project options:', err);
+        return [];
+    }
+}
+
+async function initRankTrackingPage() {
+    await loadProjectOptions('rankProjectSelect');
+    await loadTrackedDomains();
+    await loadRankSetupChecklist();
+}
+
+async function loadCompetitorProjectFilters() {
+    await loadProjectOptions('competitorProjectSelect');
+}
+
+async function loadAlertProjectFilters() {
+    await loadProjectOptions('alertProjectSelect');
+}
+
+async function handleRankProjectChange() {
+    const selected = document.getElementById('rankProjectSelect');
+    const btn = document.getElementById('checkProjectRankingsBtn');
+    if (btn) btn.disabled = !selected?.value;
+    await loadCurrentRankings(1);
+    await loadRankSetupChecklist();
+}
+
+async function loadRankSetupChecklist() {
+    const projectId = document.getElementById('rankProjectSelect')?.value || '';
+    const container = document.getElementById('rankSetupChecklist');
+    if (!container) return;
+    if (!projectId) {
+        container.innerHTML = '<p class="text-muted">Select a project to see the guided SEO launch checklist.</p>';
+        return;
+    }
+    try {
+        const data = await api(`/api/projects/${encodeURIComponent(projectId)}/setup-checklist`);
+        const items = data.checklist || [];
+        rankSetupChecklistContext = { projectId: data.projectId, clientId: data.clientId, domain: data.domain, checklist: items };
+        const tone = status => status === 'complete' ? 'success' : status === 'required' ? 'danger' : 'warning';
+        container.innerHTML = `
+            <div class="card" style="background:var(--bg);">
+                <div class="card-body">
+                    <div style="font-weight:700;margin-bottom:10px;">Guided project launch checklist</div>
+                    <div style="display:grid;gap:8px;">
+                        ${items.map(item => `
+                            <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:1px solid var(--border);padding:8px 0;">
+                                <div>
+                                    <strong>${escapeHtml(item.label)}</strong>
+                                    <div class="text-muted" style="font-size:.8rem;">${escapeHtml(item.action)}</div>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+                                    <span class="badge badge-${tone(item.status)}">${escapeHtml(item.status)}</span>
+                                    ${item.actionPage ? `<button class="btn btn-sm btn-outline" type="button" onclick="runProjectSetupAction('${escapeHtml(item.id)}')">${escapeHtml(item.actionLabel || 'Open')}</button>` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>`;
+    } catch (err) {
+        container.innerHTML = `<p class="text-muted">Could not load checklist: ${escapeHtml(err.message)}</p>`;
+    }
+}
+
+async function checkSelectedProjectRankings() {
+    const projectId = document.getElementById('rankProjectSelect')?.value || '';
+    if (!projectId) return showError('Select a project first.');
+    try {
+        showLoading();
+        const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/rankings/check`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const data = await res.json();
+        hideLoading();
+        if (!res.ok || data.error) throw new Error(data.error || 'Rank check failed');
+        showSuccess(`Project rank check complete: ${data.succeeded || 0} checked`);
+        await loadCurrentRankings(1);
+        await loadRankSetupChecklist();
+        await refreshAlertBadge();
+    } catch (err) {
+        hideLoading();
+        showError(err.message);
+    }
+}
+
+
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function setSelectValue(selector, value, { dispatch = true, attempts = 12 } = {}) {
+    if (!value) return false;
+    for (let i = 0; i < attempts; i++) {
+        const select = document.querySelector(selector);
+        if (select && Array.from(select.options || []).some(option => String(option.value) === String(value))) {
+            select.value = value;
+            if (dispatch) select.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+        }
+        await delay(120);
+    }
+    return false;
+}
+
+function currentProjectSetupContext() {
+    const selected = document.getElementById('rankProjectSelect');
+    const option = selected?.options?.[selected.selectedIndex];
+    return {
+        projectId: rankSetupChecklistContext?.projectId || selected?.value || '',
+        clientId: rankSetupChecklistContext?.clientId || '',
+        domain: rankSetupChecklistContext?.domain || option?.dataset?.domain || '',
+        checklist: rankSetupChecklistContext?.checklist || [],
+    };
+}
+
+async function openProjectSetupChecklist(project) {
+    const projectId = project?.id || project?.projectId || '';
+    if (!projectId) return;
+    navigateTo('tracking');
+    await initRankTrackingPage();
+    const select = document.getElementById('rankProjectSelect');
+    if (select) {
+        select.value = projectId;
+        await handleRankProjectChange();
+    }
+}
+
+async function runProjectSetupAction(actionId) {
+    const ctx = currentProjectSetupContext();
+    const item = (ctx.checklist || []).find(entry => entry.id === actionId) || {};
+    const projectId = ctx.projectId;
+    const clientId = ctx.clientId;
+    const domain = ctx.domain;
+
+    if (!projectId) return showError('Select a project first.');
+    if (item.actionType === 'run-rank-check') return checkSelectedProjectRankings();
+
+    switch (item.actionPage) {
+        case 'research':
+            navigateTo('research');
+            if (typeof loadResearchProjects === 'function') await loadResearchProjects();
+            await setSelectValue('#researchProjectSelect', projectId, { dispatch: false });
+            break;
+        case 'onpage':
+            navigateTo('onpage');
+            if (typeof initOnPageProjects === 'function') await initOnPageProjects();
+            await setSelectValue('#onpage-project-select', projectId);
+            if (domain && !document.getElementById('onpage-url-input')?.value) document.getElementById('onpage-url-input').value = domain.startsWith('http') ? domain : `https://${domain}`;
+            break;
+        case 'technical':
+            navigateTo('technical');
+            if (domain) document.getElementById('technical-site-input').value = domain.startsWith('http') ? domain : `https://${domain}`;
+            if (document.getElementById('technical-check-security-headers')) document.getElementById('technical-check-security-headers').checked = true;
+            break;
+        case 'page-speed':
+            navigateTo('page-speed');
+            if (typeof loadPageSpeedClients === 'function') await loadPageSpeedClients();
+            await setSelectValue('#pagespeed-client-select', clientId);
+            if (domain) document.getElementById('pagespeed-url-input').value = domain.startsWith('http') ? domain : `https://${domain}`;
+            break;
+        case 'search-visibility':
+            navigateTo('search-visibility');
+            if (typeof initSearchVisibilityPage === 'function') await initSearchVisibilityPage();
+            if (await setSelectValue('#svClientSelect', clientId)) {
+                if (typeof loadSearchVisibilityData === 'function') await loadSearchVisibilityData();
+                await setSelectValue('#svProjectSelect', projectId, { dispatch: false });
+            }
+            if (item.actionType === 'gsc' && domain && document.getElementById('svGscSiteUrl')) document.getElementById('svGscSiteUrl').value = domain.startsWith('http') ? domain : `https://${domain}`;
+            break;
+        case 'competitors':
+            navigateTo('competitors');
+            await loadCompetitorProjectFilters();
+            await setSelectValue('#competitorProjectSelect', projectId, { dispatch: false });
+            await loadTopCompetitors(1);
+            break;
+        case 'tasks':
+            navigateTo('tasks');
+            if (typeof initTasksPage === 'function') initTasksPage();
+            if (await setSelectValue('#taskClientSelect', clientId)) {
+                await delay(250);
+                await setSelectValue('#taskProjectSelect', projectId);
+            }
+            break;
+        case 'clients':
+            navigateTo('clients');
+            if (clientId) await setSelectValue('#projectClientSelect', clientId);
+            break;
+        default:
+            if (item.actionPage) navigateTo(item.actionPage);
+    }
+}
+
 // ─── Rank Tracking ─── (uses new POST /api/domains)
 $('#trackDomainBtn')?.addEventListener('click', async () => {
     const domain = $('#trackDomainInput').value.trim();
@@ -3004,7 +3216,7 @@ $('#trackDomainBtn')?.addEventListener('click', async () => {
         const result = await fetch(`${API_BASE}/api/domains`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ domain }),
+            body: JSON.stringify({ domain, projectId: document.getElementById('rankProjectSelect')?.value || undefined }),
         });
         const data = await result.json();
         if (data.error) throw new Error(data.error);
@@ -3027,6 +3239,8 @@ async function loadTrackedDomains() {
 
         // Populate domain filter dropdown
         populateRankDomainFilter(domains);
+        const btn = document.getElementById('checkProjectRankingsBtn');
+        if (btn) btn.disabled = !document.getElementById('rankProjectSelect')?.value;
 
         // Load current rankings (deduplicated) for all domains
         loadCurrentRankings(1);
@@ -3048,9 +3262,11 @@ async function loadCurrentRankings(page = 1) {
     PG.history.page = page;
     const offset = (page - 1) * PG.history.perPage;
     const domainFilter = $('#rankDomainFilter')?.value || '';
+    const projectFilter = $('#rankProjectSelect')?.value || '';
     const domainParam = domainFilter ? `&domain=${encodeURIComponent(domainFilter)}` : '';
+    const projectParam = projectFilter ? `&projectId=${encodeURIComponent(projectFilter)}` : '';
     try {
-        const res = await fetch(`${API_BASE}/api/rankings/current?limit=${PG.history.perPage}${domainParam}&offset=${offset}`);
+        const res = await fetch(`${API_BASE}/api/rankings/current?limit=${PG.history.perPage}${domainParam}${projectParam}&offset=${offset}`);
         const data = await res.json();
         PG.history.total = data.total || 0;
         renderCurrentRankings(data.rankings || []);
@@ -3105,7 +3321,7 @@ function renderTrackedDomains(domains) {
 function renderCurrentRankings(rankings) {
     const tbody = $('#rankHistoryTable tbody');
     if (!rankings.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No rankings yet. Add a domain and click "Check" to start tracking.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No rankings yet. Select a project and run a rank check.</td></tr>';
         return;
     }
 
@@ -3118,6 +3334,7 @@ function renderCurrentRankings(rankings) {
             <td class="domain">
                 <a href="https://${r.domain}" target="_blank" rel="noopener" class="domain-link">${r.domain}</a>
             </td>
+            <td>${r.project_name ? escapeHtml(r.project_name) : '<span class="text-muted">Legacy</span>'}</td>
             <td>
                 ${r.rank_position > 0
                     ? `<span class="badge badge-${r.rank_position <= 3 ? 'low' : r.rank_position <= 10 ? 'medium' : 'high'}">#${r.rank_position}</span>`
@@ -3138,7 +3355,7 @@ async function checkDomainRankings(domain) {
         const result = await fetch(`${API_BASE}/api/rankings/check`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ domain }),
+            body: JSON.stringify({ domain, projectId: document.getElementById('rankProjectSelect')?.value || undefined }),
         });
         const data = await result.json();
         hideLoading();
@@ -3214,8 +3431,10 @@ async function loadAlerts(page = 1) {
         const activeFilter = document.querySelector('.filter-btn.active')?.dataset.filter || 'all';
         const unreadParam = activeFilter === 'unread' ? '&unreadOnly=true' : '';
         const typeParam = (activeFilter !== 'all' && activeFilter !== 'unread') ? `&type=${activeFilter}` : '';
+        const projectId = document.getElementById('alertProjectSelect')?.value || '';
+        const projectParam = projectId ? `&projectId=${encodeURIComponent(projectId)}` : '';
 
-        const res = await fetch(`${API_BASE}/api/alerts?limit=${PG.alerts.perPage}&offset=${offset}${unreadParam}`);
+        const res = await fetch(`${API_BASE}/api/alerts?limit=${PG.alerts.perPage}&offset=${offset}${unreadParam}${typeParam}${projectParam}`);
         const data = await res.json();
         PG.alerts.total = data.total || 0;
 
@@ -3258,6 +3477,8 @@ function renderAlerts(alerts, activeFilter = 'all') {
                     <span class="alert-time">${formatTimeAgo(alert.created_at)}</span>
                     ${alert.keyword ? `<span class="alert-keyword">📍 ${alert.keyword}</span>` : ''}
                     ${alert.domain ? `<span class="alert-domain">${alert.domain}</span>` : ''}
+                    ${alert.project_name ? `<span class="alert-domain">${escapeHtml(alert.project_name)}</span>` : ''}
+                    ${alert.severity ? `<span class="badge">${escapeHtml(alert.severity)}</span>` : ''}
                 </div>
             </div>
             ${!alert.is_read ? `
@@ -3727,9 +3948,10 @@ async function saveSeoProject() {
 
     $('#projectNameInput').value = '';
     $('#projectGoalsInput').value = '';
-    showSuccess('Project added.');
+    showSuccess('Project added. Opening setup checklist.');
     await loadClientProjects(clientId);
     await loadResearchProjects();
+    await openProjectSetupChecklist(data.project);
 }
 
 async function loadClientProjects(clientId) {

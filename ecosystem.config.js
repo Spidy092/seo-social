@@ -1,6 +1,32 @@
 // PM2 Ecosystem Config - Keyword Analyzer
-// Workers are separated into their own processes so a crash in one
-// does not bring down the API server.
+//
+// Workers run as separate PM2 processes so a crash in one does not bring
+// down the API server. Every worker now uses the single generic entry
+// point `src/workers/runner.js <job-name>` — see src/workers/registry.js
+// for the list of available jobs.
+
+const WORKER = 'src/workers/runner.js';
+
+function makeWorkerApp(name, jobName, memLimit = '300M') {
+    return {
+        name:             `keyword-analyzer-${name}`,
+        script:           WORKER,
+        args:             jobName,
+        instances:        1,
+        exec_mode:        'fork',
+        watch:            false,
+        max_memory_restart: memLimit,
+        env_production: { NODE_ENV: 'production' },
+        log_date_format:  'YYYY-MM-DD HH:mm:ss',
+        out_file:         `./logs/pm2-${name}-out.log`,
+        error_file:       `./logs/pm2-${name}-error.log`,
+        merge_logs:       true,
+        restart_delay:    10000,
+        max_restarts:     5,
+        autorestart:      true,
+    };
+}
+
 module.exports = {
     apps: [
         // ─── API Server ───
@@ -25,84 +51,12 @@ module.exports = {
             autorestart:      true,
         },
 
-        // ─── Rank Tracker Worker ───
-        {
-            name:             'keyword-analyzer-rank-tracker',
-            script:           'src/workers/runners/rankTrackerRunner.js',
-            instances:        1,
-            exec_mode:        'fork',
-            watch:            false,
-            max_memory_restart: '300M',
-            env_production: {
-                NODE_ENV: 'production',
-            },
-            log_date_format:  'YYYY-MM-DD HH:mm:ss',
-            out_file:         './logs/pm2-rank-tracker-out.log',
-            error_file:       './logs/pm2-rank-tracker-error.log',
-            merge_logs:       true,
-            restart_delay:    10000,
-            max_restarts:     5,
-            autorestart:      true,
-        },
-
-        // ─── Post Scheduler Worker ───
-        {
-            name:             'keyword-analyzer-post-scheduler',
-            script:           'src/workers/runners/postSchedulerRunner.js',
-            instances:        1,
-            exec_mode:        'fork',
-            watch:            false,
-            max_memory_restart: '200M',
-            env_production: {
-                NODE_ENV: 'production',
-            },
-            log_date_format:  'YYYY-MM-DD HH:mm:ss',
-            out_file:         './logs/pm2-scheduler-out.log',
-            error_file:       './logs/pm2-scheduler-error.log',
-            merge_logs:       true,
-            restart_delay:    5000,
-            max_restarts:     10,
-            autorestart:      true,
-        },
-
-        // ─── GSC Sync + Analytics Worker ───
-        {
-            name:             'keyword-analyzer-gsc-sync',
-            script:           'src/workers/runners/gscSyncRunner.js',
-            instances:        1,
-            exec_mode:        'fork',
-            watch:            false,
-            max_memory_restart: '200M',
-            env_production: {
-                NODE_ENV: 'production',
-            },
-            log_date_format:  'YYYY-MM-DD HH:mm:ss',
-            out_file:         './logs/pm2-gsc-sync-out.log',
-            error_file:       './logs/pm2-gsc-sync-error.log',
-            merge_logs:       true,
-            restart_delay:    10000,
-            max_restarts:     5,
-            autorestart:      true,
-        },
-
-        // ─── Scheduled Email Reports Worker ───
-        {
-            name:             'keyword-analyzer-scheduled-reports',
-            script:           'src/workers/runners/scheduledReportsRunner.js',
-            instances:        1,
-            exec_mode:        'fork',
-            watch:            false,
-            max_memory_restart: '300M',
-            env_production: {
-                NODE_ENV: 'production',
-            },
-            log_date_format:  'YYYY-MM-DD HH:mm:ss',
-            out_file:         './logs/pm2-scheduled-reports-out.log',
-            error_file:       './logs/pm2-scheduled-reports-error.log',
-            merge_logs:       true,
-            restart_delay:    10000,
-            max_restarts:     5,
-            autorestart:      true,
-        },
+        // ─── Worker processes (one PM2 app per job) ───
+        makeWorkerApp('rank-tracker',     'rank-tracker',     '300M'),
+        makeWorkerApp('post-scheduler',   'post-scheduler',   '200M'),
+        makeWorkerApp('gsc-sync',         'gsc-sync',         '200M'),
+        makeWorkerApp('ga4-sync',         'ga4-sync',         '200M'),
+        makeWorkerApp('scheduled-reports','scheduled-reports','300M'),
+        makeWorkerApp('analytics-sync',   'analytics-sync',   '200M'),
     ],
 };

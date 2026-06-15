@@ -1,7 +1,7 @@
 const humanizerService = require('../services/humanizerService');
-const contentBriefRoutes = require('./contentBriefs');
+const contentBriefRoutes = require('./_contentBriefs');
 const { createLogger } = require('../utils/logger');
-const { getAgencyContext, requireAgencyContext } = require('../utils/authHelper');
+const { requireAgencyContext } = require('../utils/authHelper');
 
 const log = createLogger('routes:content');
 

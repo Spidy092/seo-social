@@ -1,8 +1,54 @@
 let contentBriefState = null;
+async function initContentBriefPage() {
+    const select = document.getElementById("briefProjectSelect");
+    if (select && !select.dataset.bound) {
+        select.dataset.bound = "1";
+        select.addEventListener("change", hydrateBriefFromProject);
+    }
+    await loadContentBriefProjects();
+    hydrateBriefFromProject();
+}
+
+async function loadContentBriefProjects() {
+    const select = document.getElementById("briefProjectSelect");
+    if (!select) return;
+
+    const current = select.value;
+    try {
+        const res = await fetch("/api/projects");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || data.message || "Could not load projects");
+        const projects = data.projects || [];
+        select.innerHTML = "<option value=\"\">Do not attach to project</option>" + projects.map(project =>
+            "<option value=\"" + escapeHtml(project.id) + "\" data-url=\"" + escapeHtml(project.website_url || "") + "\" data-location=\"" + escapeHtml(project.target_location || "") + "\">" + escapeHtml(project.client_name || "Client") + " · " + escapeHtml(project.name) + "</option>"
+        ).join("");
+        if (current && projects.some(project => String(project.id) === String(current))) select.value = current;
+    } catch (err) {
+        select.innerHTML = "<option value=\"\">Could not load projects</option>";
+        console.error("Failed to load content brief projects:", err);
+    }
+}
+
+function hydrateBriefFromProject() {
+    const select = document.getElementById("briefProjectSelect");
+    const selected = select?.options[select.selectedIndex];
+    if (!selected || !select.value) return;
+
+    const domainInput = document.getElementById("briefDomain");
+    const locationInput = document.getElementById("briefLocation");
+    const website = selected.dataset.url || "";
+    const location = selected.dataset.location || "";
+
+    if (website && domainInput && !domainInput.value.trim()) domainInput.value = website;
+    if (location && locationInput && (!locationInput.value.trim() || locationInput.value.trim() === "India")) {
+        locationInput.value = location;
+    }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('generateBriefBtn')?.addEventListener('click', generateContentBrief);
     document.getElementById('sendBriefToHumanizerBtn')?.addEventListener('click', sendBriefToHumanizer);
+    initContentBriefPage();
 });
 
 async function generateContentBrief() {
@@ -12,6 +58,7 @@ async function generateContentBrief() {
     const audience = document.getElementById('briefAudience')?.value.trim() || '';
     const brandVoice = document.getElementById('briefBrandVoice')?.value.trim() || '';
     const numResults = Number(document.getElementById('briefNumResults')?.value || 10);
+    const projectId = document.getElementById('briefProjectSelect')?.value || null;
     const useAi = document.getElementById('briefUseAi')?.checked !== false;
 
     if (!keyword) {
@@ -22,7 +69,7 @@ async function generateContentBrief() {
     try {
         const data = await api('/api/content/brief', {
             method: 'POST',
-            body: JSON.stringify({ keyword, location, myDomain, audience, brandVoice, numResults, useAi }),
+            body: JSON.stringify({ keyword, location, myDomain, audience, brandVoice, projectId, numResults, useAi }),
         });
 
         if (!data.success) {

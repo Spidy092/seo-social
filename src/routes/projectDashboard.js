@@ -7,7 +7,9 @@
 
 const { createLogger } = require('../utils/logger');
 const { syncGscPerformance, isoDate, buildSummary } = require('../services/gscService');
+const { checkProjectRankings } = require('../workers/rankTracker');
 const { getAgencyContext } = require('../utils/authHelper');
+const rankedKeywords = require('../services/rankedKeywordsService');
 
 const log = createLogger('routes:project-dashboard');
 
@@ -156,7 +158,7 @@ async function projectDashboardRoutes(fastify, options) {
 
             const targetDomain = normalizeDomain(project.client_website);
 
-            const [keywordsRes, ranksRes, historyRes, alertsRes, techRes, competitorRes, gscRes] = await Promise.all([
+            const [keywordsRes, ranksRes, historyRes, alertsRes, techRes, competitorRes, gscRes, rankedKwRes] = await Promise.all([
                 db.query(
                     `SELECT pk.id AS link_id, pk.intent, pk.priority_score, pk.notes, pk.created_at AS linked_at,
                             k.id AS keyword_id, k.keyword, k.location, k.search_volume,
@@ -167,31 +169,27 @@ async function projectDashboardRoutes(fastify, options) {
                      ORDER BY pk.priority_score DESC, k.search_volume DESC, pk.created_at DESC`,
                     [id]
                 ),
-                targetDomain
-                    ? db.query(
-                        `SELECT DISTINCT ON (dr.keyword_id)
-                                dr.keyword_id, dr.rank_position, dr.url, dr.checked_at
-                         FROM domain_rankings dr
-                         WHERE dr.domain = $1
-                         ORDER BY dr.keyword_id, dr.checked_at DESC`,
-                        [targetDomain]
-                    )
-                    : Promise.resolve({ rows: [] }),
-                targetDomain
-                    ? db.query(
-                        `SELECT DISTINCT ON (rh.keyword_id)
-                                rh.keyword_id, rh.rank_position, rh.previous_rank, rh.change_direction, rh.checked_at
-                         FROM rank_history rh
-                         WHERE rh.domain = $1
-                        ORDER BY rh.keyword_id, rh.checked_at DESC`,
-                        [targetDomain]
-                    )
-                    : Promise.resolve({ rows: [] }),
+                db.query(
+                    `SELECT DISTINCT ON (dr.keyword_id)
+                            dr.keyword_id, dr.rank_position, dr.url, dr.checked_at
+                     FROM domain_rankings dr
+                     WHERE dr.project_id = $1
+                     ORDER BY dr.keyword_id, dr.checked_at DESC`,
+                    [id]
+                ),
+                db.query(
+                    `SELECT DISTINCT ON (rh.keyword_id)
+                            rh.keyword_id, rh.rank_position, rh.previous_rank, rh.change_direction, rh.checked_at
+                     FROM rank_history rh
+                     WHERE rh.project_id = $1
+                     ORDER BY rh.keyword_id, rh.checked_at DESC`,
+                    [id]
+                ),
                 db.query(
                     `SELECT a.*, k.keyword
                      FROM alerts a
                      JOIN keywords k ON k.id = a.keyword_id
-                     WHERE a.keyword_id IN (SELECT keyword_id FROM seo_project_keywords WHERE project_id = $1)
+                     WHERE a.project_id = $1
                      ORDER BY a.created_at DESC
                      LIMIT 25`,
                     [id]
@@ -210,7 +208,8 @@ async function projectDashboardRoutes(fastify, options) {
                 db.query(
                     `SELECT c.domain, COUNT(*) AS keyword_count,
                             ROUND(AVG(c.rank_position)::numeric, 1) AS avg_position,
-                            MIN(c.rank_position) AS best_position
+                            MIN(c.rank_position) AS best_position,
+                            MAX(c.discovered_at) AS latest_discovered_at
                      FROM competitors c
                      WHERE c.keyword_id IN (SELECT keyword_id FROM seo_project_keywords WHERE project_id = $1)
                      GROUP BY c.domain
@@ -227,6 +226,17 @@ async function projectDashboardRoutes(fastify, options) {
                      LIMIT 1200`,
                     [project.client_id]
                 ).catch(() => ({ rows: [] })),
+                // Ranked keywords (cache-first). Tolerant of any failure —
+                // we never want a missing snapshot to break the dashboard.
+                rankedKeywords.getRankedKeywords(db, {
+                    projectId: id,
+                    clientId: project.client_id,
+                    agencyId: ctx.agencyId,
+                    forceRefresh: false,
+                }).catch((err) => {
+                    log.warn({ err: err.message, projectId: id }, 'ranked-keywords lookup failed inside dashboard; returning empty');
+                    return { source: 'none', url: '', count: 0, keywords: [], checkedAt: null, cached: false };
+                }),
             ]);
 
             const rankByKeyword = new Map();
@@ -273,12 +283,12 @@ async function projectDashboardRoutes(fastify, options) {
             });
 
             const totalSearchVolume = targetKeywords.reduce((sum, k) => sum + (k.searchVolume || 0), 0);
-            const rankedKeywords = targetKeywords.filter(k => k.rank && k.rank.position > 0);
-            const unranked = targetKeywords.length - rankedKeywords.length;
-            const top10 = rankedKeywords.filter(k => k.rank.position <= 10).length;
-            const top3 = rankedKeywords.filter(k => k.rank.position <= 3).length;
-            const avgPosition = rankedKeywords.length
-                ? Math.round((rankedKeywords.reduce((sum, k) => sum + k.rank.position, 0) / rankedKeywords.length) * 10) / 10
+            const rankedTargetKeywords = targetKeywords.filter(k => k.rank && k.rank.position > 0);
+            const unranked = targetKeywords.length - rankedTargetKeywords.length;
+            const top10 = rankedTargetKeywords.filter(k => k.rank.position <= 10).length;
+            const top3 = rankedTargetKeywords.filter(k => k.rank.position <= 3).length;
+            const avgPosition = rankedTargetKeywords.length
+                ? Math.round((rankedTargetKeywords.reduce((sum, k) => sum + k.rank.position, 0) / rankedTargetKeywords.length) * 10) / 10
                 : null;
 
             const droppedRankings = targetKeywords.filter(k => k.change && k.change.direction === 'down').length;
@@ -314,6 +324,7 @@ async function projectDashboardRoutes(fastify, options) {
                 keywordCount: parseInt(row.keyword_count, 10),
                 avgPosition: parseFloat(row.avg_position) || null,
                 bestPosition: parseInt(row.best_position, 10) || null,
+                latestDiscoveredAt: row.latest_discovered_at,
             }));
 
             const recentAlerts = alertsRes.rows.map(a => ({
@@ -390,7 +401,7 @@ async function projectDashboardRoutes(fastify, options) {
                 summary: {
                     keywordCount: targetKeywords.length,
                     totalSearchVolume,
-                    rankedKeywords: rankedKeywords.length,
+                    rankedKeywords: rankedTargetKeywords.length,
                     unranked,
                     top3,
                     top10,
@@ -440,11 +451,173 @@ async function projectDashboardRoutes(fastify, options) {
                     unreadCount: unreadAlerts,
                     recent: recentAlerts,
                 },
+                rankedKeywords: rankedKwRes || { source: 'none', url: '', count: 0, keywords: [], checkedAt: null, cached: false },
                 actions,
                 generatedAt: new Date().toISOString(),
             };
         } catch (err) {
             log.error({ err: err.message, projectId: id }, 'failed to build project dashboard');
+            return reply.code(500).send({ error: err.message });
+        }
+    });
+
+
+    fastify.get('/api/projects/:id/rankings', async (request, reply) => {
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+        const { id } = request.params;
+        const limit = Math.max(1, Math.min(200, Number(request.query.limit) || 100));
+        const offset = Math.max(0, Number(request.query.offset) || 0);
+        try {
+            const projectRes = await db.query(
+                `SELECT p.id, p.client_id, COALESCE(NULLIF(p.tracking_domain, ''), c.website_url) AS tracking_domain
+                 FROM seo_projects p JOIN seo_clients c ON c.id = p.client_id
+                 WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`,
+                [id, ctx.agencyId]
+            );
+            if (!projectRes.rows.length) return reply.code(404).send({ error: 'Project not found' });
+            const countRes = await db.query('SELECT COUNT(*) AS total FROM seo_project_keywords WHERE project_id = $1', [id]);
+            const result = await db.query(
+                `SELECT k.id AS keyword_id, k.keyword, k.location, k.search_volume, k.difficulty,
+                        spk.intent, spk.priority_score, dr.rank_position, dr.url, dr.checked_at,
+                        rh.previous_rank, rh.change_direction, rh.checked_at AS changed_at
+                 FROM seo_project_keywords spk
+                 JOIN keywords k ON k.id = spk.keyword_id
+                 LEFT JOIN domain_rankings dr ON dr.project_id = spk.project_id AND dr.keyword_id = spk.keyword_id
+                 LEFT JOIN LATERAL (
+                    SELECT previous_rank, change_direction, checked_at FROM rank_history
+                    WHERE project_id = spk.project_id AND keyword_id = spk.keyword_id
+                    ORDER BY checked_at DESC LIMIT 1
+                 ) rh ON TRUE
+                 WHERE spk.project_id = $1
+                 ORDER BY spk.priority_score DESC, k.search_volume DESC, k.keyword ASC
+                 LIMIT $2 OFFSET $3`,
+                [id, limit, offset]
+            );
+            return { success: true, projectId: id, trackingDomain: normalizeDomain(projectRes.rows[0].tracking_domain), rankings: result.rows, total: parseInt(countRes.rows[0].total, 10) || 0, limit, offset };
+        } catch (err) {
+            log.error({ err: err.message, projectId: id }, 'failed to load project rankings');
+            return reply.code(500).send({ error: err.message });
+        }
+    });
+
+    fastify.post('/api/projects/:id/rankings/check', async (request, reply) => {
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+        try {
+            const result = await checkProjectRankings(db, request.params.id, { agencyId: ctx.agencyId });
+            return { success: true, ...result };
+        } catch (err) {
+            log.error({ err: err.message, projectId: request.params.id }, 'project rank check failed');
+            return reply.code(/not found/i.test(err.message) ? 404 : 500).send({ error: err.message });
+        }
+    });
+
+    fastify.get('/api/projects/:id/alerts', async (request, reply) => {
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+        const { id } = request.params;
+        const limit = Math.max(1, Math.min(100, Number(request.query.limit) || 25));
+        const offset = Math.max(0, Number(request.query.offset) || 0);
+        const filters = ['a.project_id = $1'];
+        const params = [id];
+        try {
+            const projectRes = await db.query(`SELECT p.id FROM seo_projects p JOIN seo_clients c ON c.id = p.client_id WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`, [id, ctx.agencyId]);
+            if (!projectRes.rows.length) return reply.code(404).send({ error: 'Project not found' });
+            if (request.query.unreadOnly === 'true') filters.push('a.is_read = FALSE');
+            if (request.query.type) { params.push(request.query.type); filters.push(`a.alert_type = $${params.length}`); }
+            if (request.query.severity) { params.push(request.query.severity); filters.push(`a.severity = $${params.length}`); }
+            const where = filters.join(' AND ');
+            const count = await db.query(`SELECT COUNT(*) AS total FROM alerts a WHERE ${where}`, params);
+            const unread = await db.query('SELECT COUNT(*) AS total FROM alerts WHERE project_id = $1 AND is_read = FALSE', [id]);
+            const result = await db.query(
+                `SELECT a.*, k.keyword, c.name AS client_name, p.name AS project_name
+                 FROM alerts a
+                 LEFT JOIN keywords k ON k.id = a.keyword_id
+                 LEFT JOIN seo_clients c ON c.id = a.client_id
+                 LEFT JOIN seo_projects p ON p.id = a.project_id
+                 WHERE ${where}
+                 ORDER BY a.created_at DESC
+                 LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+                [...params, limit, offset]
+            );
+            return { success: true, alerts: result.rows, total: parseInt(count.rows[0].total, 10) || 0, unreadCount: parseInt(unread.rows[0].total, 10) || 0, limit, offset };
+        } catch (err) {
+            log.error({ err: err.message, projectId: id }, 'failed to load project alerts');
+            return reply.code(500).send({ error: err.message });
+        }
+    });
+
+    fastify.get('/api/projects/:id/competitors', async (request, reply) => {
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+        const { id } = request.params;
+        const limit = Math.max(1, Math.min(100, Number(request.query.limit) || 25));
+        const offset = Math.max(0, Number(request.query.offset) || 0);
+        try {
+            const projectRes = await db.query(`SELECT p.id FROM seo_projects p JOIN seo_clients c ON c.id = p.client_id WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`, [id, ctx.agencyId]);
+            if (!projectRes.rows.length) return reply.code(404).send({ error: 'Project not found' });
+            const count = await db.query(`SELECT COUNT(DISTINCT c.domain) AS total FROM competitors c JOIN seo_project_keywords spk ON spk.keyword_id = c.keyword_id WHERE spk.project_id = $1`, [id]);
+            const result = await db.query(
+                `SELECT c.domain, COUNT(DISTINCT c.keyword_id) AS keyword_overlap,
+                        ROUND(AVG(c.rank_position)::numeric, 1) AS avg_position,
+                        MIN(c.rank_position) AS best_position,
+                        MAX(c.discovered_at) AS latest_discovered_at
+                 FROM competitors c JOIN seo_project_keywords spk ON spk.keyword_id = c.keyword_id
+                 WHERE spk.project_id = $1
+                 GROUP BY c.domain
+                 ORDER BY keyword_overlap DESC, avg_position ASC
+                 LIMIT $2 OFFSET $3`,
+                [id, limit, offset]
+            );
+            return { success: true, competitors: result.rows, total: parseInt(count.rows[0].total, 10) || 0, limit, offset };
+        } catch (err) {
+            log.error({ err: err.message, projectId: id }, 'failed to load project competitors');
+            return reply.code(500).send({ error: err.message });
+        }
+    });
+
+    fastify.get('/api/projects/:id/setup-checklist', async (request, reply) => {
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+        const { id } = request.params;
+        try {
+            const projectRes = await db.query(
+                `SELECT p.id, p.name, p.client_id, p.tracking_domain, c.website_url, c.gsc_site_url, c.ga4_property_id
+                 FROM seo_projects p JOIN seo_clients c ON c.id = p.client_id
+                 WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`,
+                [id, ctx.agencyId]
+            );
+            if (!projectRes.rows.length) return reply.code(404).send({ error: 'Project not found' });
+            const project = projectRes.rows[0];
+            const domain = normalizeDomain(project.tracking_domain || project.website_url);
+            const [keywords, rankings, onpage, technical, pagespeed, gscRows, ga4Rows, competitors, tasks] = await Promise.all([
+                db.query('SELECT COUNT(*) AS total FROM seo_project_keywords WHERE project_id = $1', [id]),
+                db.query('SELECT COUNT(*) AS total, MAX(checked_at) AS last_checked_at FROM domain_rankings WHERE project_id = $1', [id]),
+                db.query('SELECT COUNT(*) AS total, MAX(created_at) AS last_run_at FROM onpage_audits WHERE project_id = $1', [id]),
+                domain ? db.query('SELECT COUNT(*) AS total, MAX(created_at) AS last_run_at FROM technical_audits WHERE site_url ILIKE $1 OR site_url ILIKE $2', [`%${domain}%`, `%www.${domain}%`]) : Promise.resolve({ rows: [{ total: 0, last_run_at: null }] }),
+                db.query('SELECT COUNT(*) AS total, MAX(created_at) AS last_run_at FROM page_speed_checks WHERE client_id = $1', [project.client_id]),
+                db.query('SELECT COUNT(*) AS total, MAX(created_at) AS last_synced_at FROM gsc_search_analytics WHERE client_id = $1', [project.client_id]),
+                db.query('SELECT COUNT(*) AS total, MAX(created_at) AS last_synced_at FROM ga4_page_analytics WHERE client_id = $1', [project.client_id]),
+                db.query('SELECT COUNT(DISTINCT c.domain) AS total FROM competitors c JOIN seo_project_keywords spk ON spk.keyword_id = c.keyword_id WHERE spk.project_id = $1', [id]),
+                db.query('SELECT COUNT(*) AS total FROM seo_tasks WHERE project_id = $1', [id]),
+            ]);
+            const item = (id, label, status, action, meta = {}) => ({ id, label, status, action, ...meta });
+            const checklist = [
+                item('client-domain', 'Client website / tracking domain', domain ? 'complete' : 'required', 'Add client website or project tracking domain', { actionPage: 'clients', actionLabel: 'Edit client', domain }),
+                item('keywords', 'Project keywords', Number(keywords.rows[0].total) > 0 ? 'complete' : 'required', 'Run keyword research and save keywords to this project', { actionPage: 'research', actionLabel: 'Find keywords', count: Number(keywords.rows[0].total) || 0 }),
+                item('rank-check', 'Project rank check', Number(rankings.rows[0].total) > 0 ? 'complete' : 'recommended', 'Run project rank check', { actionPage: 'tracking', actionType: 'run-rank-check', actionLabel: 'Run check', count: Number(rankings.rows[0].total) || 0, lastRunAt: rankings.rows[0].last_checked_at }),
+                item('onpage', 'On-page SEO audit', Number(onpage.rows[0].total) > 0 ? 'complete' : 'recommended', 'Run on-page audit for priority URL', { actionPage: 'onpage', actionLabel: 'Open audit', lastRunAt: onpage.rows[0].last_run_at }),
+                item('technical', 'Technical and security audit', Number(technical.rows[0].total) > 0 ? 'complete' : 'recommended', 'Run technical audit with security headers enabled', { actionPage: 'technical', actionLabel: 'Open audit', lastRunAt: technical.rows[0].last_run_at }),
+                item('pagespeed', 'PageSpeed / Core Web Vitals', Number(pagespeed.rows[0].total) > 0 ? 'complete' : 'recommended', 'Run PageSpeed check', { actionPage: 'page-speed', actionLabel: 'Open check', lastRunAt: pagespeed.rows[0].last_run_at }),
+                item('gsc', 'Google Search Console', project.gsc_site_url ? (Number(gscRows.rows[0].total) > 0 ? 'complete' : 'recommended') : 'recommended', project.gsc_site_url ? 'Sync GSC data' : 'Connect GSC property', { actionPage: 'search-visibility', actionType: 'gsc', actionLabel: project.gsc_site_url ? 'Open sync' : 'Connect', connected: Boolean(project.gsc_site_url), lastSyncedAt: gscRows.rows[0].last_synced_at }),
+                item('ga4', 'Google Analytics 4', project.ga4_property_id ? (Number(ga4Rows.rows[0].total) > 0 ? 'complete' : 'recommended') : 'recommended', project.ga4_property_id ? 'Sync GA4 data' : 'Connect GA4 property', { actionPage: 'search-visibility', actionType: 'ga4', actionLabel: project.ga4_property_id ? 'Open sync' : 'Connect', connected: Boolean(project.ga4_property_id), lastSyncedAt: ga4Rows.rows[0].last_synced_at }),
+                item('competitors', 'Competitor review', Number(competitors.rows[0].total) > 0 ? 'complete' : 'recommended', 'Review project competitors', { actionPage: 'competitors', actionLabel: 'Review', count: Number(competitors.rows[0].total) || 0 }),
+                item('tasks', 'SEO task plan', Number(tasks.rows[0].total) > 0 ? 'complete' : 'recommended', 'Generate or create SEO tasks from confirmed data', { actionPage: 'tasks', actionLabel: 'Open tasks', count: Number(tasks.rows[0].total) || 0 }),
+            ];
+            return { success: true, projectId: id, clientId: project.client_id, domain, checklist };
+        } catch (err) {
+            log.error({ err: err.message, projectId: id }, 'failed to build setup checklist');
             return reply.code(500).send({ error: err.message });
         }
     });

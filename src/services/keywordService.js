@@ -1859,4 +1859,7 @@ module.exports = {
     analyzeKeywordIntent,
     detectSERPFeatures,
     enrichKeywordsWithMetrics,
+
+    // Exposed for ranked-keywords + other raw-SERP callers
+    postSerperSearch,
 };

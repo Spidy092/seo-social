@@ -45,6 +45,7 @@ Built with **Node.js + Fastify + PostgreSQL + EJS**. Runs as a private, session-
 | **SEO Tasks** | Kanban-style task manager with priority, category, and status tracking |
 | **Social Poster** | Schedule and publish posts to Meta (Facebook/Instagram), LinkedIn, and YouTube |
 | **Social Analytics** | Track engagement (likes, comments, shares, reach) per post per platform |
+| **🤖 Full Project Audit (auto)** | One click (or auto on project create) runs every check — technical, on-page, PageSpeed, keywords, competitors, GSC, GA4, search visibility — and returns a unified report with score + prioritized action list. Polls progress, persists history, weekly re-audits run on a schedule. |
 
 ---
 

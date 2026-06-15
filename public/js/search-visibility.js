@@ -15,6 +15,37 @@ function svStatusBadge(value, label) {
     return `<span class="badge" style="background:${value ? '#dcfce7' : '#fee2e2'};color:${value ? '#166534' : '#991b1b'};">${label || (value ? 'Ready' : 'Missing')}</span>`;
 }
 
+
+function svInspectionIndexStatus(result) {
+    const index = result?.inspectionResult?.indexStatusResult || {};
+    const verdict = String(index.verdict || '').toUpperCase();
+    const coverage = String(index.coverageState || '');
+    const indexing = String(index.indexingState || '').toUpperCase();
+    const robots = String(index.robotsTxtState || '').toUpperCase();
+
+    if (robots === 'BLOCKED') {
+        return { label: 'Blocked by robots.txt', ok: false, detail: coverage || 'Google cannot crawl this URL because robots.txt blocks it.' };
+    }
+    if (indexing === 'BLOCKED_BY_NOINDEX') {
+        return { label: 'Blocked by noindex', ok: false, detail: coverage || 'The page has a noindex signal.' };
+    }
+    if (/not indexed/i.test(coverage)) {
+        return { label: 'Not indexed', ok: false, detail: coverage };
+    }
+    if (verdict === 'PASS' || /indexed/i.test(coverage)) {
+        return { label: 'Indexed or eligible', ok: true, detail: coverage || 'Google reports this URL can appear in Search.' };
+    }
+    if (!verdict && !coverage) {
+        return { label: 'Unknown', ok: false, detail: 'No URL Inspection status was returned.' };
+    }
+    return { label: verdict === 'FAIL' ? 'Not indexed' : 'Needs review', ok: verdict !== 'FAIL', detail: coverage || index.indexingState || verdict };
+}
+
+function svInspectionStatusBadge(result) {
+    const status = svInspectionIndexStatus(result);
+    return '<span class="badge" style="background:' + (status.ok ? '#dcfce7' : '#fee2e2') + ';color:' + (status.ok ? '#166534' : '#991b1b') + ';">' + svEscape(status.label) + '</span>';
+}
+
 async function svFetchJson(url, options = {}) {
     const res = await fetch(url, {
         headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
@@ -201,6 +232,7 @@ function renderSearchVisibilityInspection(data) {
     const taskBtn = document.getElementById('svCreateTaskBtn');
     if (!output) return;
     const index = data.result?.inspectionResult?.indexStatusResult || {};
+    const indexStatus = svInspectionIndexStatus(data.result);
     const rows = [
         ['Verdict', index.verdict || '-'],
         ['Coverage', index.coverageState || '-'],
@@ -211,6 +243,16 @@ function renderSearchVisibilityInspection(data) {
         ['Google canonical', index.googleCanonical || '-'],
     ];
     output.innerHTML = `
+        <div class="card" style="margin-bottom:14px;background:var(--bg);">
+            <div class="card-body" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                <div>
+                    <div class="text-muted" style="font-size:.78rem;text-transform:uppercase;font-weight:700;">Google Index Status</div>
+                    <div style="font-size:1.1rem;font-weight:800;margin-top:4px;">${svEscape(indexStatus.label)}</div>
+                    <p class="text-muted" style="margin:6px 0 0;font-size:.84rem;">${svEscape(indexStatus.detail)}</p>
+                </div>
+                ${svInspectionStatusBadge(data.result)}
+            </div>
+        </div>
         <table class="data-table premium"><tbody>
             ${rows.map(([k, v]) => `<tr><th>${svEscape(k)}</th><td>${svEscape(v)}</td></tr>`).join('')}
         </tbody></table>
@@ -304,12 +346,13 @@ async function loadSearchVisibilityActions(clientId) {
         const data = await svFetchJson(`/api/search-visibility/actions/${encodeURIComponent(clientId)}?limit=30`);
         const rows = data.actions || [];
         el.innerHTML = rows.length
-            ? `<table class="data-table premium"><thead><tr><th>When</th><th>Provider</th><th>Action</th><th>Status</th><th>URL</th><th>Error</th></tr></thead><tbody>${rows.map(row => `
+            ? `<table class="data-table premium"><thead><tr><th>When</th><th>Provider</th><th>Action</th><th>Status</th><th>Index</th><th>URL</th><th>Error</th></tr></thead><tbody>${rows.map(row => `
                 <tr>
                     <td>${new Date(row.created_at).toLocaleString()}</td>
                     <td>${svEscape(row.provider)}</td>
                     <td>${svEscape(row.action_type)}</td>
                     <td>${svStatusBadge(row.status === 'success', svEscape(row.status))}</td>
+                    <td>${row.action_type === 'url_inspection' ? svInspectionStatusBadge(row.response_payload || {}) : '<span class="text-muted">-</span>'}</td>
                     <td style="max-width:260px;word-break:break-word;">${svEscape(row.url || row.sitemap_url || '-')}</td>
                     <td>${svEscape(row.error_message || '-')}</td>
                 </tr>

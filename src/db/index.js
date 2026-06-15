@@ -157,7 +157,6 @@ async function repairKeywordConflictIndexes() {
     await query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_keywords_keyword_location ON keywords(keyword, location)`);
     await query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_competitors_domain_keyword ON competitors(domain, keyword_id)`);
     await query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_ranking_pages_keyword_domain ON ranking_pages(keyword_id, domain)`);
-    await query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_domain_rankings_domain_keyword ON domain_rankings(domain, keyword_id)`);
     await query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_seo_project_keywords_project_keyword ON seo_project_keywords(project_id, keyword_id)`);
 }
 
@@ -701,6 +700,31 @@ async function initializeDatabase() {
     await query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_my_domains_agency_domain ON my_domains(agency_id, domain)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_my_domains_agency ON my_domains(agency_id)`);
 
+    await query(`ALTER TABLE seo_projects ADD COLUMN IF NOT EXISTS tracking_domain TEXT`);
+
+    await query(`ALTER TABLE domain_rankings ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+    await query(`ALTER TABLE domain_rankings ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES seo_clients(id) ON DELETE CASCADE`);
+    await query(`ALTER TABLE domain_rankings ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES seo_projects(id) ON DELETE CASCADE`);
+    await query(`ALTER TABLE domain_rankings DROP CONSTRAINT IF EXISTS domain_rankings_domain_keyword_key`);
+    await query(`DROP INDEX IF EXISTS uniq_domain_rankings_domain_keyword`);
+    await query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_domain_rankings_project_keyword ON domain_rankings(project_id, keyword_id) WHERE project_id IS NOT NULL`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_domain_rankings_project ON domain_rankings(project_id, checked_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_domain_rankings_agency ON domain_rankings(agency_id, domain)`);
+
+    await query(`ALTER TABLE rank_history ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+    await query(`ALTER TABLE rank_history ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES seo_clients(id) ON DELETE CASCADE`);
+    await query(`ALTER TABLE rank_history ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES seo_projects(id) ON DELETE CASCADE`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_rank_history_project ON rank_history(project_id, checked_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_rank_history_agency ON rank_history(agency_id, domain, checked_at DESC)`);
+
+    await query(`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+    await query(`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES seo_clients(id) ON DELETE CASCADE`);
+    await query(`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES seo_projects(id) ON DELETE CASCADE`);
+    await query(`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS severity TEXT DEFAULT 'medium'`);
+    await query(`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_alerts_project_created ON alerts(project_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_alerts_agency_unread ON alerts(agency_id, is_read, created_at DESC)`);
+
     await query(`ALTER TABLE seo_clients ADD COLUMN IF NOT EXISTS gsc_site_url TEXT`);
     await query(`ALTER TABLE seo_clients ADD COLUMN IF NOT EXISTS ga4_property_id TEXT`);
     await query(`ALTER TABLE seo_clients ADD COLUMN IF NOT EXISTS ga4_property_name TEXT`);
@@ -874,6 +898,116 @@ async function initializeDatabase() {
     `);
     await query(`CREATE INDEX IF NOT EXISTS idx_scheduled_reports_active ON scheduled_reports(is_active, next_run_at)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_scheduled_reports_agency ON scheduled_reports(agency_id)`);
+
+    // ─── Project Audits (full SEO audit per project) ───
+    // One row per audit run. status moves pending → running → (success|failed|partial).
+    // progress is 0-100. results is a JSONB blob with per-check output.
+    // summary holds the AI-generated prioritized action items.
+    await query(`
+        CREATE TABLE IF NOT EXISTS project_audits (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES seo_projects(id) ON DELETE CASCADE,
+            client_id UUID REFERENCES seo_clients(id) ON DELETE CASCADE,
+            user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+            agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL,
+            trigger_source TEXT NOT NULL DEFAULT 'manual',  -- 'manual' | 'auto-on-create' | 'scheduled' | 'api'
+            status TEXT NOT NULL DEFAULT 'pending',          -- 'pending' | 'running' | 'success' | 'failed' | 'partial' | 'cancelled'
+            progress INTEGER NOT NULL DEFAULT 0,             -- 0..100
+            checks_total INTEGER NOT NULL DEFAULT 0,
+            checks_done INTEGER NOT NULL DEFAULT 0,
+            checks_failed INTEGER NOT NULL DEFAULT 0,
+            requested_checks JSONB NOT NULL DEFAULT '[]'::jsonb, -- snapshot of which checks were requested
+            results JSONB NOT NULL DEFAULT '{}'::jsonb,      -- per-check { name: { status, startedAt, finishedAt, data, error } }
+            summary JSONB NOT NULL DEFAULT '{}'::jsonb,      -- { score, topIssues, actions, headline }
+            error_message TEXT,
+            started_at TIMESTAMPTZ,
+            completed_at TIMESTAMPTZ,
+            cancelled_at TIMESTAMPTZ,
+            cancelled_by UUID REFERENCES users(id) ON DELETE SET NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_project_audits_project ON project_audits(project_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_project_audits_status ON project_audits(status, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_project_audits_agency ON project_audits(agency_id, created_at DESC)`);
+
+    // ─── Per-project audit settings ───
+    // One row per project. Anything unset falls back to global defaults
+    // (see audit_settings_global below).
+    await query(`
+        CREATE TABLE IF NOT EXISTS project_audit_settings (
+            project_id UUID PRIMARY KEY REFERENCES seo_projects(id) ON DELETE CASCADE,
+            enabled_checks JSONB NOT NULL DEFAULT '[]'::jsonb,   -- [] = inherit global; ['technical','onpage'] = override
+            auto_audit_on_create BOOLEAN,                         -- NULL = inherit global default
+            weekly_enabled BOOLEAN,                               -- NULL = inherit global
+            weekly_day_of_week INTEGER,                           -- 0..6, NULL = inherit
+            weekly_hour INTEGER,                                  -- 0..23, NULL = inherit
+            monthly_enabled BOOLEAN,                              -- NULL = inherit
+            monthly_day_of_month INTEGER,                         -- 1..28, NULL = inherit
+            custom_keywords JSONB DEFAULT '[]'::jsonb,            -- extra keywords to include in keyword check
+            custom_urls JSONB DEFAULT '[]'::jsonb,                -- extra URLs to include in on-page check
+            notify_on_complete BOOLEAN NOT NULL DEFAULT FALSE,
+            notify_emails JSONB DEFAULT '[]'::jsonb,
+            notify_webhook TEXT,
+            max_checks_concurrency INTEGER,                      -- NULL = inherit global
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+
+    // ─── Global audit settings (single row, id=1) ───
+    // Master switch + defaults that all projects inherit from.
+    await query(`
+        CREATE TABLE IF NOT EXISTS audit_settings_global (
+            id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+            enabled BOOLEAN NOT NULL DEFAULT TRUE,                -- master switch
+            default_checks JSONB NOT NULL DEFAULT '[]'::jsonb,   -- default list of checks; [] = run all
+            auto_audit_on_create BOOLEAN NOT NULL DEFAULT TRUE,
+            weekly_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+            weekly_day_of_week INTEGER NOT NULL DEFAULT 0,        -- 0=Sun
+            weekly_hour INTEGER NOT NULL DEFAULT 2,
+            monthly_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+            monthly_day_of_month INTEGER NOT NULL DEFAULT 1,
+            max_concurrent_audits INTEGER NOT NULL DEFAULT 2,
+            poll_interval_ms INTEGER NOT NULL DEFAULT 30000,
+            notify_on_complete BOOLEAN NOT NULL DEFAULT FALSE,
+            notify_webhook TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+    // Seed the single global row if missing
+    await query(`
+        INSERT INTO audit_settings_global (id) VALUES (1)
+        ON CONFLICT (id) DO NOTHING
+    `);
+
+    // ─── Ranked Keywords cache config ───
+    // 6 hours by default; admin can override via audit_settings_global.
+    await query(`ALTER TABLE audit_settings_global ADD COLUMN IF NOT EXISTS ranked_kw_cache_hours INTEGER NOT NULL DEFAULT 6`);
+
+    // ─── Ranked Keyword Snapshots ───
+    // Cached result of "what keywords does this URL/domain rank for right now",
+    // keyed by (project_id, target_url). TTL controlled by
+    // audit_settings_global.ranked_kw_cache_hours.
+    await query(`
+        CREATE TABLE IF NOT EXISTS ranked_keyword_snapshots (
+            id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id  UUID REFERENCES seo_projects(id) ON DELETE CASCADE,
+            client_id   UUID REFERENCES seo_clients(id)  ON DELETE CASCADE,
+            agency_id   UUID REFERENCES agencies(id)    ON DELETE SET NULL,
+            target_url  TEXT NOT NULL,
+            source      TEXT NOT NULL,
+            count       INTEGER NOT NULL DEFAULT 0,
+            payload     JSONB NOT NULL DEFAULT '{}'::jsonb,
+            checked_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            expires_at  TIMESTAMPTZ NOT NULL,
+            created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_ranked_kw_snap_lookup ON ranked_keyword_snapshots(project_id, target_url, expires_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_ranked_kw_snap_client ON ranked_keyword_snapshots(client_id, checked_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_ranked_kw_snap_agency ON ranked_keyword_snapshots(agency_id, checked_at DESC)`);
 
 
     log.info('✅ database schema initialized');

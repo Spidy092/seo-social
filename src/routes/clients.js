@@ -244,13 +244,59 @@ async function clientRoutes(fastify, options) {
             if (!access.rows.length) return reply.code(404).send({ error: 'Client not found' });
 
             const result = await db.query(
-                `INSERT INTO seo_projects (client_id, name, project_type, target_location, goals)
-                 VALUES ($1, $2, $3, $4, $5)
+                `INSERT INTO seo_projects (client_id, name, project_type, target_location, goals, tracking_domain)
+                 VALUES ($1, $2, $3, $4, $5, $6)
                  RETURNING *`,
-                [id, name, body.projectType || 'keyword-research', body.targetLocation || null, body.goals || null]
+                [id, name, body.projectType || 'keyword-research', body.targetLocation || null, body.goals || null, body.trackingDomain || null]
             );
 
-            return { success: true, project: result.rows[0] };
+            const project = result.rows[0];
+
+            // ── Auto-queue a full audit for the new project ──
+            // The user shouldn't have to click "run audit" for every
+            // check. The audit runs in the background and the UI
+            // polls /api/projects/:id/audits/latest for the result.
+            //
+            // Resolved order (first truthy wins):
+            //   1. body.autoAudit === false in the request  (per-request override)
+            //   2. process.env.DISABLE_AUTO_AUDIT === 'true' (env kill-switch)
+            //   3. project_audit_settings.auto_audit_on_create (per-project)
+            //   4. audit_settings_global.auto_audit_on_create (global default)
+            let autoAudit = body.autoAudit !== false && process.env.DISABLE_AUTO_AUDIT !== 'true';
+            if (autoAudit) {
+                try {
+                    const auditSettingsSvc = require('../services/auditSettings');
+                    const masterEnabled = await auditSettingsSvc.isMasterEnabled(db);
+                    if (!masterEnabled) autoAudit = false;
+                } catch { /* settings table not yet migrated — fall through */ }
+            }
+
+            if (autoAudit) {
+                try {
+                    const orchestrator = require('../services/auditOrchestrator');
+                    const audit = await orchestrator.createAudit(db, {
+                        projectId: project.id,
+                        clientId: id,
+                        userId: ctx.userId,
+                        agencyId: ctx.agencyId,
+                        triggerSource: 'auto-on-create',
+                    });
+                    return {
+                        success: true,
+                        project,
+                        audit: {
+                            id: audit.id,
+                            status: audit.status,
+                            pollUrl: `/api/projects/${project.id}/audits/${audit.id}`,
+                        },
+                    };
+                } catch (auditErr) {
+                    // Audit-queue failure must NOT block project creation.
+                    log.warn({ err: auditErr.message, projectId: project.id }, 'auto-audit queue failed');
+                }
+            }
+
+            return { success: true, project };
         } catch (err) {
             log.error({ err: err.message }, 'failed to create project');
             return reply.code(500).send({ error: err.message });
@@ -268,7 +314,7 @@ async function clientRoutes(fastify, options) {
             const params = ctx.role === 'agent' ? [ctx.agencyId, ctx.userId] : [ctx.agencyId];
 
             const result = await db.query(
-                `SELECT p.id, p.name, p.project_type, p.target_location, p.client_id, c.name AS client_name
+                `SELECT p.id, p.name, p.project_type, p.target_location, p.tracking_domain, p.client_id, c.name AS client_name, c.website_url
                  FROM seo_projects p
                  JOIN seo_clients c ON c.id = p.client_id
                  WHERE (c.agency_id = $1 OR c.agency_id IS NULL) ${agentFilter}

@@ -425,14 +425,26 @@ function renderPdRankedKeywords(data) {
     const container = document.querySelector('#pdRankedKeywordsBlock');
     if (!container) return;
     const rk = data.rankedKeywords;
+
+    // ── Polished empty state (no URL configured) ──
     if (!rk || !rk.url) {
-        container.innerHTML = pdEmpty('No domain or URL configured for this project. Set the client website or a project tracking domain to see ranked keywords.', 'fa-magnifying-glass');
+        const clientName = data.project?.client?.name;
+        const message = clientName
+            ? `No domain or URL is set for <strong>${pdEscape(clientName)}</strong>. Add a website URL on the client, or set a tracking domain on the project, to see ranked keywords.`
+            : 'No domain or URL configured for this project. Set the client website or a project tracking domain to see ranked keywords.';
+        container.innerHTML = `
+            <div class="pd-ranked-kw-empty-state">
+                <i class="fas fa-globe fa-2x" style="color:var(--gray-light,#d1d5db);margin-bottom:8px"></i>
+                <div>${message}</div>
+            </div>
+        `;
         return;
     }
 
     const source = rk.source || 'none';
-    const keywords = Array.isArray(rk.keywords) ? rk.keywords : [];
-    const count = Number(rk.count) || keywords.length;
+    const allKeywords = Array.isArray(rk.keywords) ? rk.keywords : [];
+    const tracked = new Set(Array.isArray(rk.trackedKeywords) ? rk.trackedKeywords : []);
+    const count = Number(rk.count) || allKeywords.length;
     const sourceLabels = {
         gsc: 'Google Search Console',
         serper: 'Serper.dev',
@@ -443,14 +455,45 @@ function renderPdRankedKeywords(data) {
     const sourceLabel = sourceLabels[source] || source;
     const cached = rk.cached || source === 'cache';
     const defaultUrl = rk.url || (data.project?.client?.domain || '');
+    const defaultLocation = rk.location || '';
     const inputId = 'pdRankedKwInput';
+    const locInputId = 'pdRankedKwLocationInput';
     const btnId = 'pdRankedKwRefreshBtn';
+    const exportId = 'pdRankedKwExportBtn';
+    const addAllId = 'pdRankedKwAddAllBtn';
+    const untrackedId = 'pdRankedKwUntrackedToggle';
 
-    if (count === 0) {
+    // Delta chip ("vs last check")
+    let deltaChip = '';
+    if (rk.delta && typeof rk.delta.delta === 'number') {
+        const d = rk.delta.delta;
+        const sign = d > 0 ? '+' : '';
+        const tone = d > 0 ? 'up' : d < 0 ? 'down' : 'same';
+        deltaChip = `<span class="pd-delta-chip ${tone}">${sign}${d} since last check</span>`;
+    }
+
+    // Untracked-only filter (state is local to the card)
+    const showUntrackedOnly = container.dataset.untrackedOnly === '1';
+    const untrackedCount = allKeywords.filter((k) => !tracked.has(String(k.keyword).toLowerCase())).length;
+    const visible = showUntrackedOnly
+        ? allKeywords.filter((k) => !tracked.has(String(k.keyword).toLowerCase()))
+        : allKeywords;
+    const untrackedToggleHtml = `
+        <label class="pd-ranked-kw-toggle">
+            <input type="checkbox" id="${untrackedId}" ${showUntrackedOnly ? 'checked' : ''}>
+            <span>Untracked only (${untrackedCount})</span>
+        </label>
+    `;
+
+    // No-URL / no-data empty state
+    if (allKeywords.length === 0) {
         container.innerHTML = `
             <div class="pd-ranked-kw-bar">
                 <input id="${inputId}" type="text" placeholder="example.com or https://example.com/page"
                        value="${pdEscape(defaultUrl)}" autocomplete="off" spellcheck="false">
+                <input id="${locInputId}" type="text" placeholder="Location (e.g. Coimbatore)"
+                       value="${pdEscape(defaultLocation)}" autocomplete="off" spellcheck="false"
+                       class="pd-ranked-kw-loc-input">
                 <button class="btn btn-primary" id="${btnId}" type="button">
                     <i class="fas fa-rotate"></i> Refresh
                 </button>
@@ -463,12 +506,12 @@ function renderPdRankedKeywords(data) {
                 <span>Last checked ${pdFormatTimeAgo(rk.checkedAt)}</span>
             </div>
         `;
-        bindRankedKwHandlers({ inputId, btnId });
+        bindRankedKwHandlers({ inputId, locInputId, btnId, exportId, addAllId, untrackedId });
         return;
     }
 
-    const top = keywords.slice(0, 20);
-    const rowsHtml = top.map(k => {
+    // ── Render keyword list ──
+    const renderList = (list) => list.slice(0, 50).map(k => {
         const pos = k.position ? Number(k.position) : null;
         const posHtml = pos
             ? `<span class="pd-ranked-kw-pos ${pdRankClass(pos)}">#${pos}</span>`
@@ -477,6 +520,14 @@ function renderPdRankedKeywords(data) {
             k.clicks != null ? `${pdFormatNumber(k.clicks)} clicks` : null,
             k.impressions != null ? `${pdFormatNumber(k.impressions)} impr.` : null,
         ].filter(Boolean).join(' · ');
+        const kLower = String(k.keyword).toLowerCase();
+        const isTracked = tracked.has(kLower);
+        const plusBtn = isTracked
+            ? `<span class="pd-ranked-kw-tracked" title="Already a target keyword"><i class="fas fa-check"></i></span>`
+            : `<button class="pd-ranked-kw-add-btn" data-keyword="${pdEscape(k.keyword)}"
+                       data-position="${pos || ''}" title="Add as target keyword">
+                    <i class="fas fa-plus"></i>
+                </button>`;
         return `
             <div class="pd-ranked-kw-row">
                 <div class="pd-ranked-kw-keyword">
@@ -484,6 +535,7 @@ function renderPdRankedKeywords(data) {
                     ${meta ? `<div class="pd-meta">${pdEscape(meta)}</div>` : ''}
                 </div>
                 ${posHtml}
+                ${plusBtn}
             </div>
         `;
     }).join('');
@@ -492,41 +544,59 @@ function renderPdRankedKeywords(data) {
         <div class="pd-ranked-kw-bar">
             <input id="${inputId}" type="text" placeholder="example.com or https://example.com/page"
                    value="${pdEscape(defaultUrl)}" autocomplete="off" spellcheck="false">
+            <input id="${locInputId}" type="text" placeholder="Location (e.g. Coimbatore)"
+                   value="${pdEscape(defaultLocation)}" autocomplete="off" spellcheck="false"
+                   class="pd-ranked-kw-loc-input">
             <button class="btn btn-primary" id="${btnId}" type="button">
                 <i class="fas fa-rotate"></i> Refresh
             </button>
+            <button class="btn" id="${exportId}" type="button" title="Download CSV">
+                <i class="fas fa-download"></i>
+            </button>
         </div>
         <div class="pd-ranked-kw-summary">
-            <div class="pd-ranked-kw-count">${pdFormatNumber(count)}</div>
+            <div class="pd-ranked-kw-count">${pdFormatNumber(visible.length)}</div>
             <div class="pd-ranked-kw-meta">
-                <span>keywords this URL ranks for</span>
+                <span>${showUntrackedOnly ? 'untracked keywords' : 'keywords this URL ranks for'}</span>
                 <span class="pd-source-badge ${pdEscape(source)}">${pdEscape(sourceLabel)}</span>
                 ${cached ? '<span class="pd-source-badge cache">cached</span>' : ''}
+                ${deltaChip}
                 <span>· Last checked ${pdFormatTimeAgo(rk.checkedAt)}</span>
             </div>
         </div>
-        <div class="pd-ranked-kw-list">${rowsHtml}</div>
+        <div class="pd-ranked-kw-toolbar">
+            ${untrackedToggleHtml}
+            <button class="btn pd-ranked-kw-add-all" id="${addAllId}" type="button">
+                <i class="fas fa-plus-circle"></i> Add all visible as targets
+            </button>
+        </div>
+        <div class="pd-ranked-kw-list">${renderList(visible)}</div>
     `;
-    bindRankedKwHandlers({ inputId, btnId });
+    bindRankedKwHandlers({ inputId, locInputId, btnId, exportId, addAllId, untrackedId });
 }
 
-function bindRankedKwHandlers({ inputId, btnId }) {
+function bindRankedKwHandlers({ inputId, locInputId, btnId, exportId, addAllId, untrackedId }) {
     const input = document.getElementById(inputId);
+    const locInput = document.getElementById(locInputId);
     const btn = document.getElementById(btnId);
+    const exportBtn = document.getElementById(exportId);
+    const addAllBtn = document.getElementById(addAllId);
+    const untrackedCb = document.getElementById(untrackedId);
     if (!btn) return;
 
     const doRefresh = async (force) => {
         if (!PD.currentProjectId) return;
         const url = input ? input.value.trim() : '';
+        const location = locInput ? locInput.value.trim() : '';
         btn.disabled = true;
         const original = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing…';
         try {
             const params = new URLSearchParams();
             if (url) params.set('url', url);
+            if (location) params.set('location', location);
             if (force) params.set('refresh', 'true');
             const data = await api(`/api/projects/${PD.currentProjectId}/ranked-keywords?${params.toString()}`);
-            // Re-render only the ranked-keywords card without reloading the whole dashboard
             const payload = PD.cache.get(PD.currentProjectId) || {};
             payload.rankedKeywords = data;
             PD.cache.set(PD.currentProjectId, payload);
@@ -543,10 +613,108 @@ function bindRankedKwHandlers({ inputId, btnId }) {
     btn.addEventListener('click', () => doRefresh(true));
     if (input) {
         input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                doRefresh(false);
+            if (e.key === 'Enter') { e.preventDefault(); doRefresh(false); }
+        });
+    }
+    if (locInput) {
+        locInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); doRefresh(false); }
+        });
+    }
+
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            if (!PD.currentProjectId) return;
+            const url = input ? input.value.trim() : '';
+            const location = locInput ? locInput.value.trim() : '';
+            const params = new URLSearchParams();
+            if (url) params.set('url', url);
+            if (location) params.set('location', location);
+            window.location.href = `/api/projects/${PD.currentProjectId}/ranked-keywords/export?${params.toString()}`;
+        });
+    }
+
+    // Per-row "+" buttons: add a single keyword as a target
+    document.querySelectorAll('.pd-ranked-kw-add-btn').forEach((b) => {
+        b.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const keyword = b.dataset.keyword;
+            const position = b.dataset.position || null;
+            if (!keyword || !PD.currentProjectId) return;
+            b.disabled = true;
+            const original = b.innerHTML;
+            b.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            try {
+                const r = await api(`/api/projects/${PD.currentProjectId}/keywords/promote`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        keywords: [{
+                            keyword,
+                            location: (locInput && locInput.value.trim()) || '',
+                            position: position ? Number(position) : null,
+                        }],
+                    }),
+                });
+                showSuccess(`Added "${keyword}" as a target keyword (${r.added} added, ${r.skipped} skipped)`);
+                b.outerHTML = '<span class="pd-ranked-kw-tracked" title="Already a target keyword"><i class="fas fa-check"></i></span>';
+            } catch (err) {
+                showError(err.message || 'Could not add keyword');
+                b.innerHTML = original;
+                b.disabled = false;
             }
+        });
+    });
+
+    if (addAllBtn) {
+        addAllBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            if (!PD.currentProjectId) return;
+            const rows = Array.from(document.querySelectorAll('.pd-ranked-kw-add-btn'));
+            if (!rows.length) {
+                showSuccess('Nothing to add — all visible keywords are already tracked.');
+                return;
+            }
+            const keywords = rows.map((b) => ({
+                keyword: b.dataset.keyword,
+                location: (locInput && locInput.value.trim()) || '',
+                position: b.dataset.position ? Number(b.dataset.position) : null,
+            }));
+            addAllBtn.disabled = true;
+            const original = addAllBtn.innerHTML;
+            addAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding…';
+            try {
+                const r = await api(`/api/projects/${PD.currentProjectId}/keywords/promote`, {
+                    method: 'POST',
+                    body: JSON.stringify({ keywords }),
+                });
+                showSuccess(`Added ${r.added} keyword${r.added === 1 ? '' : 's'} as targets (${r.skipped} already tracked)`);
+                // Re-render the card to reflect the newly-tracked state
+                const payload = PD.cache.get(PD.currentProjectId) || {};
+                if (payload.rankedKeywords && Array.isArray(r.conflicts)) {
+                    const newlyTracked = new Set(r.conflicts.map((k) => String(k).toLowerCase()));
+                    payload.rankedKeywords.trackedKeywords = Array.from(new Set([
+                        ...(payload.rankedKeywords.trackedKeywords || []),
+                        ...newlyTracked,
+                    ]));
+                    PD.cache.set(PD.currentProjectId, payload);
+                    renderPdRankedKeywords(payload);
+                }
+            } catch (err) {
+                showError(err.message || 'Could not add keywords');
+            } finally {
+                addAllBtn.disabled = false;
+                addAllBtn.innerHTML = original;
+            }
+        });
+    }
+
+    if (untrackedCb) {
+        untrackedCb.addEventListener('change', () => {
+            const container = document.getElementById('pdRankedKeywordsBlock');
+            if (!container) return;
+            container.dataset.untrackedOnly = untrackedCb.checked ? '1' : '0';
+            const payload = PD.cache.get(PD.currentProjectId) || {};
+            renderPdRankedKeywords(payload);
         });
     }
 }

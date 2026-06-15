@@ -988,8 +988,10 @@ async function initializeDatabase() {
 
     // ─── Ranked Keyword Snapshots ───
     // Cached result of "what keywords does this URL/domain rank for right now",
-    // keyed by (project_id, target_url). TTL controlled by
-    // audit_settings_global.ranked_kw_cache_hours.
+    // keyed by (project_id, target_url, location). TTL controlled by
+    // audit_settings_global.ranked_kw_cache_hours. Location is part of the
+    // key because the same URL ranked from different cities/countries can
+    // surface different keywords (e.g. local SERP variation).
     await query(`
         CREATE TABLE IF NOT EXISTS ranked_keyword_snapshots (
             id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1000,12 +1002,14 @@ async function initializeDatabase() {
             source      TEXT NOT NULL,
             count       INTEGER NOT NULL DEFAULT 0,
             payload     JSONB NOT NULL DEFAULT '{}'::jsonb,
+            location    TEXT,
             checked_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             expires_at  TIMESTAMPTZ NOT NULL,
             created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     `);
-    await query(`CREATE INDEX IF NOT EXISTS idx_ranked_kw_snap_lookup ON ranked_keyword_snapshots(project_id, target_url, expires_at DESC)`);
+    await query(`ALTER TABLE ranked_keyword_snapshots ADD COLUMN IF NOT EXISTS location TEXT`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_ranked_kw_snap_lookup ON ranked_keyword_snapshots(project_id, target_url, location, expires_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_ranked_kw_snap_client ON ranked_keyword_snapshots(client_id, checked_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_ranked_kw_snap_agency ON ranked_keyword_snapshots(agency_id, checked_at DESC)`);
 

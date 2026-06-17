@@ -154,8 +154,43 @@ const { EventEmitter } = require('events');
 const crawlEmitter = new EventEmitter();
 crawlEmitter.setMaxListeners(100);
 
+// ─── In-memory job store for background crawls ────────────────────────────────
+// Jobs expire after 2 hours. Keys are random hex strings.
+const _jobs = new Map();
+const JOB_TTL_MS = 2 * 60 * 60 * 1000;
+
+function createJob(meta = {}) {
+    const { randomBytes } = require('crypto');
+    const jobId = randomBytes(16).toString('hex');
+    _jobs.set(jobId, { status: 'running', createdAt: Date.now(), meta, result: null, error: null });
+    return jobId;
+}
+function finishJob(jobId, result) {
+    const job = _jobs.get(jobId);
+    if (job) { job.status = 'done'; job.result = result; job.finishedAt = Date.now(); }
+}
+function failJob(jobId, errMsg) {
+    const job = _jobs.get(jobId);
+    if (job) { job.status = 'error'; job.error = errMsg; job.finishedAt = Date.now(); }
+}
+// Prune stale jobs every 30 min
+setInterval(() => {
+    const cutoff = Date.now() - JOB_TTL_MS;
+    for (const [id, j] of _jobs) { if (j.createdAt < cutoff) _jobs.delete(id); }
+}, 30 * 60 * 1000).unref();
+
 async function sitemapRoutes(fastify, options) {
     const { db } = options;
+
+    // ── GET /api/sitemap/job/:jobId — poll background crawl result ───────────
+    fastify.get('/api/sitemap/job/:jobId', async (request, reply) => {
+        const job = _jobs.get(request.params.jobId);
+        if (!job) return reply.code(404).send({ success: false, error: 'Job not found or expired.' });
+        if (job.status === 'running') return { success: true, status: 'running', meta: job.meta };
+        if (job.status === 'error')   return { success: false, status: 'error',  error: job.error };
+        // done
+        return { success: true, status: 'done', ...job.result };
+    });
 
     // ── GET /api/sitemap/progress — Server-Sent Events ───────────────────────
     fastify.get('/api/sitemap/progress', {
@@ -547,161 +582,122 @@ async function sitemapRoutes(fastify, options) {
                 onProgress: (crawled, max, currentUrl) => crawlEmitter.emit(`progress:${startUrl}`, { crawled, max, currentUrl })
             };
 
-            log.info({
-                startUrl,
-                clientId,
-                seedUrls: seedUrls.size,
-                maxPages: opts.maxPages,
-                maxDepth: opts.maxDepth,
-            }, 'client sitemap generation started');
+            // ── Create a background job and return 202 immediately (fixes 504) ─
+            const jobId = createJob({ startUrl, clientId, maxPages: opts.maxPages });
+            log.info({ startUrl, clientId, jobId, seedUrls: seedUrls.size, maxPages: opts.maxPages, maxDepth: opts.maxDepth }, 'client sitemap job queued');
 
-            let result;
-            try {
-                const start = Date.now();
-                result = await generateSitemap(opts);
-                result.stats.durationMs = Date.now() - start;
-            } catch (err) {
-                log.error({ err: err.message, startUrl }, 'client sitemap generation failed');
-                if (err.message.includes('ECONNREFUSED') || err.message.includes('ENOTFOUND') || err.message.includes('Could not fetch')) {
-                    return reply.code(422).send({ success: false, error: `Could not reach ${startUrl}. Check the URL is publicly accessible.` });
-                }
-                return reply.code(500).send({ success: false, error: 'Sitemap generation failed: ' + err.message });
-            }
-
-            // ── Optionally save to DB ──────────────────────────────────────
-            let savedId = null;
-            if (body.saveResult !== false) {
+            // Fire-and-forget background task — runs after we respond
+            setImmediate(async () => {
+                let result;
                 try {
-                    const startUrlOrigin = (() => { try { return new URL(startUrl).origin; } catch { return null; } })();
-                    const fileCount = result.sitemapFiles?.length || 0;
-                    const allDetails = Object.values(result.pageDetails || {});
-                    const redirectCount = allDetails.filter(d => Array.isArray(d.redirectChain) && d.redirectChain.length > 0).length;
-                    const orphanCount = allDetails.filter(d => d.isOrphan).length;
-                    const brokenCount = (result.stats.skipped && result.stats.skipped.error) || 0;
-                    const saveRes = await db.query(
-                        `INSERT INTO sitemap_generations
-                           (user_id, agency_id, client_id, site_url, total_urls, xml_content, options, is_index, site_origin, total_pages, broken_count, redirect_count, orphan_count, options_v2)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-                         RETURNING id`,
-                        [
-                            ctx.userId,
-                            ctx.agencyId,
-                            clientId,
-                            startUrl,
-                            result.stats.crawled,
-                            result.xml,
-                            JSON.stringify({
-                                ...opts,
-                                seedUrls: undefined,
-                                isSitemapIndex: result.isSitemapIndex,
-                                sitemapFileCount: fileCount,
-                            }),
-                            result.isSitemapIndex,
-                            startUrlOrigin,
-                            result.stats.crawled,
-                            brokenCount,
-                            redirectCount,
-                            orphanCount,
-                            JSON.stringify({
-                                sitemapFilesCount: fileCount,
-                                pageDetailsCount: allDetails.length,
-                                linkGraphSize: (result.linkGraph && result.linkGraph.size) || 0,
-                                blockedUrlsCount: (result.stats.blockedUrls || []).length,
-                            }),
-                        ]
-                    );
-                    savedId = saveRes.rows[0]?.id;
-
-                    // Persist per-file XML (for split sitemaps) and per-page details
-                    if (savedId) {
-                        const allFiles = result.isSitemapIndex && result.sitemapFiles && result.sitemapFiles.length
-                            ? result.sitemapFiles
-                            : [{ index: 1, xml: result.xml, urlCount: result.stats.crawled }];
-                        const zlib = require('zlib');
-                        for (const f of allFiles) {
-                            try {
-                                // Pre-compute gzip bytes now so /sitemap-:id.xml.gz can stream
-                                // them directly (B7 / P2 — no on-the-fly recomputation per request).
-                                let gzipBuf = null;
-                                try { gzipBuf = zlib.gzipSync(Buffer.from(f.xml || '', 'utf8'), { level: 9 }); } catch { /* ignore */ }
-                                await db.query(
-                                    `INSERT INTO sitemap_saved_files
-                                       (generation_id, agency_id, client_id, file_index, file_name, file_kind, xml_content, gzip_content, url_count, byte_size)
-                                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-                                    [
-                                        savedId,
-                                        ctx.agencyId,
-                                        clientId,
-                                        f.index,
-                                        `sitemap-${f.index}.xml`,
-                                        'urlset',
-                                        f.xml,
-                                        gzipBuf,
-                                        f.urlCount,
-                                        (f.xml || '').length,
-                                    ]
-                                );
-                            } catch (fileErr) {
-                                log.error({ err: fileErr.message }, 'Failed to persist sitemap file');
-                            }
-                        }
-
-                        // P1 — batch insert per-page details instead of one round-trip per row.
-                        // For 5 000 pages this is 5 000 fewer queries.
-                        const details = result.pageDetails || {};
-                        const detailRows = Object.keys(details).map(url => {
-                            const d = details[url];
-                            return [
-                                savedId, clientId, url, d.canonical, d.status, d.contentType, d.contentLength, d.responseTimeMs,
-                                JSON.stringify(d.redirectChain || []), d.outDegree || 0, d.externalLinkCount || 0, d.inDegree || 0,
-                                d.isOrphan || false, d.contentHash, d.title, d.h1, d.lastmod ? new Date(d.lastmod) : null,
-                            ];
-                        });
-                        const DETAIL_BATCH = 200;
-                        for (let i = 0; i < detailRows.length; i += DETAIL_BATCH) {
-                            const slice = detailRows.slice(i, i + DETAIL_BATCH);
-                            const placeholders = slice.map((_, idx) => {
-                                const off = idx * 17;
-                                return `($${off+1},$${off+2},$${off+3},$${off+4},$${off+5},$${off+6},$${off+7},$${off+8},$${off+9},$${off+10},$${off+11},$${off+12},$${off+13},$${off+14},$${off+15},$${off+16},$${off+17})`;
-                            }).join(',');
-                            try {
-                                await db.query(
-                                    `INSERT INTO sitemap_crawl_details
-                                       (generation_id, client_id, url, canonical, status, content_type, content_length, response_time_ms,
-                                        redirect_chain, internal_link_count, external_link_count, in_degree, is_orphan, content_hash, title, h1, lastmod)
-                                     VALUES ${placeholders}
-                                     ON CONFLICT DO NOTHING`,
-                                    slice.flat()
-                                );
-                            } catch (e) { log.debug({ err: e.message }, 'detail batch insert failed'); }
-                        }
-
-                        // A10 — ping Bing's sitemap submission endpoint (Google deprecated
-                        // their public ping API in 2023; Bing still supports it). Best-effort,
-                        // fire-and-forget.
-                        try {
-                            const publicBase = process.env.PUBLIC_BASE_URL || '';
-                            if (publicBase) {
-                                const pingUrl = `https://www.bing.com/ping?sitemap=${encodeURIComponent(`${publicBase}/sitemap.xml?clientId=${clientId}`)}`;
-                                require('https').get(pingUrl, () => {}).on('error', () => {});
-                            }
-                        } catch { /* ignore */ }
-                    }
-                    log.info({ savedId, clientId, urls: result.stats.crawled }, 'sitemap saved to DB');
-                } catch (saveErr) {
-                    log.error({ err: saveErr.message }, 'Failed to save sitemap — returning result anyway');
+                    const start = Date.now();
+                    result = await generateSitemap(opts);
+                    result.stats.durationMs = Date.now() - start;
+                } catch (err) {
+                    log.error({ err: err.message, startUrl, jobId }, 'client sitemap generation failed');
+                    failJob(jobId, err.message);
+                    return;
                 }
-            }
 
-            return {
-                success: true,
-                savedId,
-                xml:              result.xml,
-                isSitemapIndex:   result.isSitemapIndex,
-                sitemapFiles:     result.sitemapFiles,
-                robotsSitemapUrls: result.robotsSitemapUrls,
-                stats: result.stats,
-            };
+                // ── Optionally save to DB ──────────────────────────────────
+                let savedId = null;
+                if (body.saveResult !== false) {
+                    try {
+                        const startUrlOrigin = (() => { try { return new URL(startUrl).origin; } catch { return null; } })();
+                        const fileCount = result.sitemapFiles?.length || 0;
+                        const allDetails = Object.values(result.pageDetails || {});
+                        const redirectCount = allDetails.filter(d => Array.isArray(d.redirectChain) && d.redirectChain.length > 0).length;
+                        const orphanCount = allDetails.filter(d => d.isOrphan).length;
+                        const brokenCount = (result.stats.skipped && result.stats.skipped.error) || 0;
+                        const saveRes = await db.query(
+                            `INSERT INTO sitemap_generations
+                               (user_id, agency_id, client_id, site_url, total_urls, xml_content, options, is_index, site_origin, total_pages, broken_count, redirect_count, orphan_count, options_v2)
+                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                             RETURNING id`,
+                            [
+                                ctx.userId, ctx.agencyId, clientId, startUrl, result.stats.crawled, result.xml,
+                                JSON.stringify({ ...opts, seedUrls: undefined, isSitemapIndex: result.isSitemapIndex, sitemapFileCount: fileCount }),
+                                result.isSitemapIndex, startUrlOrigin, result.stats.crawled, brokenCount, redirectCount, orphanCount,
+                                JSON.stringify({
+                                    sitemapFilesCount: fileCount, pageDetailsCount: allDetails.length,
+                                    linkGraphSize: (result.linkGraph && result.linkGraph.size) || 0,
+                                    blockedUrlsCount: (result.stats.blockedUrls || []).length,
+                                }),
+                            ]
+                        );
+                        savedId = saveRes.rows[0]?.id;
+
+                        if (savedId) {
+                            const allFiles = result.isSitemapIndex && result.sitemapFiles && result.sitemapFiles.length
+                                ? result.sitemapFiles
+                                : [{ index: 1, xml: result.xml, urlCount: result.stats.crawled }];
+                            const zlib = require('zlib');
+                            for (const f of allFiles) {
+                                try {
+                                    let gzipBuf = null;
+                                    try { gzipBuf = zlib.gzipSync(Buffer.from(f.xml || '', 'utf8'), { level: 9 }); } catch { /* ignore */ }
+                                    await db.query(
+                                        `INSERT INTO sitemap_saved_files
+                                           (generation_id, agency_id, client_id, file_index, file_name, file_kind, xml_content, gzip_content, url_count, byte_size)
+                                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+                                        [savedId, ctx.agencyId, clientId, f.index, `sitemap-${f.index}.xml`, 'urlset', f.xml, gzipBuf, f.urlCount, (f.xml || '').length]
+                                    );
+                                } catch (fileErr) { log.error({ err: fileErr.message }, 'Failed to persist sitemap file'); }
+                            }
+
+                            const details = result.pageDetails || {};
+                            const detailRows = Object.keys(details).map(url => {
+                                const d = details[url];
+                                return [
+                                    savedId, clientId, url, d.canonical, d.status, d.contentType, d.contentLength, d.responseTimeMs,
+                                    JSON.stringify(d.redirectChain || []), d.outDegree || 0, d.externalLinkCount || 0, d.inDegree || 0,
+                                    d.isOrphan || false, d.contentHash, d.title, d.h1, d.lastmod ? new Date(d.lastmod) : null,
+                                ];
+                            });
+                            const DETAIL_BATCH = 200;
+                            for (let i = 0; i < detailRows.length; i += DETAIL_BATCH) {
+                                const slice = detailRows.slice(i, i + DETAIL_BATCH);
+                                const placeholders = slice.map((_, idx) => {
+                                    const off = idx * 17;
+                                    return `($${off+1},$${off+2},$${off+3},$${off+4},$${off+5},$${off+6},$${off+7},$${off+8},$${off+9},$${off+10},$${off+11},$${off+12},$${off+13},$${off+14},$${off+15},$${off+16},$${off+17})`;
+                                }).join(',');
+                                try {
+                                    await db.query(
+                                        `INSERT INTO sitemap_crawl_details
+                                           (generation_id, client_id, url, canonical, status, content_type, content_length, response_time_ms,
+                                            redirect_chain, internal_link_count, external_link_count, in_degree, is_orphan, content_hash, title, h1, lastmod)
+                                         VALUES ${placeholders} ON CONFLICT DO NOTHING`,
+                                        slice.flat()
+                                    );
+                                } catch (e) { log.debug({ err: e.message }, 'detail batch insert failed'); }
+                            }
+
+                            try {
+                                const publicBase = process.env.PUBLIC_BASE_URL || '';
+                                if (publicBase) {
+                                    const pingUrl = `https://www.bing.com/ping?sitemap=${encodeURIComponent(`${publicBase}/sitemap.xml?clientId=${clientId}`)}`;
+                                    require('https').get(pingUrl, () => {}).on('error', () => {});
+                                }
+                            } catch { /* ignore */ }
+                        }
+                        log.info({ savedId, jobId, clientId, urls: result.stats.crawled }, 'sitemap saved to DB');
+                    } catch (saveErr) {
+                        log.error({ err: saveErr.message }, 'Failed to save sitemap — returning result anyway');
+                    }
+                }
+
+                finishJob(jobId, {
+                    savedId,
+                    xml:              result.xml,
+                    isSitemapIndex:   result.isSitemapIndex,
+                    sitemapFiles:     result.sitemapFiles,
+                    robotsSitemapUrls: result.robotsSitemapUrls,
+                    stats:            result.stats,
+                });
+            }); // end background task
+
+            // Return 202 immediately — browser polls /api/sitemap/job/:jobId
+            return reply.code(202).send({ success: true, status: 'running', jobId, startUrl });
         },
     });
 

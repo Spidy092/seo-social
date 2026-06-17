@@ -353,43 +353,65 @@
         cGenBtn.disabled = true;
         cProgressBar.style.width = '5%';
         cProgressLbl.textContent = 'Starting client crawl…';
+        cProgressStats.textContent = '';
 
-        let fakeP = 5;
-        const fakeTimer = setInterval(() => {
-            fakeP = Math.min(fakeP + Math.random() * 3, 85);
-            cProgressBar.style.width = fakeP + '%';
-            if (fakeP > 20) cProgressLbl.textContent = 'Merging GSC data…';
-            if (fakeP > 45) cProgressLbl.textContent = 'Crawling pages…';
-            if (fakeP > 70) cProgressLbl.textContent = 'Building XML…';
-        }, 1000);
+        // ── SSE progress stream ───────────────────────────────────────────────
+        let sse = null;
+        try {
+            const progressUrl = new URL(opts.startUrl.startsWith('http') ? opts.startUrl : `https://${opts.startUrl}`);
+            sse = new EventSource('/api/sitemap/progress?url=' + encodeURIComponent(progressUrl.href));
+            sse.onmessage = (e) => {
+                const d = JSON.parse(e.data);
+                const percent = Math.min(100, Math.round((d.crawled / d.max) * 100));
+                cProgressBar.style.width = Math.max(5, percent) + '%';
+                cProgressLbl.textContent = `Crawling: ${d.currentUrl}`;
+                cProgressStats.textContent = `${d.crawled} / ${d.max} pages`;
+            };
+        } catch(e) {}
 
         try {
+            // Step 1: kick off the job (returns 202 + jobId in milliseconds)
             const res = await fetch('/api/sitemap/generate-client', {
                 method:  'POST',
                 headers: {'Content-Type': 'application/json'},
                 body:    JSON.stringify(opts),
             });
-            clearInterval(fakeTimer);
-            const data = await res.json();
-            if (!res.ok || !data.success) throw new Error(data.error || data.message || 'Unknown error');
+            const kickoff = await res.json();
+            if (!res.ok || !kickoff.success) throw new Error(kickoff.error || kickoff.message || 'Unknown error');
 
+            const { jobId } = kickoff;
+            cProgressLbl.textContent = 'Crawling pages…';
+
+            // Step 2: poll /api/sitemap/job/:jobId until done
+            const POLL_INTERVAL_MS = 3000;
+            const MAX_POLLS = 400; // 20 min safety cap
+            let polls = 0;
+            const data = await new Promise((resolve, reject) => {
+                const timer = setInterval(async () => {
+                    polls++;
+                    if (polls > MAX_POLLS) { clearInterval(timer); reject(new Error('Timed out waiting for crawl to finish.')); return; }
+                    try {
+                        const jr = await fetch(`/api/sitemap/job/${jobId}`);
+                        const j  = await jr.json();
+                        if (j.status === 'running') return; // still going
+                        clearInterval(timer);
+                        if (j.status === 'error' || !j.success) { reject(new Error(j.error || 'Crawl failed')); return; }
+                        resolve(j);
+                    } catch (e) { /* network blip — retry */ }
+                }, POLL_INTERVAL_MS);
+            });
+
+            if (sse) sse.close();
             clientXml = data.xml;
             currentSavedId = data.savedId;
             renderClientResult(data);
             loadHistory(currentClientId);
-            // Pro: stash data for the tab strip + reports
-            const images = (data.pages || []).flatMap(p => (p.images || []).map(i => ({ loc: i.loc, title: i.title })));
-            const videos = (data.pages || []).flatMap(p => (p.videos || []));
-            const news   = (data.pages || []).flatMap(p => (p.news   || []));
             if (window.sitemapPro) {
-                window.sitemapPro.setImageData(images);
-                window.sitemapPro.setVideoData(videos);
-                window.sitemapPro.setNewsData(news);
-                window.sitemapPro.setLastContext(currentClientId, data.savedId, $('smClientUrl').value.trim());
+                window.sitemapPro.setLastContext(currentClientId, data.savedId, opts.startUrl);
                 window.sitemapPro.refreshAfterCrawl('client', data);
             }
         } catch (err) {
-            clearInterval(fakeTimer);
+            if (sse) sse.close();
             $('smClientErrorTitle').textContent = 'Crawl failed';
             $('smClientErrorMsg').textContent   = err.message;
             cProgress.style.display = 'none';

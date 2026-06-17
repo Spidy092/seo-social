@@ -230,26 +230,48 @@
         lastSavedId = (result && result.savedId) || lastSavedId;
         if (result && result.clientId) lastClientId = result.clientId;
 
-        // Show export toolbar if we have a savedId (client mode)
-        if (scope === 'client' && $('smQuickExportToolbar')) {
-            $('smQuickExportToolbar').style.display = 'inline-flex';
+        // Show export toolbar + tab strip once we have a savedId (client mode AND
+        // quick mode after B9). The old version only flipped these for 'client'.
+        if (lastSavedId) {
+            if ($('smQuickExportToolbar')) $('smQuickExportToolbar').style.display = 'inline-flex';
+            if ($('smQuickResultTabs'))    $('smQuickResultTabs').style.display    = '';
         }
 
         // Render the report tabs (URLs, Images, Videos, News, Reports) when saved
-        if (lastSavedId) {
+        if (lastSavedId && lastClientId) {
             try {
-                const res = await fetch(`/api/sitemap/reports/${lastClientId || '_'}/${lastSavedId}`);
+                const res = await fetch(`/api/sitemap/reports/${lastClientId}/${lastSavedId}`);
                 if (res.ok) {
                     const data = await res.json();
                     if (data.success && data.reports) {
-                        const images = collectImages(data.reports);
-                        const videos = collectVideos(data.reports);
-                        const news   = collectNews(data.reports);
+                        setReports(data.reports);
+                        // Build image/video/news arrays from the saved pageDetails — the
+                        // reports endpoint returns the full per-page record so we can
+                        // pull these from the DB rather than relying on the in-memory
+                        // window._lastImageData / window._lastVideoData / window._lastNewsData
+                        // (which was the B11 bug — those variables were never written).
+                        const images = [];
+                        const videos = [];
+                        const news   = [];
+                        for (const url of Object.keys(data.reports.pageDetails || {})) {
+                            const d = data.reports.pageDetails[url];
+                            if (Array.isArray(d.images)) {
+                                for (const i of d.images) images.push({ loc: i.loc, title: i.title });
+                            }
+                            if (Array.isArray(d.videos)) {
+                                for (const v of d.videos) videos.push(v);
+                            }
+                            if (Array.isArray(d.news)) {
+                                for (const n of d.news) news.push(n);
+                            }
+                        }
+                        setImageData(images);
+                        setVideoData(videos);
+                        setNewsData(news);
                         renderImageGrid($('smQuickImageGrid'), images);
                         renderVideoList($('smQuickVideoList'), videos);
                         renderNewsList($('smQuickNewsList'),   news);
                         renderReports($('smQuickReportsContent'), { reports: data.reports });
-                        $('smQuickResultTabs').style.display = '';
                         switchResultTab(activeTab);
                     }
                 }
@@ -268,12 +290,9 @@
         }
     }
 
-    function collectImages(reports) {
-        // Image data isn't in reports yet — we have to keep it from the response.
-        return (window._lastImageData || []);
-    }
-    function collectVideos(reports) { return (window._lastVideoData || []); }
-    function collectNews(reports)   { return (window._lastNewsData || []); }
+    function collectImages()  { return (window._lastImageData || []); }
+    function collectVideos()  { return (window._lastVideoData || []); }
+    function collectNews()    { return (window._lastNewsData  || []); }
 
     // ─── expose helpers for sitemap.js to call ────────────────────────────
     window.sitemapPro = {

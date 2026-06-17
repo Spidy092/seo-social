@@ -21,6 +21,34 @@ const anonRateStore = new Map();
 const ANON_MAX_REQUESTS = 3;        // 3 crawls per window
 const ANON_WINDOW_MS    = 60 * 60 * 1000; // 1 hour
 
+// R1: bound how many crawls can run at once across the process. Heavy crawls
+// (5 000+ pages) can saturate CPU; with no cap, 5 concurrent anonymous users
+// would each take ~80s. We allow 3 in parallel — same as our rate-limit budget.
+const MAX_CONCURRENT_CRAWLS = 3;
+let _activeCrawls = 0;
+const _crawlWaiters = [];
+
+function acquireCrawlSlot() {
+    if (_activeCrawls < MAX_CONCURRENT_CRAWLS) {
+        _activeCrawls++;
+        return Promise.resolve(() => releaseCrawlSlot());
+    }
+    return new Promise(resolve => {
+        _crawlWaiters.push(() => {
+            _activeCrawls++;
+            resolve(() => releaseCrawlSlot());
+        });
+    });
+}
+
+function releaseCrawlSlot() {
+    _activeCrawls--;
+    if (_crawlWaiters.length > 0) {
+        const next = _crawlWaiters.shift();
+        next();
+    }
+}
+
 function checkAnonRateLimit(ip) {
     const now = Date.now();
     const entry = anonRateStore.get(ip);
@@ -36,15 +64,47 @@ function checkAnonRateLimit(ip) {
     return { allowed: true, remaining: ANON_MAX_REQUESTS - entry.count };
 }
 
-// Cleanup old entries every hour
-setInterval(() => {
+// Cleanup old entries every hour. `unref()` keeps the timer from holding the
+// event loop open in tests / workers (R3 / R7).
+const _anonCleanupTimer = setInterval(() => {
     const cutoff = Date.now() - ANON_WINDOW_MS;
     for (const [ip, entry] of anonRateStore) {
         if (entry.windowStart < cutoff) anonRateStore.delete(ip);
     }
 }, ANON_WINDOW_MS);
+if (_anonCleanupTimer && typeof _anonCleanupTimer.unref === 'function') _anonCleanupTimer.unref();
 
 // ─── Shared option parser ─────────────────────────────────────────────────────
+
+// Parse <urlset> / <sitemapindex> XML using cheerio (already a project dep).
+// cheerio's xmlMode + decodeEntities correctly handles &amp; / &lt; / &quot; in URLs
+// — the previous regex-based parser silently produced broken URLs.
+const cheerio = require('cheerio');
+
+function extractUrlsFromXml(xml) {
+    if (!xml || typeof xml !== 'string') return [];
+    let $;
+    try { $ = cheerio.load(xml, { xmlMode: true, decodeEntities: true }); } catch { return []; }
+    const out = [];
+    $('urlset > url').each((_, el) => {
+        const $u = $(el);
+        const loc = ($u.find('> loc').first().text() || '').trim();
+        if (!loc) return;
+        out.push({
+            url:        loc,
+            lastmod:    ($u.find('> lastmod').first().text()    || '').trim(),
+            changefreq: ($u.find('> changefreq').first().text() || '').trim(),
+            priority:   ($u.find('> priority').first().text()   || '').trim(),
+        });
+    });
+    if (out.length) return out;
+    $('sitemapindex > sitemap').each((_, el) => {
+        const $s = $(el);
+        const loc = ($s.find('> loc').first().text() || '').trim();
+        if (loc) out.push({ url: loc, lastmod: '', changefreq: '', priority: '' });
+    });
+    return out;
+}
 
 function parseOptions(body) {
     const o = {};
@@ -90,8 +150,42 @@ function parseOptions(body) {
 
 // ─── Route Plugin ─────────────────────────────────────────────────────────────
 
+const { EventEmitter } = require('events');
+const crawlEmitter = new EventEmitter();
+crawlEmitter.setMaxListeners(100);
+
 async function sitemapRoutes(fastify, options) {
     const { db } = options;
+
+    // ── GET /api/sitemap/progress — Server-Sent Events ───────────────────────
+    fastify.get('/api/sitemap/progress', {
+        handler: (request, reply) => {
+            const { url } = request.query;
+            if (!url) return reply.code(400).send({ error: 'url query param required' });
+            
+            let startUrl;
+            try {
+                startUrl = new URL(url.startsWith('http') ? url : `https://${url}`).href;
+            } catch {
+                return reply.code(400).send({ error: 'invalid url format' });
+            }
+
+            reply.raw.setHeader('Content-Type', 'text/event-stream');
+            reply.raw.setHeader('Cache-Control', 'no-cache');
+            reply.raw.setHeader('Connection', 'keep-alive');
+            reply.raw.write(': connected\\n\\n');
+
+            const onProgress = (data) => {
+                reply.raw.write(`data: ${JSON.stringify(data)}\\n\\n`);
+            };
+            const eventName = `progress:${startUrl}`;
+            crawlEmitter.on(eventName, onProgress);
+
+            request.raw.on('close', () => {
+                crawlEmitter.off(eventName, onProgress);
+            });
+        }
+    });
 
     // ── POST /api/sitemap/generate — No auth ─────────────────────────────────
     fastify.post('/api/sitemap/generate', {
@@ -107,8 +201,14 @@ async function sitemapRoutes(fastify, options) {
                     requestDelayMs:    { type: 'number', minimum: 0,   maximum: 5000 },
                     splitAt:           { type: 'number', minimum: 100, maximum: 50000 },
                     includeImages:     { type: 'boolean' },
+                    includeVideo:      { type: 'boolean' },
+                    includeNews:       { type: 'boolean' },
+                    includeMobile:     { type: 'boolean' },
                     includeHreflang:   { type: 'boolean' },
                     stripQueryStrings: { type: 'boolean' },
+                    computeContentHash:  { type: 'boolean' },
+                    trackRedirectChains: { type: 'boolean' },
+                    saveAnonymously:   { type: 'boolean' },
                     changefreqMap:     { type: 'object' },
                     priorityMap:       { type: 'object' },
                 },
@@ -141,35 +241,166 @@ async function sitemapRoutes(fastify, options) {
                 maxDepth: 3,
                 ...parseOptions(request.body),
                 startUrl,
+                onProgress: (crawled, max, currentUrl) => crawlEmitter.emit(`progress:${startUrl}`, { crawled, max, currentUrl })
             };
 
             log.info({ startUrl, ip, opts: { maxPages: opts.maxPages, maxDepth: opts.maxDepth } }, 'anon sitemap generation started');
 
+            // R1: queue if too many crawls in flight
+            const release = await acquireCrawlSlot();
             try {
                 const start = Date.now();
-                const result = await generateSitemap(opts);
+                // R2 / R8: per-crawl wall-clock cap. If a single crawl takes longer
+                // than 5 min, abort — the request gets a clear timeout response
+                // instead of blocking the event loop.
+                const CRAWL_TIMEOUT_MS = 5 * 60 * 1000;
+                const result = await Promise.race([
+                    generateSitemap(opts),
+                    new Promise((_, rej) => setTimeout(() => rej(new Error('Crawl timeout: the site took longer than 5 minutes to respond. Try a lower maxPages or maxDepth.')), CRAWL_TIMEOUT_MS)),
+                ]);
                 const durationMs = Date.now() - start;
 
                 log.info({ startUrl, urls: result.stats.crawled, durationMs }, 'anon sitemap complete');
 
                 // Build a lightweight url list for the frontend table
                 const urlList = result.sitemapFiles && result.sitemapFiles.length > 0
-                    ? result.sitemapFiles.flatMap(f => {
-                        // Extract URLs from each chunk XML via simple regex (avoid cheerio dep here)
-                        const matches = (f.xml || '').match(/<loc>(.*?)<\/loc>/g) || [];
-                        return matches.map(m => ({ url: m.replace(/<\/?loc>/g, '') }));
-                    })
-                    : (() => {
-                        const matches = (result.xml || '').match(/<loc>(.*?)<\/loc>/g) || [];
-                        return matches.map(m => ({ url: m.replace(/<\/?loc>/g, '') }));
-                    })();
+                    ? result.sitemapFiles.flatMap(f => extractUrlsFromXml(f.xml).map(u => ({ url: u.url })))
+                    : extractUrlsFromXml(result.xml).map(u => ({ url: u.url }));
+
+                // Quick-mode save: persist via sitemap_anon_clients keyed by an `sm_anon` cookie.
+                // Required so /sitemap.xml?clientId=… , /api/sitemap/reports/…/…, /api/sitemap/validate,
+                // /api/sitemap/export all work in Quick mode (B9).
+                let savedId = null;
+                let anonClientId = null;
+                if (request.body.saveAnonymously !== false) {
+                    try {
+                        const crypto = require('crypto');
+                        const token = (request.cookies && request.cookies['sm_anon']) || null;
+                        let anonRow;
+                        if (token) {
+                            const r = await db.query(
+                                `SELECT id FROM sitemap_anon_clients
+                                  WHERE owner_token = $1 AND last_used > NOW() - INTERVAL '7 days'
+                                  ORDER BY last_used DESC LIMIT 1`,
+                                [token]
+                            );
+                            if (r.rows.length) anonRow = r.rows[0];
+                        }
+                        if (!anonRow) {
+                            const newToken = crypto.randomBytes(24).toString('hex');
+                            const c = await db.query(
+                                `INSERT INTO sitemap_anon_clients (owner_token, site_url, label)
+                                 VALUES ($1, $2, $3) RETURNING id, owner_token`,
+                                [newToken, startUrl, `Anonymous — ${startUrl}`]
+                            );
+                            anonRow = c.rows[0];
+                            reply.setCookie('sm_anon', newToken, {
+                                path: '/', maxAge: 7 * 24 * 60 * 60 * 1000,
+                                httpOnly: true, sameSite: 'lax',
+                            });
+                        } else {
+                            await db.query(`UPDATE sitemap_anon_clients SET last_used = NOW() WHERE id = $1`, [anonRow.id]);
+                        }
+                        anonClientId = anonRow.id;
+
+                        const fileCount = result.sitemapFiles?.length || 0;
+                        const saveRes = await db.query(
+                            `INSERT INTO sitemap_generations
+                               (client_id, site_url, total_urls, xml_content, options, is_index, site_origin, total_pages, broken_count, redirect_count, orphan_count, options_v2)
+                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                             RETURNING id`,
+                            [
+                                anonClientId, startUrl, result.stats.crawled, result.xml,
+                                JSON.stringify({ ...opts, seedUrls: undefined, isSitemapIndex: result.isSitemapIndex, sitemapFileCount: fileCount, anonymous: true }),
+                                result.isSitemapIndex, new URL(startUrl).origin,
+                                result.stats.crawled,
+                                (result.stats.skipped && result.stats.skipped.error) || 0,
+                                Object.values(result.pageDetails || {}).filter(d => Array.isArray(d.redirectChain) && d.redirectChain.length).length,
+                                Object.values(result.pageDetails || {}).filter(d => d.isOrphan).length,
+                                JSON.stringify({
+                                    sitemapFilesCount: fileCount,
+                                    pageDetailsCount: Object.keys(result.pageDetails || {}).length,
+                                    linkGraphSize: (result.linkGraph && result.linkGraph.size) || 0,
+                                    blockedUrlsCount: (result.stats.blockedUrls || []).length,
+                                    discoveredNonHtmlCount: (result.stats.discoveredNonHtml || []).length,
+                                    anonymous: true,
+                                }),
+                            ]
+                        );
+                        savedId = saveRes.rows[0]?.id;
+
+                        if (savedId) {
+                            // Per-file XML + gzipped bytes (B7 / P2)
+                            const allFiles = result.isSitemapIndex && result.sitemapFiles && result.sitemapFiles.length
+                                ? result.sitemapFiles
+                                : [{ index: 1, xml: result.xml, urlCount: result.stats.crawled }];
+                            const zlib = require('zlib');
+                            for (const f of allFiles) {
+                                try {
+                                    let gzipBuf = null;
+                                    try { gzipBuf = zlib.gzipSync(Buffer.from(f.xml || '', 'utf8'), { level: 9 }); } catch {}
+                                    await db.query(
+                                        `INSERT INTO sitemap_saved_files
+                                           (generation_id, file_index, file_name, file_kind, xml_content, gzip_content, url_count, byte_size)
+                                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                                        [savedId, f.index, `sitemap-${f.index}.xml`, 'urlset', f.xml, gzipBuf, f.urlCount, (f.xml || '').length]
+                                    );
+                                } catch (e) { log.debug({ err: e.message }, 'anon file insert failed'); }
+                            }
+
+                            // P1 — batch INSERT for per-page details
+                            const details = result.pageDetails || {};
+                            const detailRows = Object.keys(details).map(url => {
+                                const d = details[url];
+                                return [
+                                    savedId, url, d.canonical, d.status, d.contentType, d.contentLength, d.responseTimeMs,
+                                    JSON.stringify(d.redirectChain || []), d.outDegree || 0, d.externalLinkCount || 0, d.inDegree || 0,
+                                    d.isOrphan || false, d.contentHash, d.title, d.h1, d.lastmod ? new Date(d.lastmod) : null,
+                                ];
+                            });
+                            const DETAIL_BATCH = 200;
+                            for (let i = 0; i < detailRows.length; i += DETAIL_BATCH) {
+                                const slice = detailRows.slice(i, i + DETAIL_BATCH);
+                                const placeholders = slice.map((_, idx) => {
+                                    const off = idx * 16;
+                                    return `($${off+1},$${off+2},$${off+3},$${off+4},$${off+5},$${off+6},$${off+7},$${off+8},$${off+9},$${off+10},$${off+11},$${off+12},$${off+13},$${off+14},$${off+15},$${off+16})`;
+                                }).join(',');
+                                try {
+                                    await db.query(
+                                        `INSERT INTO sitemap_crawl_details
+                                           (generation_id, url, canonical, status, content_type, content_length, response_time_ms,
+                                            redirect_chain, internal_link_count, external_link_count, in_degree, is_orphan, content_hash, title, h1, lastmod)
+                                         VALUES ${placeholders}
+                                         ON CONFLICT DO NOTHING`,
+                                        slice.flat()
+                                    );
+                                } catch (e) { log.debug({ err: e.message }, 'anon detail batch insert failed'); }
+                            }
+
+                            // A10 — fire-and-forget ping to Bing (Google deprecated their API in 2023)
+                            try {
+                                const publicBase = process.env.PUBLIC_BASE_URL || '';
+                                if (publicBase) {
+                                    const pingUrl = `https://www.bing.com/ping?sitemap=${encodeURIComponent(`${publicBase}/sitemap.xml?clientId=${anonClientId}`)}`;
+                                    require('https').get(pingUrl, () => {}).on('error', () => {});
+                                }
+                            } catch { /* ignore */ }
+                        }
+                    } catch (saveErr) {
+                        log.error({ err: saveErr.message }, 'Failed to save anonymous sitemap — returning result anyway');
+                    }
+                }
 
                 return {
                     success: true,
+                    savedId,
+                    clientId: anonClientId,
                     xml:              result.xml,
                     isSitemapIndex:   result.isSitemapIndex,
                     sitemapFiles:     result.sitemapFiles,
                     robotsSitemapUrls: result.robotsSitemapUrls,
+                    pages:            result.pages,
+                    pageDetails:      result.pageDetails,
                     urls:             urlList,
                     stats: { ...result.stats, durationMs },
                 };
@@ -179,6 +410,8 @@ async function sitemapRoutes(fastify, options) {
                     return reply.code(422).send({ success: false, error: `Could not reach ${startUrl}. Check the URL is publicly accessible.` });
                 }
                 return reply.code(500).send({ success: false, error: 'Sitemap generation failed: ' + err.message });
+            } finally {
+                release();
             }
         },
     });
@@ -197,8 +430,13 @@ async function sitemapRoutes(fastify, options) {
                     requestDelayMs:    { type: 'number', minimum: 0,   maximum: 5000 },
                     splitAt:           { type: 'number', minimum: 100, maximum: 50000 },
                     includeImages:     { type: 'boolean' },
+                    includeVideo:      { type: 'boolean' },
+                    includeNews:       { type: 'boolean' },
+                    includeMobile:     { type: 'boolean' },
                     includeHreflang:   { type: 'boolean' },
                     stripQueryStrings: { type: 'boolean' },
+                    computeContentHash:  { type: 'boolean' },
+                    trackRedirectChains: { type: 'boolean' },
                     includeGscUrls:    { type: 'boolean' },
                     includeRankingUrls:{ type: 'boolean' },
                     includeAuditUrls:  { type: 'boolean' },
@@ -306,6 +544,7 @@ async function sitemapRoutes(fastify, options) {
                 ...parseOptions(body),
                 startUrl,
                 seedUrls: Array.from(seedUrls),
+                onProgress: (crawled, max, currentUrl) => crawlEmitter.emit(`progress:${startUrl}`, { crawled, max, currentUrl })
             };
 
             log.info({
@@ -335,6 +574,10 @@ async function sitemapRoutes(fastify, options) {
                 try {
                     const startUrlOrigin = (() => { try { return new URL(startUrl).origin; } catch { return null; } })();
                     const fileCount = result.sitemapFiles?.length || 0;
+                    const allDetails = Object.values(result.pageDetails || {});
+                    const redirectCount = allDetails.filter(d => Array.isArray(d.redirectChain) && d.redirectChain.length > 0).length;
+                    const orphanCount = allDetails.filter(d => d.isOrphan).length;
+                    const brokenCount = (result.stats.skipped && result.stats.skipped.error) || 0;
                     const saveRes = await db.query(
                         `INSERT INTO sitemap_generations
                            (user_id, agency_id, client_id, site_url, total_urls, xml_content, options, is_index, site_origin, total_pages, broken_count, redirect_count, orphan_count, options_v2)
@@ -356,12 +599,12 @@ async function sitemapRoutes(fastify, options) {
                             result.isSitemapIndex,
                             startUrlOrigin,
                             result.stats.crawled,
-                            (result.stats.skipped && result.stats.skipped.error) || 0,
-                            0, // redirect_count (filled by reports later)
-                            Object.values(result.pageDetails || {}).filter(d => d.isOrphan).length,
+                            brokenCount,
+                            redirectCount,
+                            orphanCount,
                             JSON.stringify({
                                 sitemapFilesCount: fileCount,
-                                pageDetailsCount: Object.keys(result.pageDetails || {}).length,
+                                pageDetailsCount: allDetails.length,
                                 linkGraphSize: (result.linkGraph && result.linkGraph.size) || 0,
                                 blockedUrlsCount: (result.stats.blockedUrls || []).length,
                             }),
@@ -374,20 +617,26 @@ async function sitemapRoutes(fastify, options) {
                         const allFiles = result.isSitemapIndex && result.sitemapFiles && result.sitemapFiles.length
                             ? result.sitemapFiles
                             : [{ index: 1, xml: result.xml, urlCount: result.stats.crawled }];
+                        const zlib = require('zlib');
                         for (const f of allFiles) {
                             try {
+                                // Pre-compute gzip bytes now so /sitemap-:id.xml.gz can stream
+                                // them directly (B7 / P2 — no on-the-fly recomputation per request).
+                                let gzipBuf = null;
+                                try { gzipBuf = zlib.gzipSync(Buffer.from(f.xml || '', 'utf8'), { level: 9 }); } catch { /* ignore */ }
                                 await db.query(
                                     `INSERT INTO sitemap_saved_files
-                                       (generation_id, agency_id, client_id, file_index, file_name, file_kind, xml_content, url_count, byte_size)
-                                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+                                       (generation_id, agency_id, client_id, file_index, file_name, file_kind, xml_content, gzip_content, url_count, byte_size)
+                                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
                                     [
                                         savedId,
                                         ctx.agencyId,
                                         clientId,
                                         f.index,
                                         `sitemap-${f.index}.xml`,
-                                        result.isSitemapIndex ? 'urlset' : 'urlset',
+                                        'urlset',
                                         f.xml,
+                                        gzipBuf,
                                         f.urlCount,
                                         (f.xml || '').length,
                                     ]
@@ -397,40 +646,46 @@ async function sitemapRoutes(fastify, options) {
                             }
                         }
 
-                        // Per-page details
+                        // P1 — batch insert per-page details instead of one round-trip per row.
+                        // For 5 000 pages this is 5 000 fewer queries.
                         const details = result.pageDetails || {};
-                        for (const url of Object.keys(details)) {
+                        const detailRows = Object.keys(details).map(url => {
                             const d = details[url];
+                            return [
+                                savedId, clientId, url, d.canonical, d.status, d.contentType, d.contentLength, d.responseTimeMs,
+                                JSON.stringify(d.redirectChain || []), d.outDegree || 0, d.externalLinkCount || 0, d.inDegree || 0,
+                                d.isOrphan || false, d.contentHash, d.title, d.h1, d.lastmod ? new Date(d.lastmod) : null,
+                            ];
+                        });
+                        const DETAIL_BATCH = 200;
+                        for (let i = 0; i < detailRows.length; i += DETAIL_BATCH) {
+                            const slice = detailRows.slice(i, i + DETAIL_BATCH);
+                            const placeholders = slice.map((_, idx) => {
+                                const off = idx * 17;
+                                return `($${off+1},$${off+2},$${off+3},$${off+4},$${off+5},$${off+6},$${off+7},$${off+8},$${off+9},$${off+10},$${off+11},$${off+12},$${off+13},$${off+14},$${off+15},$${off+16},$${off+17})`;
+                            }).join(',');
                             try {
                                 await db.query(
                                     `INSERT INTO sitemap_crawl_details
                                        (generation_id, client_id, url, canonical, status, content_type, content_length, response_time_ms,
                                         redirect_chain, internal_link_count, external_link_count, in_degree, is_orphan, content_hash, title, h1, lastmod)
-                                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
-                                    [
-                                        savedId,
-                                        clientId,
-                                        url,
-                                        d.canonical,
-                                        d.status,
-                                        d.contentType,
-                                        d.contentLength,
-                                        d.responseTimeMs,
-                                        JSON.stringify(d.redirectChain || []),
-                                        d.outDegree || 0,
-                                        d.externalLinkCount || 0,
-                                        d.inDegree || 0,
-                                        d.isOrphan || false,
-                                        d.contentHash,
-                                        d.title,
-                                        d.h1,
-                                        d.lastmod ? new Date(d.lastmod) : null,
-                                    ]
+                                     VALUES ${placeholders}
+                                     ON CONFLICT DO NOTHING`,
+                                    slice.flat()
                                 );
-                            } catch (detailErr) {
-                                log.debug({ err: detailErr.message }, 'detail row insert failed');
-                            }
+                            } catch (e) { log.debug({ err: e.message }, 'detail batch insert failed'); }
                         }
+
+                        // A10 — ping Bing's sitemap submission endpoint (Google deprecated
+                        // their public ping API in 2023; Bing still supports it). Best-effort,
+                        // fire-and-forget.
+                        try {
+                            const publicBase = process.env.PUBLIC_BASE_URL || '';
+                            if (publicBase) {
+                                const pingUrl = `https://www.bing.com/ping?sitemap=${encodeURIComponent(`${publicBase}/sitemap.xml?clientId=${clientId}`)}`;
+                                require('https').get(pingUrl, () => {}).on('error', () => {});
+                            }
+                        } catch { /* ignore */ }
                     }
                     log.info({ savedId, clientId, urls: result.stats.crawled }, 'sitemap saved to DB');
                 } catch (saveErr) {
@@ -490,8 +745,11 @@ async function sitemapRoutes(fastify, options) {
         const ctx = await requireAgencyContext(request, reply, db);
         if (!ctx) return;
 
-        const id       = parseInt(request.params.id, 10);
+        const id       = request.params.id;
         const clientId = request.params.clientId;
+        if (!clientId || !id) {
+            return reply.code(400).send({ success: false, error: 'Invalid parameters.' });
+        }
 
         try {
             const row = await db.query(
@@ -511,13 +769,86 @@ async function sitemapRoutes(fastify, options) {
         }
     });
 
+    // ── GET /api/sitemap/audit/:clientId/:id/download ───────────────────────
+    fastify.get('/api/sitemap/audit/:clientId/:id/download', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
+
+        const clientId = request.params.clientId;
+        const id       = request.params.id;
+        if (!clientId || !id) {
+            return reply.code(400).send({ success: false, error: 'Invalid parameters.' });
+        }
+
+        try {
+            // Verify ownership
+            const genRow = await db.query(
+                `SELECT id FROM sitemap_generations WHERE id = $1 AND agency_id = $2 AND client_id = $3 LIMIT 1`,
+                [id, ctx.agencyId, clientId]
+            );
+            if (!genRow.rows.length) {
+                return reply.code(404).send({ success: false, error: 'Sitemap not found.' });
+            }
+
+            const details = await db.query(
+                `SELECT url, status, content_type, response_time_ms, redirect_chain, internal_link_count, external_link_count, in_degree, is_orphan, title, h1 
+                 FROM sitemap_crawl_details 
+                 WHERE generation_id = $1`,
+                [id]
+            );
+
+            // Build CSV
+            const escapeCsv = (str) => {
+                if (str === null || str === undefined) return '';
+                const s = String(str);
+                if (s.includes('"') || s.includes(',') || s.includes('\n') || s.includes('\r')) {
+                    return `"${s.replace(/"/g, '""')}"`;
+                }
+                return s;
+            };
+
+            const header = ['URL', 'Status', 'Content Type', 'Response Time (ms)', 'Inlinks', 'Outlinks', 'Redirect Chain', 'Title', 'H1', 'Is Orphan'];
+            const rows = details.rows.map(r => {
+                let chainStr = '';
+                try {
+                    const chain = typeof r.redirect_chain === 'string' ? JSON.parse(r.redirect_chain) : r.redirect_chain;
+                    if (Array.isArray(chain) && chain.length > 0) {
+                        chainStr = chain.map(c => `${c.status} -> ${c.url}`).join(' | ');
+                    }
+                } catch(e){}
+
+                return [
+                    r.url,
+                    r.status,
+                    r.content_type || '',
+                    r.response_time_ms || 0,
+                    r.in_degree || 0,
+                    r.internal_link_count || 0,
+                    chainStr,
+                    r.title || '',
+                    r.h1 || '',
+                    r.is_orphan ? 'Yes' : 'No'
+                ].map(escapeCsv).join(',');
+            });
+
+            const csv = [header.join(','), ...rows].join('\n');
+
+            reply.header('Content-Type', 'text/csv; charset=utf-8');
+            reply.header('Content-Disposition', `attachment; filename="seo-audit-${id}.csv"`);
+            return reply.send(csv);
+        } catch (err) {
+            log.error({ err: err.message }, 'Failed to generate SEO audit CSV');
+            return reply.code(500).send({ success: false, error: 'Download failed.' });
+        }
+    });
+
     // ── DELETE /api/sitemap/history/:id ─────────────────────────────────────
     fastify.delete('/api/sitemap/history/:id', async (request, reply) => {
         const ctx = await requireAgencyContext(request, reply, db);
         if (!ctx) return;
 
-        const id = parseInt(request.params.id, 10);
-        if (isNaN(id)) {
+        const id = request.params.id;
+        if (!id) {
             return reply.code(400).send({ success: false, error: 'Invalid id.' });
         }
 
@@ -659,35 +990,12 @@ async function sitemapRoutes(fastify, options) {
             // Reconstruct pages from saved XML (urlset mode) or by parsing child files (index mode)
             let pages = [];
             if (gen.xml_content && gen.xml_content.includes('<urlset')) {
-                // Quick parse: extract loc + lastmod + changefreq + priority
-                const xml = gen.xml_content;
-                const urlBlocks = xml.split(/<url>/g).slice(1);
-                for (const block of urlBlocks) {
-                    const endIdx = block.indexOf('</url>');
-                    const body = endIdx >= 0 ? block.slice(0, endIdx) : block;
-                    const locMatch = body.match(/<loc>(.*?)<\/loc>/);
-                    if (!locMatch) continue;
-                    const lm = (body.match(/<lastmod>(.*?)<\/lastmod>/) || [])[1] || '';
-                    const cf = (body.match(/<changefreq>(.*?)<\/changefreq>/) || [])[1] || '';
-                    const pr = (body.match(/<priority>(.*?)<\/priority>/) || [])[1] || '';
-                    pages.push({ url: locMatch[1], lastmod: lm, changefreq: cf, priority: pr });
-                }
+                pages = extractUrlsFromXml(gen.xml_content);
             } else if (gen.xml_content && gen.xml_content.includes('<sitemapindex')) {
                 // Load child files
                 const files = await getSitemapFilesForGeneration(db, id);
                 for (const f of files) {
-                    const xml = f.xml_content || '';
-                    const urlBlocks = xml.split(/<url>/g).slice(1);
-                    for (const block of urlBlocks) {
-                        const endIdx = block.indexOf('</url>');
-                        const body = endIdx >= 0 ? block.slice(0, endIdx) : block;
-                        const locMatch = body.match(/<loc>(.*?)<\/loc>/);
-                        if (!locMatch) continue;
-                        const lm = (body.match(/<lastmod>(.*?)<\/lastmod>/) || [])[1] || '';
-                        const cf = (body.match(/<changefreq>(.*?)<\/changefreq>/) || [])[1] || '';
-                        const pr = (body.match(/<priority>(.*?)<\/priority>/) || [])[1] || '';
-                        pages.push({ url: locMatch[1], lastmod: lm, changefreq: cf, priority: pr });
-                    }
+                    pages.push(...extractUrlsFromXml(f.xml_content));
                 }
             }
             if (pages.length === 0) {
@@ -737,8 +1045,8 @@ async function sitemapRoutes(fastify, options) {
         if (!ctx) return;
 
         const clientId = request.params.clientId;
-        const id       = parseInt(request.params.id, 10);
-        if (isNaN(id)) return reply.code(400).send({ success: false, error: 'Invalid id.' });
+        const id       = request.params.id;
+        if (!id) return reply.code(400).send({ success: false, error: 'Invalid id.' });
 
         // Verify client + sitemap belong to this agency
         const clientRow = await db.query(

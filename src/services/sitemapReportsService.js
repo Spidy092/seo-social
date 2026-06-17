@@ -18,7 +18,7 @@
  * serialisable JSON, so the service is easy to unit-test.
  */
 
-const { /* re-use local helper */ } = require('./sitemapGeneratorService');
+const { getPathSegment } = require('./sitemapGeneratorService');
 
 /**
  * @param {object} args
@@ -144,7 +144,7 @@ function buildLinkAnalysis(pages, pageDetails, linkGraph) {
             responseTimeMs: d.responseTimeMs || 0,
             isOrphan: !!d.isOrphan,
             title: d.title || '',
-            section: getPathSegmentLocal(p.url),
+            section: getPathSegment(p.url),
         };
     });
 }
@@ -176,10 +176,6 @@ function buildSummary({ pages, pageDetails, stats }) {
         skipped: stats.skipped || {},
         totalLinks: stats.totalLinks || 0,
     };
-}
-
-function getPathSegmentLocal(url) {
-    try { const p = new URL(url).pathname.split('/').filter(Boolean); return p[0] || '(root)'; } catch { return '(root)'; }
 }
 
 module.exports = {

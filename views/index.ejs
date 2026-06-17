@@ -2761,8 +2761,11 @@
                             <span>🤖 robots.txt aware</span>
                             <span>🔀 noindex / nofollow</span>
                             <span>🔗 redirect chains</span>
-                            <span>📑 auto-split &gt;1 000 URLs</span>
+                            <span>📑 auto-split &gt;50 000 URLs</span>
                             <span>🔒 client-linked mode</span>
+                            <span>🖼️ image / video / news sitemaps</span>
+                            <span>📊 broken links, redirects, orphans, duplicates</span>
+                            <span>📤 export XML / HTML / CSV / TXT / .gz</span>
                         </div>
                     </div>
 
@@ -2796,15 +2799,20 @@
                                             <label>Max Pages</label>
                                             <select id="smQuickMaxPages">
                                                 <option value="100">100 pages</option>
-                                                <option value="250">250 pages</option>
-                                                <option value="500" selected>500 pages (max)</option>
+                                                <option value="500">500 pages</option>
+                                                <option value="1000">1 000 pages</option>
+                                                <option value="5000">5 000 pages</option>
+                                                <option value="10000">10 000 pages</option>
                                             </select>
                                         </div>
                                         <div class="form-group">
                                             <label>Max Depth</label>
                                             <select id="smQuickDepth">
                                                 <option value="2">2 levels</option>
-                                                <option value="3" selected>3 levels</option>
+                                                <option value="3">3 levels</option>
+                                                <option value="5">5 levels</option>
+                                                <option value="10">10 levels</option>
+                                                <option value="100" selected>Auto/100 levels</option>
                                             </select>
                                         </div>
                                     </div>
@@ -2844,8 +2852,28 @@
                                             <span>Strip UTM params</span>
                                         </label>
                                         <label class="sitemap-check">
+                                            <input type="checkbox" id="smQuickStripAllQueries">
+                                            <span>Strip ALL query strings (full <code>stripQueryStrings</code>)</span>
+                                        </label>
+                                        <label class="sitemap-check">
                                             <input type="checkbox" id="smQuickAutoSplit" checked>
-                                            <span>Auto-split &gt;1 000 URLs</span>
+                                            <span>Auto-split &gt;50 000 URLs (Google cap)</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smQuickIncludePdfImg">
+                                            <span>Include PDFs / images in <em>Discovered</em> count</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smQuickIncludeVideo">
+                                            <span>Detect videos (Google video sitemap)</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smQuickIncludeNews">
+                                            <span>Detect news articles (Google news sitemap)</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smQuickSaveAnonymously" checked>
+                                            <span>Save result so Reports / Validate / Public URL work</span>
                                         </label>
                                     </div>
                                     <button class="btn btn-primary sitemap-generate-btn" id="smQuickGenBtn">
@@ -2992,16 +3020,17 @@
                                                 <option value="1000">1 000</option>
                                                 <option value="5000" selected>5 000</option>
                                                 <option value="10000">10 000</option>
-                                                <option value="0">Unlimited</option>
+                                                <option value="50000">50 000 (Google max)</option>
                                             </select>
                                         </div>
                                         <div class="form-group">
                                             <label>Max Depth</label>
                                             <select id="smClientDepth">
                                                 <option value="3">3</option>
-                                                <option value="5" selected>5</option>
+                                                <option value="5">5</option>
                                                 <option value="7">7</option>
                                                 <option value="10">10</option>
+                                                <option value="100" selected>Auto/100</option>
                                             </select>
                                         </div>
                                     </div>
@@ -3041,8 +3070,24 @@
                                             <span>Strip UTM params</span>
                                         </label>
                                         <label class="sitemap-check">
+                                            <input type="checkbox" id="smClientStripAllQueries">
+                                            <span>Strip ALL query strings (full <code>stripQueryStrings</code>)</span>
+                                        </label>
+                                        <label class="sitemap-check">
                                             <input type="checkbox" id="smClientAutoSplit" checked>
-                                            <span>Auto-split &gt;1 000 URLs</span>
+                                            <span>Auto-split &gt;50 000 URLs (Google cap)</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smClientIncludePdfImg">
+                                            <span>Include PDFs / images in <em>Discovered</em> count</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smClientIncludeVideo">
+                                            <span>Detect videos (Google video sitemap)</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smClientIncludeNews">
+                                            <span>Detect news articles (Google news sitemap)</span>
                                         </label>
                                         <label class="sitemap-check">
                                             <input type="checkbox" id="smClientMergeGsc" checked>
@@ -3090,6 +3135,7 @@
                                         <div style="display:flex;gap:8px;flex-wrap:wrap;">
                                             <button class="btn btn-sm btn-outline" id="smClientCopyBtn"><i class="fas fa-copy"></i> Copy XML</button>
                                             <button class="btn btn-sm btn-primary" id="smClientDownloadBtn"><i class="fas fa-download"></i> Download</button>
+                                            <button class="btn btn-sm btn-outline" id="smClientAuditBtn"><i class="fas fa-file-csv"></i> Download SEO Audit (CSV)</button>
                                         </div>
                                     </div>
                                     <div class="card-body sitemap-xml-wrap">

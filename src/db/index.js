@@ -1032,6 +1032,46 @@ async function initializeDatabase() {
     await query(`CREATE INDEX IF NOT EXISTS idx_sitemap_gen_agency ON sitemap_generations(agency_id, created_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_sitemap_gen_user ON sitemap_generations(user_id, created_at DESC)`);
 
+    // Anonymous (Quick-mode) sitemap records — keyed by an anonymous client
+    await query(`
+        CREATE TABLE IF NOT EXISTS sitemap_anon_clients (
+            id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            owner_token TEXT NOT NULL UNIQUE,    -- random per-browser token; used to scope Quick results
+            site_url    TEXT NOT NULL,
+            label       TEXT,
+            created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            last_used   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_sitemap_anon_clients_token ON sitemap_anon_clients(owner_token, last_used DESC)`);
+    // Allow sitemap_generations.client_id to reference the anon table too
+    await query(`
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.table_constraints
+                WHERE constraint_name = 'sitemap_generations_client_id_fkey'
+            ) THEN
+                ALTER TABLE sitemap_generations
+                  ADD CONSTRAINT sitemap_generations_client_id_fkey
+                  FOREIGN KEY (client_id) REFERENCES seo_clients(id) ON DELETE SET NULL;
+            END IF;
+        END $$;
+    `);
+    await query(`
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.table_constraints
+                WHERE constraint_name = 'fk_sitemap_gen_anon_client'
+            ) THEN
+                ALTER TABLE sitemap_generations
+                  ADD CONSTRAINT fk_sitemap_gen_anon_client
+                  FOREIGN KEY (client_id) REFERENCES sitemap_anon_clients(id) ON DELETE SET NULL;
+            END IF;
+        END $$;
+    `);
+
     // Pro feature columns on sitemap_generations (idempotent)
     await query(`ALTER TABLE sitemap_generations ADD COLUMN IF NOT EXISTS is_index BOOLEAN DEFAULT FALSE`);
     await query(`ALTER TABLE sitemap_generations ADD COLUMN IF NOT EXISTS sitemap_url TEXT`);

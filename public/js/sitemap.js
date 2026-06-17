@@ -8,6 +8,7 @@
     let currentMode = 'quick';   // 'quick' | 'client'
     let quickXml    = '';
     let clientXml   = '';
+    let currentSavedId = null;
     let quickUrls   = [];
     let currentClientId = null;
 
@@ -83,6 +84,7 @@
             includeLastMod:  $('smQuickIncludeLastMod').checked,
             autoSplit:       $('smQuickAutoSplit').checked,
             stripUtmParams:  $('smQuickStripUtm').checked,
+            stripQueryStrings: $('smQuickStripAllQueries') ? $('smQuickStripAllQueries').checked : false,
         };
     }
 
@@ -100,6 +102,7 @@
             includeLastMod:     $('smClientIncludeLastMod').checked,
             autoSplit:          $('smClientAutoSplit').checked,
             stripUtmParams:     $('smClientStripUtm').checked,
+            stripQueryStrings:  $('smClientStripAllQueries') ? $('smClientStripAllQueries').checked : false,
             includeGscUrls:     $('smClientMergeGsc').checked,
             includeRankingUrls: $('smClientMergeRanking').checked,
             saveResult:         true,
@@ -121,14 +124,18 @@
         qProgressLbl.textContent = 'Fetching robots.txt…';
         qProgressStats.textContent = '';
 
-        // Fake incremental progress (server is synchronous)
-        let fakeP = 5;
-        const fakeTimer = setInterval(() => {
-            fakeP = Math.min(fakeP + Math.random() * 4, 85);
-            qProgressBar.style.width = fakeP + '%';
-            if (fakeP > 30) qProgressLbl.textContent = 'Crawling pages…';
-            if (fakeP > 60) qProgressLbl.textContent = 'Building XML…';
-        }, 800);
+        let sse = null;
+        try {
+            const progressUrl = new URL(opts.url);
+            sse = new EventSource('/api/sitemap/progress?url=' + encodeURIComponent(progressUrl.href));
+            sse.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                const percent = Math.min(100, Math.round((data.crawled / data.max) * 100));
+                qProgressBar.style.width = Math.max(5, percent) + '%';
+                qProgressLbl.textContent = `Crawling: ${data.currentUrl}`;
+                qProgressStats.textContent = `${data.crawled} / ${data.max} pages`;
+            };
+        } catch(e) {}
 
         try {
             const res = await fetch('/api/sitemap/generate', {
@@ -136,7 +143,7 @@
                 headers: {'Content-Type': 'application/json'},
                 body:    JSON.stringify(opts),
             });
-            clearInterval(fakeTimer);
+            if (sse) sse.close();
             const data = await res.json();
 
             if (!res.ok || !data.success) throw new Error(data.error || data.message || 'Unknown error');
@@ -155,7 +162,7 @@
                 window.sitemapPro.refreshAfterCrawl('quick', data);
             }
         } catch (err) {
-            clearInterval(fakeTimer);
+            if (sse) sse.close();
             $('smQuickErrorTitle').textContent = 'Crawl failed';
             $('smQuickErrorMsg').textContent   = err.message;
             qProgress.style.display = 'none';
@@ -186,8 +193,8 @@
         }
 
         // Show first 120 lines of XML in preview
-        const lines = quickXml.split('\n').slice(0, 120).join('\n');
-        $('smQuickXmlPreview').textContent = lines + (quickXml.split('\n').length > 120 ? '\n…(truncated)' : '');
+        const lines = quickXml.split('\n').slice(0, 1000).join('\n');
+        $('smQuickXmlPreview').textContent = lines + (quickXml.split('\n').length > 1000 ? '\n…(truncated)' : '');
 
         // Populate URL table — full ISO 8601 in lastmod
         const tbody = document.querySelector('#smQuickUrlTable tbody');
@@ -367,6 +374,7 @@
             if (!res.ok || !data.success) throw new Error(data.error || data.message || 'Unknown error');
 
             clientXml = data.xml;
+            currentSavedId = data.savedId;
             renderClientResult(data);
             loadHistory(currentClientId);
             // Pro: stash data for the tab strip + reports
@@ -402,8 +410,8 @@
         $('smClientResultTitle').textContent = `Sitemap ready – ${total.toLocaleString()} URL${total !== 1 ? 's' : ''}`;
         $('smClientResultSub').textContent   = `Crawled in ${(durationMs/1000).toFixed(1)}s · ${skipped} skipped`;
 
-        const lines = clientXml.split('\n').slice(0, 120).join('\n');
-        $('smClientXmlPreview').textContent = lines + (clientXml.split('\n').length > 120 ? '\n…(truncated)' : '');
+        const lines = clientXml.split('\n').slice(0, 1000).join('\n');
+        $('smClientXmlPreview').textContent = lines + (clientXml.split('\n').length > 1000 ? '\n…(truncated)' : '');
     }
 
     $('smClientCopyBtn').addEventListener('click', () => {
@@ -412,11 +420,16 @@
     $('smClientDownloadBtn').addEventListener('click', () => {
         downloadXml(clientXml, 'sitemap.xml');
     });
+    $('smClientAuditBtn').addEventListener('click', () => {
+        if (!currentClientId || !currentSavedId) return showToast('No saved crawl data found.', 'error');
+        window.location.href = `/api/sitemap/audit/${currentClientId}/${currentSavedId}/download`;
+    });
     $('smClientNewBtn').addEventListener('click', () => {
         cResult.style.display = 'none';
         cError.style.display  = 'none';
-        cIdle.style.display   = '';
+        cForm.style.display   = 'block';
         clientXml = '';
+        currentSavedId = null;
     });
 
     // ─── History ──────────────────────────────────────────
@@ -435,17 +448,18 @@
                 return;
             }
             historyList.innerHTML = '';
-            items.forEach(h => {
+            items.forEach(r => {
                 const div = document.createElement('div');
                 div.className = 'sitemap-history-item';
                 div.innerHTML = `
                     <div class="sitemap-history-meta">
-                        <span class="sitemap-history-url">${escHtml(h.site_url)}</span>
-                        <span class="sitemap-history-sub">${h.total_urls} URLs · ${fmtDate(h.created_at)}</span>
+                        <span class="sitemap-history-url">${escHtml(r.site_url)}</span>
+                        <span class="sitemap-history-sub">${r.total_urls} URLs · ${fmtDate(r.created_at)}</span>
                     </div>
                     <div class="sitemap-history-actions">
-                        <button class="btn btn-sm btn-outline" onclick="smDownloadHistory('${h.id}','${clientId}')"><i class="fas fa-download"></i></button>
-                        <button class="btn btn-sm btn-outline" style="color:#ef4444;" onclick="smDeleteHistory('${h.id}','${clientId}')"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-sm btn-outline" onclick="smDownloadHistory('${r.id}', '${clientId}')"><i class="fas fa-download"></i> XML</button>
+                        <button class="btn btn-sm btn-outline" onclick="smDownloadAudit('${r.id}', '${clientId}')"><i class="fas fa-file-csv"></i> CSV Audit</button>
+                        <button class="btn btn-sm btn-outline" style="color:#ef4444;" onclick="smDeleteHistory('${r.id}', '${clientId}')"><i class="fas fa-trash"></i></button>
                     </div>`;
                 historyList.appendChild(div);
             });
@@ -458,9 +472,19 @@
     window.smDownloadHistory = async function (id, clientId) {
         try {
             const res  = await fetch(`/api/sitemap/history/${clientId}/${id}/download`);
-            const data = await res.json();
-            if (data.xml) downloadXml(data.xml, `sitemap_${id}.xml`);
+            const text = await res.text();
+            if (res.ok) {
+                downloadXml(text, `sitemap_${id}.xml`);
+            } else {
+                let err = 'Download failed';
+                try { const j = JSON.parse(text); if (j.error) err = j.error; } catch(e){}
+                showToast(err, 'error');
+            }
         } catch { showToast('Download failed', 'error'); }
+    };
+
+    window.smDownloadAudit = function (id, clientId) {
+        window.location.href = `/api/sitemap/audit/${clientId}/${id}/download`;
     };
 
     window.smDeleteHistory = async function (id, clientId) {

@@ -99,11 +99,19 @@ async function getSitemapFilesForGeneration(db, generationId) {
  */
 async function getClientSite(db, clientId) {
     try {
-        const res = await db.query(
+        // First try seo_clients (registered client)
+        let res = await db.query(
             `SELECT website_url, name FROM seo_clients WHERE id = $1 LIMIT 1`,
             [clientId]
         );
-        return res.rows[0] || null;
+        if (res.rows.length) return { ...res.rows[0], kind: 'registered' };
+        // Fall back to anonymous (Quick-mode) clients
+        res = await db.query(
+            `SELECT site_url AS website_url, label AS name FROM sitemap_anon_clients WHERE id = $1 LIMIT 1`,
+            [clientId]
+        );
+        if (res.rows.length) return { ...res.rows[0], kind: 'anonymous' };
+        return null;
     } catch {
         return null;
     }

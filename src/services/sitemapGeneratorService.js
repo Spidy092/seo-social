@@ -626,7 +626,29 @@ async function crawl(opts) {
         const { pathname } = new URL(url);
 
         if (isDisallowed(pathname, disallowed)) { stats.skipped.robots++; blockedUrls.push(url); continue; }
-        if (NON_HTML_EXT.test(pathname))        { stats.skipped.nonHtml++; discoveredNonHtml.push(url); continue; }
+
+        // Non-HTML assets (PDFs, images, videos as files)
+        if (NON_HTML_EXT.test(pathname)) {
+            discoveredNonHtml.push(url);
+            if (o.includeNonHtml) {
+                // Add directly as a sitemap entry — no need to fetch/parse HTML
+                stats.crawled++;
+                const d = getDepth(url);
+                const pri = o.priorityMap[Math.min(d, 3)] || '0.4';
+                pages.push({
+                    url,
+                    changefreq: o.changefreqMap[Math.min(d, 3)] || 'monthly',
+                    priority:   String(Math.min(1.0, Math.max(0.0, parseFloat(pri))).toFixed(1)),
+                    lastmod:    fallbackDate,
+                    images: [],
+                    videos: [],
+                    news:   [],
+                });
+            } else {
+                stats.skipped.nonHtml++;
+            }
+            continue;
+        }
 
         if (reqCount > 0 && o.requestDelayMs > 0) await sleep(o.requestDelayMs);
         reqCount++;
@@ -656,7 +678,27 @@ async function crawl(opts) {
         }
 
         const ct = res.headers['content-type'] || '';
-        if (NON_HTML_CT.test(ct)) { stats.skipped.nonHtml++; continue; }
+        if (NON_HTML_CT.test(ct)) {
+            // Server returned a non-HTML content-type (e.g., PDF served from a .php URL)
+            if (o.includeNonHtml) {
+                discoveredNonHtml.push(url);
+                stats.crawled++;
+                const d = getDepth(url);
+                const pri = o.priorityMap[Math.min(d, 3)] || '0.4';
+                pages.push({
+                    url,
+                    changefreq: o.changefreqMap[Math.min(d, 3)] || 'monthly',
+                    priority:   String(Math.min(1.0, Math.max(0.0, parseFloat(pri))).toFixed(1)),
+                    lastmod:    fallbackDate,
+                    images: [],
+                    videos: [],
+                    news:   [],
+                });
+            } else {
+                stats.skipped.nonHtml++;
+            }
+            continue;
+        }
 
         // Resolve final URL after redirects
         const finalUrl = normalizeUrl(

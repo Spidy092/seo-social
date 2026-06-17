@@ -117,6 +117,7 @@ function parseOptions(body) {
     if (typeof body.includeVideo      === 'boolean') o.includeVideo      = body.includeVideo;
     if (typeof body.includeNews       === 'boolean') o.includeNews       = body.includeNews;
     if (typeof body.includeMobile     === 'boolean') o.includeMobile     = body.includeMobile;
+    if (typeof body.includeNonHtml    === 'boolean') o.includeNonHtml    = body.includeNonHtml;
     if (typeof body.stripQueryStrings === 'boolean') o.stripQueryStrings = body.stripQueryStrings;
     if (typeof body.stripUtmParams    === 'boolean') o.stripUtmParams    = body.stripUtmParams;
     if (typeof body.computeContentHash === 'boolean') o.computeContentHash = body.computeContentHash;
@@ -240,6 +241,7 @@ async function sitemapRoutes(fastify, options) {
                     includeNews:       { type: 'boolean' },
                     includeMobile:     { type: 'boolean' },
                     includeHreflang:   { type: 'boolean' },
+                    includeNonHtml:    { type: 'boolean' },
                     stripQueryStrings: { type: 'boolean' },
                     computeContentHash:  { type: 'boolean' },
                     trackRedirectChains: { type: 'boolean' },
@@ -469,6 +471,7 @@ async function sitemapRoutes(fastify, options) {
                     includeNews:       { type: 'boolean' },
                     includeMobile:     { type: 'boolean' },
                     includeHreflang:   { type: 'boolean' },
+                    includeNonHtml:    { type: 'boolean' },
                     stripQueryStrings: { type: 'boolean' },
                     computeContentHash:  { type: 'boolean' },
                     trackRedirectChains: { type: 'boolean' },

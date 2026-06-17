@@ -109,7 +109,7 @@ function extractUrlsFromXml(xml) {
 function parseOptions(body) {
     const o = {};
     if (typeof body.maxPages          === 'number')  o.maxPages          = Math.min(body.maxPages, 10000);
-    if (typeof body.maxDepth          === 'number')  o.maxDepth          = Math.min(body.maxDepth, 10);
+    if (typeof body.maxDepth          === 'number')  o.maxDepth          = Math.min(body.maxDepth, 50);
     if (typeof body.requestDelayMs    === 'number')  o.requestDelayMs    = Math.max(body.requestDelayMs, 0);
     if (typeof body.splitAt           === 'number')  o.splitAt           = Math.min(body.splitAt, 50000); // Google hard cap
     if (typeof body.includeImages     === 'boolean') o.includeImages     = body.includeImages;
@@ -197,7 +197,7 @@ async function sitemapRoutes(fastify, options) {
                 properties: {
                     url:               { type: 'string' },
                     maxPages:          { type: 'number', minimum: 1,   maximum: 2000  },
-                    maxDepth:          { type: 'number', minimum: 0,   maximum: 10   },
+                    maxDepth:          { type: 'number', minimum: 0,   maximum: 50   },
                     requestDelayMs:    { type: 'number', minimum: 0,   maximum: 5000 },
                     splitAt:           { type: 'number', minimum: 100, maximum: 50000 },
                     includeImages:     { type: 'boolean' },
@@ -426,7 +426,7 @@ async function sitemapRoutes(fastify, options) {
                     clientId:          { type: 'string' },
                     startUrl:          { type: 'string' },
                     maxPages:          { type: 'number', minimum: 1,   maximum: 10000 },
-                    maxDepth:          { type: 'number', minimum: 0,   maximum: 10   },
+                    maxDepth:          { type: 'number', minimum: 0,   maximum: 50   },
                     requestDelayMs:    { type: 'number', minimum: 0,   maximum: 5000 },
                     splitAt:           { type: 'number', minimum: 100, maximum: 50000 },
                     includeImages:     { type: 'boolean' },

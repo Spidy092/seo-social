@@ -423,7 +423,7 @@ async function sitemapRoutes(fastify, options) {
                 type: 'object',
                 required: ['clientId'],
                 properties: {
-                    clientId:          { type: ['string', 'number'] },
+                    clientId:          { type: 'string' },
                     startUrl:          { type: 'string' },
                     maxPages:          { type: 'number', minimum: 1,   maximum: 10000 },
                     maxDepth:          { type: 'number', minimum: 0,   maximum: 10   },
@@ -885,7 +885,7 @@ async function sitemapRoutes(fastify, options) {
             body: {
                 type: 'object',
                 required: ['id'],
-                properties: { id: { type: ['string', 'number'] } },
+                properties: { id: { type: 'string' } },
             },
         },
     }, async (request, reply) => {
@@ -963,7 +963,7 @@ async function sitemapRoutes(fastify, options) {
                 type: 'object',
                 required: ['id', 'format'],
                 properties: {
-                    id: { type: ['string', 'number'] },
+                    id: { type: 'string' },
                     format: { type: 'string', enum: ['xml', 'html', 'csv', 'txt', 'gz'] },
                 },
             },

@@ -1044,31 +1044,14 @@ async function initializeDatabase() {
         )
     `);
     await query(`CREATE INDEX IF NOT EXISTS idx_sitemap_anon_clients_token ON sitemap_anon_clients(owner_token, last_used DESC)`);
-    // Allow sitemap_generations.client_id to reference the anon table too
+    // Remove conflicting foreign key constraints since client_id is polymorphic (can be seo_clients OR sitemap_anon_clients).
     await query(`
         DO $$
         BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.table_constraints
-                WHERE constraint_name = 'sitemap_generations_client_id_fkey'
-            ) THEN
-                ALTER TABLE sitemap_generations
-                  ADD CONSTRAINT sitemap_generations_client_id_fkey
-                  FOREIGN KEY (client_id) REFERENCES seo_clients(id) ON DELETE SET NULL;
-            END IF;
-        END $$;
-    `);
-    await query(`
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.table_constraints
-                WHERE constraint_name = 'fk_sitemap_gen_anon_client'
-            ) THEN
-                ALTER TABLE sitemap_generations
-                  ADD CONSTRAINT fk_sitemap_gen_anon_client
-                  FOREIGN KEY (client_id) REFERENCES sitemap_anon_clients(id) ON DELETE SET NULL;
-            END IF;
+            ALTER TABLE sitemap_generations DROP CONSTRAINT IF EXISTS sitemap_generations_client_id_fkey;
+            ALTER TABLE sitemap_generations DROP CONSTRAINT IF EXISTS fk_sitemap_gen_anon_client;
+        EXCEPTION WHEN OTHERS THEN
+            -- Ignore if constraints do not exist
         END $$;
     `);
 

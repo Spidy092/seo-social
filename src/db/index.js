@@ -1014,6 +1014,104 @@ async function initializeDatabase() {
     await query(`CREATE INDEX IF NOT EXISTS idx_ranked_kw_snap_agency ON ranked_keyword_snapshots(agency_id, checked_at DESC)`);
 
 
+    // ─── Sitemap Generator History ───
+    await query(`
+        CREATE TABLE IF NOT EXISTS sitemap_generations (
+            id          SERIAL PRIMARY KEY,
+            user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
+            agency_id   UUID REFERENCES agencies(id) ON DELETE SET NULL,
+            client_id   UUID REFERENCES seo_clients(id) ON DELETE SET NULL,
+            site_url    TEXT NOT NULL,
+            total_urls  INTEGER DEFAULT 0,
+            xml_content TEXT,
+            options     JSONB DEFAULT '{}'::jsonb,
+            created_at  TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_sitemap_gen_client ON sitemap_generations(client_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_sitemap_gen_agency ON sitemap_generations(agency_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_sitemap_gen_user ON sitemap_generations(user_id, created_at DESC)`);
+
+    // Pro feature columns on sitemap_generations (idempotent)
+    await query(`ALTER TABLE sitemap_generations ADD COLUMN IF NOT EXISTS is_index BOOLEAN DEFAULT FALSE`);
+    await query(`ALTER TABLE sitemap_generations ADD COLUMN IF NOT EXISTS sitemap_url TEXT`);
+    await query(`ALTER TABLE sitemap_generations ADD COLUMN IF NOT EXISTS robots_txt TEXT`);
+    await query(`ALTER TABLE sitemap_generations ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT FALSE`);
+    await query(`ALTER TABLE sitemap_generations ADD COLUMN IF NOT EXISTS site_origin TEXT`);
+    await query(`ALTER TABLE sitemap_generations ADD COLUMN IF NOT EXISTS total_pages INTEGER DEFAULT 0`);
+    await query(`ALTER TABLE sitemap_generations ADD COLUMN IF NOT EXISTS broken_count INTEGER DEFAULT 0`);
+    await query(`ALTER TABLE sitemap_generations ADD COLUMN IF NOT EXISTS redirect_count INTEGER DEFAULT 0`);
+    await query(`ALTER TABLE sitemap_generations ADD COLUMN IF NOT EXISTS orphan_count INTEGER DEFAULT 0`);
+    await query(`ALTER TABLE sitemap_generations ADD COLUMN IF NOT EXISTS duplicate_count INTEGER DEFAULT 0`);
+    await query(`ALTER TABLE sitemap_generations ADD COLUMN IF NOT EXISTS options_v2 JSONB DEFAULT '{}'::jsonb`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_sitemap_gen_public ON sitemap_generations(client_id, is_public, created_at DESC) WHERE is_public = TRUE`);
+
+    // Per-file XML storage for split sitemaps + public serving
+    await query(`
+        CREATE TABLE IF NOT EXISTS sitemap_saved_files (
+            id              SERIAL PRIMARY KEY,
+            generation_id   INTEGER NOT NULL REFERENCES sitemap_generations(id) ON DELETE CASCADE,
+            agency_id       UUID REFERENCES agencies(id) ON DELETE SET NULL,
+            client_id       UUID REFERENCES seo_clients(id) ON DELETE SET NULL,
+            file_index      INTEGER NOT NULL,
+            file_name       TEXT NOT NULL,
+            file_kind       TEXT NOT NULL DEFAULT 'urlset',
+            xml_content     TEXT NOT NULL,
+            gzip_content    BYTEA,
+            url_count       INTEGER NOT NULL DEFAULT 0,
+            byte_size       INTEGER NOT NULL DEFAULT 0,
+            created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_sitemap_saved_files_gen ON sitemap_saved_files(generation_id, file_index)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_sitemap_saved_files_client ON sitemap_saved_files(client_id, created_at DESC)`);
+
+    // Per-page metadata for reports
+    await query(`
+        CREATE TABLE IF NOT EXISTS sitemap_crawl_details (
+            id              SERIAL PRIMARY KEY,
+            generation_id   INTEGER NOT NULL REFERENCES sitemap_generations(id) ON DELETE CASCADE,
+            client_id       UUID REFERENCES seo_clients(id) ON DELETE SET NULL,
+            url             TEXT NOT NULL,
+            canonical       TEXT,
+            status          INTEGER,
+            content_type    TEXT,
+            content_length  INTEGER,
+            response_time_ms INTEGER,
+            redirect_chain  JSONB DEFAULT '[]'::jsonb,
+            internal_link_count INTEGER DEFAULT 0,
+            external_link_count INTEGER DEFAULT 0,
+            in_degree       INTEGER DEFAULT 0,
+            is_orphan       BOOLEAN DEFAULT FALSE,
+            is_duplicate    BOOLEAN DEFAULT FALSE,
+            duplicate_group TEXT,
+            content_hash    TEXT,
+            title           TEXT,
+            h1              TEXT,
+            lastmod         TIMESTAMPTZ,
+            created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_sitemap_crawl_details_gen ON sitemap_crawl_details(generation_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_sitemap_crawl_details_status ON sitemap_crawl_details(generation_id, status)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_sitemap_crawl_details_orphan ON sitemap_crawl_details(generation_id, is_orphan) WHERE is_orphan = TRUE`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_sitemap_crawl_details_duplicate ON sitemap_crawl_details(generation_id, duplicate_group) WHERE is_duplicate = TRUE`);
+
+    // URL include/exclude filters per client
+    await query(`
+        CREATE TABLE IF NOT EXISTS sitemap_url_filters (
+            id              SERIAL PRIMARY KEY,
+            client_id       UUID NOT NULL REFERENCES seo_clients(id) ON DELETE CASCADE,
+            agency_id       UUID REFERENCES agencies(id) ON DELETE SET NULL,
+            include_pattern TEXT[] DEFAULT '{}',
+            exclude_pattern TEXT[] DEFAULT '{}',
+            created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE(client_id)
+        )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_sitemap_url_filters_client ON sitemap_url_filters(client_id)`);
+
     log.info('✅ database schema initialized');
 }
 

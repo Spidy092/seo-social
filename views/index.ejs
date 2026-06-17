@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="/public/css/project-dashboard.css">
     <link rel="stylesheet" href="/public/css/page-optimization.css">
     <link rel="stylesheet" href="/public/css/tasks.css">
+    <link rel="stylesheet" href="/public/css/sitemap.css">
 
 </head>
 <body>
@@ -114,6 +115,10 @@
                     <li class="nav-item" data-page="technical" data-tooltip="Technical SEO">
                         <i class="fas fa-spider"></i>
                         <span>Technical SEO</span>
+                    </li>
+                    <li class="nav-item" data-page="sitemap" data-tooltip="Sitemap Generator">
+                        <i class="fas fa-sitemap"></i>
+                        <span>Sitemap Generator</span>
                     </li>
                 </ul>
             </li>
@@ -2738,6 +2743,390 @@
                 </div>
             </div>
 
+            <!-- ===== Sitemap Generator Page ===== -->
+            <div class="page" id="page-sitemap">
+                <div class="sitemap-page">
+
+                    <!-- Header banner -->
+                    <div class="sitemap-hero">
+                        <div class="sitemap-hero-bg"></div>
+                        <div class="sitemap-hero-content">
+                            <div class="sitemap-hero-icon"><i class="fas fa-sitemap"></i></div>
+                            <div>
+                                <h2>XML Sitemap Generator</h2>
+                                <p>Crawl any site, merge GSC + ranking data, and export a standards-compliant sitemap in seconds.</p>
+                            </div>
+                        </div>
+                        <div class="sitemap-hero-pills">
+                            <span>🤖 robots.txt aware</span>
+                            <span>🔀 noindex / nofollow</span>
+                            <span>🔗 redirect chains</span>
+                            <span>📑 auto-split &gt;1 000 URLs</span>
+                            <span>🔒 client-linked mode</span>
+                        </div>
+                    </div>
+
+                    <!-- Mode tabs -->
+                    <div class="sitemap-tabs">
+                        <button class="sitemap-tab active" id="smTabQuick" data-tab="quick">
+                            <i class="fas fa-bolt"></i> Quick Generate
+                        </button>
+                        <button class="sitemap-tab" id="smTabClient" data-tab="client">
+                            <i class="fas fa-user-tie"></i> Client-Linked
+                        </button>
+                    </div>
+
+                    <!-- ── Quick mode ─────────────────────────── -->
+                    <div class="sitemap-panel active" id="smPanelQuick">
+                        <div class="sitemap-grid">
+
+                            <!-- Left: config card -->
+                            <div class="card sitemap-config-card">
+                                <div class="card-header">
+                                    <h3><i class="fas fa-sliders"></i> Crawl Settings</h3>
+                                    <span class="sitemap-rate-badge" id="smQuickRateBadge">3 crawls / hr</span>
+                                </div>
+                                <div class="card-body">
+                                    <div class="form-group">
+                                        <label>Website URL <span class="required">*</span></label>
+                                        <input type="url" id="smQuickUrl" placeholder="https://example.com" autocomplete="url">
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Max Pages</label>
+                                            <select id="smQuickMaxPages">
+                                                <option value="100">100 pages</option>
+                                                <option value="250">250 pages</option>
+                                                <option value="500" selected>500 pages (max)</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Max Depth</label>
+                                            <select id="smQuickDepth">
+                                                <option value="2">2 levels</option>
+                                                <option value="3" selected>3 levels</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Crawl Delay (ms)</label>
+                                            <input type="number" id="smQuickDelay" value="300" min="100" max="2000" step="50">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Default Priority</label>
+                                            <select id="smQuickPriority">
+                                                <option value="0.8">0.8 – High</option>
+                                                <option value="0.6" selected>0.6 – Normal</option>
+                                                <option value="0.4">0.4 – Low</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="sitemap-checks">
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smQuickRespectRobots" checked>
+                                            <span>Respect robots.txt</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smQuickRespectNoindex" checked>
+                                            <span>Respect noindex meta</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smQuickFollowRedirects" checked>
+                                            <span>Follow redirects</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smQuickIncludeLastMod" checked>
+                                            <span>Include lastmod</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smQuickStripUtm" checked>
+                                            <span>Strip UTM params</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smQuickAutoSplit" checked>
+                                            <span>Auto-split &gt;1 000 URLs</span>
+                                        </label>
+                                    </div>
+                                    <button class="btn btn-primary sitemap-generate-btn" id="smQuickGenBtn">
+                                        <i class="fas fa-play"></i> Generate Sitemap
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Right: results panel -->
+                            <div class="sitemap-results-wrap">
+                                <!-- idle state -->
+                                <div class="sitemap-idle" id="smQuickIdle">
+                                    <i class="fas fa-sitemap sitemap-idle-icon"></i>
+                                    <h4>Your sitemap will appear here</h4>
+                                    <p>Enter a URL and click <strong>Generate Sitemap</strong> to start crawling.</p>
+                                </div>
+
+                                <!-- progress -->
+                                <div class="sitemap-progress-wrap" id="smQuickProgress" style="display:none">
+                                    <div class="sitemap-progress-header">
+                                        <span class="sitemap-pulse"></span>
+                                        <span id="smQuickProgressLabel">Initialising crawl…</span>
+                                    </div>
+                                    <div class="sitemap-progress-bar-track">
+                                        <div class="sitemap-progress-bar" id="smQuickProgressBar"></div>
+                                    </div>
+                                    <div class="sitemap-progress-stats" id="smQuickProgressStats"></div>
+                                </div>
+
+                                <!-- result card -->
+                                <div class="sitemap-result-card card" id="smQuickResult" style="display:none">
+                                    <div class="card-header">
+                                        <div>
+                                            <h3 id="smQuickResultTitle">Sitemap ready</h3>
+                                            <span class="header-hint" id="smQuickResultSub"></span>
+                                        </div>
+                                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                                            <div class="sitemap-export-toolbar" id="smQuickExportToolbar" style="display:none">
+                                                <select id="smQuickExportFormat" class="sitemap-export-select">
+                                                    <option value="xml">XML</option>
+                                                    <option value="html">HTML Sitemap</option>
+                                                    <option value="csv">CSV</option>
+                                                    <option value="txt">TXT</option>
+                                                    <option value="gz">.gz</option>
+                                                </select>
+                                                <button class="btn btn-sm btn-primary" id="smQuickExportBtn" title="Download in selected format">
+                                                    <i class="fas fa-file-export"></i> Export
+                                                </button>
+                                            </div>
+                                            <button class="btn btn-sm btn-outline" id="smQuickCopyBtn"><i class="fas fa-copy"></i> Copy XML</button>
+                                            <button class="btn btn-sm btn-primary" id="smQuickDownloadBtn"><i class="fas fa-download"></i> Download</button>
+                                        </div>
+                                    </div>
+                                    <div class="sitemap-result-summary" id="smQuickSummary" style="display:none"></div>
+                                    <div class="card-body sitemap-xml-wrap">
+                                        <pre class="sitemap-xml-preview" id="smQuickXmlPreview"></pre>
+                                    </div>
+                                    <div class="sitemap-result-tabs" id="smQuickResultTabs" style="display:none">
+                                        <button class="sitemap-result-tab active" data-tab="urls"    data-target="smQuickPanelUrls">URLs</button>
+                                        <button class="sitemap-result-tab"        data-tab="images"  data-target="smQuickPanelImages">Images</button>
+                                        <button class="sitemap-result-tab"        data-tab="videos"  data-target="smQuickPanelVideos">Videos</button>
+                                        <button class="sitemap-result-tab"        data-tab="news"    data-target="smQuickPanelNews">News</button>
+                                        <button class="sitemap-result-tab"        data-tab="reports" data-target="smQuickPanelReports">Reports</button>
+                                    </div>
+                                    <div class="sitemap-result-panels">
+                                        <div class="sitemap-result-panel active" data-tab="urls" id="smQuickPanelUrls">
+                                            <div class="sitemap-url-table-wrap" id="smQuickUrlTableWrap" style="display:none">
+                                                <div class="sitemap-url-table-header">
+                                                    <span id="smQuickUrlCount">0 URLs</span>
+                                                    <input type="search" id="smQuickUrlSearch" placeholder="Filter URLs…" class="sitemap-search-input">
+                                                </div>
+                                                <table class="data-table sitemap-url-table" id="smQuickUrlTable">
+                                                    <thead><tr><th>#</th><th>URL</th><th>Priority</th><th>Change freq.</th><th>Last mod</th></tr></thead>
+                                                    <tbody></tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                        <div class="sitemap-result-panel" data-tab="images" id="smQuickPanelImages">
+                                            <div class="sitemap-image-grid" id="smQuickImageGrid"></div>
+                                        </div>
+                                        <div class="sitemap-result-panel" data-tab="videos" id="smQuickPanelVideos">
+                                            <div class="sitemap-empty" id="smQuickVideoEmpty">No videos detected. <a href="#" id="smQuickEnableVideos">Re-crawl with videos enabled</a>.</div>
+                                            <div class="sitemap-video-list" id="smQuickVideoList"></div>
+                                        </div>
+                                        <div class="sitemap-result-panel" data-tab="news" id="smQuickPanelNews">
+                                            <div class="sitemap-empty" id="smQuickNewsEmpty">No news articles detected. <a href="#" id="smQuickEnableNews">Re-crawl with news enabled</a>.</div>
+                                            <div class="sitemap-news-list" id="smQuickNewsList"></div>
+                                        </div>
+                                        <div class="sitemap-result-panel" data-tab="reports" id="smQuickPanelReports">
+                                            <div id="smQuickReportsContent">Run a crawl first to see reports.</div>
+                                        </div>
+                                    </div>
+                                    <div class="sitemap-result-footer">
+                                        <button class="btn btn-sm btn-outline" id="smQuickCopyRobotsBtn" title="Copy generated robots.txt">
+                                            <i class="fas fa-robot"></i> robots.txt
+                                        </button>
+                                        <button class="btn btn-sm btn-outline" id="smQuickCopyPublicBtn" title="Copy public sitemap URL">
+                                            <i class="fas fa-link"></i> Public URL
+                                        </button>
+                                        <button class="btn btn-sm btn-outline" id="smQuickValidateBtn" title="Validate against Google spec">
+                                            <i class="fas fa-shield-halved"></i> Validate
+                                        </button>
+                                        <button class="btn btn-sm btn-outline" id="smQuickToggleUrlsBtn"><i class="fas fa-list"></i> Show URL list</button>
+                                        <button class="btn btn-sm btn-outline" id="smQuickNewBtn"><i class="fas fa-refresh"></i> New crawl</button>
+                                    </div>
+                                </div>
+
+                                <!-- error card -->
+                                <div class="sitemap-error-card" id="smQuickError" style="display:none">
+                                    <i class="fas fa-triangle-exclamation"></i>
+                                    <div>
+                                        <strong id="smQuickErrorTitle">Crawl failed</strong>
+                                        <p id="smQuickErrorMsg"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── Client-Linked mode ──────────────────── -->
+                    <div class="sitemap-panel" id="smPanelClient" style="display:none">
+                        <div class="sitemap-grid">
+
+                            <!-- Left: config card -->
+                            <div class="card sitemap-config-card">
+                                <div class="card-header">
+                                    <h3><i class="fas fa-sliders"></i> Crawl Settings</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div class="form-group">
+                                        <label>Client <span class="required">*</span></label>
+                                        <select id="smClientSelect"><option value="">– select a client –</option></select>
+                                    </div>
+                                    <div class="form-group" id="smClientUrlGroup" style="display:none">
+                                        <label>Crawl URL <span class="required">*</span></label>
+                                        <input type="url" id="smClientUrl" placeholder="https://example.com">
+                                        <small style="color:var(--text-muted);font-size:12px;">Pre-filled from client website. Override if needed.</small>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Max Pages</label>
+                                            <select id="smClientMaxPages">
+                                                <option value="500">500</option>
+                                                <option value="1000">1 000</option>
+                                                <option value="5000" selected>5 000</option>
+                                                <option value="10000">10 000</option>
+                                                <option value="0">Unlimited</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Max Depth</label>
+                                            <select id="smClientDepth">
+                                                <option value="3">3</option>
+                                                <option value="5" selected>5</option>
+                                                <option value="7">7</option>
+                                                <option value="10">10</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Crawl Delay (ms)</label>
+                                            <input type="number" id="smClientDelay" value="300" min="100" max="3000" step="50">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Default Priority</label>
+                                            <select id="smClientPriority">
+                                                <option value="0.8">0.8 – High</option>
+                                                <option value="0.6" selected>0.6 – Normal</option>
+                                                <option value="0.4">0.4 – Low</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="sitemap-checks">
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smClientRespectRobots" checked>
+                                            <span>Respect robots.txt</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smClientRespectNoindex" checked>
+                                            <span>Respect noindex</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smClientFollowRedirects" checked>
+                                            <span>Follow redirects</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smClientIncludeLastMod" checked>
+                                            <span>Include lastmod</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smClientStripUtm" checked>
+                                            <span>Strip UTM params</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smClientAutoSplit" checked>
+                                            <span>Auto-split &gt;1 000 URLs</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smClientMergeGsc" checked>
+                                            <span>Merge GSC pages</span>
+                                        </label>
+                                        <label class="sitemap-check">
+                                            <input type="checkbox" id="smClientMergeRanking" checked>
+                                            <span>Merge ranking pages</span>
+                                        </label>
+                                    </div>
+                                    <button class="btn btn-primary sitemap-generate-btn" id="smClientGenBtn">
+                                        <i class="fas fa-play"></i> Generate &amp; Save
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Right: results + history -->
+                            <div class="sitemap-results-wrap">
+                                <!-- idle -->
+                                <div class="sitemap-idle" id="smClientIdle">
+                                    <i class="fas fa-user-tie sitemap-idle-icon"></i>
+                                    <h4>Select a client to begin</h4>
+                                    <p>In client mode the crawler also pulls in pages from Google Search Console and your ranking data before building the sitemap.</p>
+                                </div>
+
+                                <!-- progress -->
+                                <div class="sitemap-progress-wrap" id="smClientProgress" style="display:none">
+                                    <div class="sitemap-progress-header">
+                                        <span class="sitemap-pulse"></span>
+                                        <span id="smClientProgressLabel">Initialising crawl…</span>
+                                    </div>
+                                    <div class="sitemap-progress-bar-track">
+                                        <div class="sitemap-progress-bar" id="smClientProgressBar"></div>
+                                    </div>
+                                    <div class="sitemap-progress-stats" id="smClientProgressStats"></div>
+                                </div>
+
+                                <!-- result card -->
+                                <div class="sitemap-result-card card" id="smClientResult" style="display:none">
+                                    <div class="card-header">
+                                        <div>
+                                            <h3 id="smClientResultTitle">Sitemap ready</h3>
+                                            <span class="header-hint" id="smClientResultSub"></span>
+                                        </div>
+                                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                            <button class="btn btn-sm btn-outline" id="smClientCopyBtn"><i class="fas fa-copy"></i> Copy XML</button>
+                                            <button class="btn btn-sm btn-primary" id="smClientDownloadBtn"><i class="fas fa-download"></i> Download</button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body sitemap-xml-wrap">
+                                        <pre class="sitemap-xml-preview" id="smClientXmlPreview"></pre>
+                                    </div>
+                                    <div class="sitemap-result-footer">
+                                        <button class="btn btn-sm btn-outline" id="smClientNewBtn"><i class="fas fa-refresh"></i> New crawl</button>
+                                    </div>
+                                </div>
+
+                                <!-- error card -->
+                                <div class="sitemap-error-card" id="smClientError" style="display:none">
+                                    <i class="fas fa-triangle-exclamation"></i>
+                                    <div>
+                                        <strong id="smClientErrorTitle">Crawl failed</strong>
+                                        <p id="smClientErrorMsg"></p>
+                                    </div>
+                                </div>
+
+                                <!-- history -->
+                                <div class="card sitemap-history-card" id="smHistoryCard" style="display:none">
+                                    <div class="card-header">
+                                        <h3><i class="fas fa-clock-rotate-left"></i> Generation History</h3>
+                                        <button class="btn btn-sm btn-outline" id="smHistoryRefreshBtn"><i class="fas fa-rotate-right"></i></button>
+                                    </div>
+                                    <div class="card-body" id="smHistoryList">
+                                        <p class="text-muted" style="text-align:center;padding:20px;">No history yet.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            <!-- ===== /Sitemap Generator Page ===== -->
+
         </div>
     </main>
 
@@ -2773,6 +3162,8 @@
     <script src="/public/js/search-visibility.js"></script>
     <script src="/public/js/tasks.js"></script>
     <script src="/public/js/agency.js"></script>
+    <script src="/public/js/sitemap.js"></script>
+    <script src="/public/js/sitemap-reports.js"></script>
 
 </body>
 </html>

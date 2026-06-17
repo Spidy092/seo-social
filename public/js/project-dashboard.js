@@ -487,6 +487,10 @@ function renderPdRankedKeywords(data) {
 
     // No-URL / no-data empty state
     if (allKeywords.length === 0) {
+        // When every source returned zero, show "No data" instead of the last
+        // attempted source — it's less misleading.
+        const badgeSource = (source === 'gsc' || source === 'serper' || source === 'rank_tracker') ? 'none' : source;
+        const badgeLabel = badgeSource === 'none' ? 'No data' : sourceLabel;
         container.innerHTML = `
             <div class="pd-ranked-kw-bar">
                 <input id="${inputId}" type="text" placeholder="example.com or https://example.com/page"
@@ -499,10 +503,19 @@ function renderPdRankedKeywords(data) {
                 </button>
             </div>
             <div class="pd-ranked-kw-empty">
-                ${pdEmpty(`No keywords found for <strong>${pdEscape(defaultUrl)}</strong> via ${pdEscape(sourceLabel)}.`, 'fa-key')}
+                ${pdEmpty(`No keywords found for <strong>${pdEscape(defaultUrl)}</strong>.`, 'fa-key')}
+                <div style="margin-top:10px;font-size:0.82rem;color:var(--gray,#6b7280);text-align:left">
+                    Tried in order: Google Search Console → Serper.dev → internal rank tracker. None returned data.
+                    <br>To see ranked keywords, either:
+                    <ul style="margin:6px 0 0 18px;padding:0">
+                        <li>Connect Google Search Console for this client (best — real query data)</li>
+                        <li>Add a <code>SERPER_API_KEY</code> to <code>.env</code> (live SERP, costs credits)</li>
+                        <li>Add this domain to your rank tracker and run a rank check</li>
+                    </ul>
+                </div>
             </div>
             <div class="pd-ranked-kw-meta">
-                <span class="pd-source-badge ${pdEscape(source)}">${pdEscape(sourceLabel)}</span>
+                <span class="pd-source-badge ${pdEscape(badgeSource)}">${pdEscape(badgeLabel)}</span>
                 <span>Last checked ${pdFormatTimeAgo(rk.checkedAt)}</span>
             </div>
         `;

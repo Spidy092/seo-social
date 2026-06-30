@@ -275,10 +275,9 @@ async function initializeDatabase() {
     await query(`
         CREATE TABLE IF NOT EXISTS my_domains (
             id SERIAL PRIMARY KEY,
-            agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL,
             domain VARCHAR(255) NOT NULL,
             added_at TIMESTAMP DEFAULT NOW(),
-            UNIQUE(agency_id, domain)
+            UNIQUE(domain)
         )
     `);
 

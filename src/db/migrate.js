@@ -2,6 +2,7 @@
  * Migration stub — schema is managed by src/db/index.js initializeDatabase().
  * Kept so `npm run migrate` doesn't fail.
  */
+require('dotenv').config();
 const { initializeDatabase } = require('./index');
 
 (async () => {

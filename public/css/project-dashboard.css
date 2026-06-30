@@ -48,14 +48,14 @@
 }
 
 .pdh-controls select {
-    min-width: 260px;
-    padding: 10px 12px;
-    border: 1px solid var(--gray-light);
-    border-radius: 8px;
-    background: white;
-    color: var(--dark);
-    font-size: 0.9rem;
-    font-family: inherit;
+	min-width: 260px;
+	padding: 10px 12px;
+	border: 1px solid var(--gray-light);
+	border-radius: 8px;
+	background: #010514;
+	color: var(--dark);
+	font-size: 0.9rem;
+	font-family: inherit;
 }
 
 .pdh-controls select:focus {
@@ -75,13 +75,16 @@
 }
 
 .pdh-meta .pdh-chip {
-    background: white;
-    border: 1px solid var(--gray-light);
-    border-radius: 999px;
-    padding: 4px 12px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+	background: #010514;
+	border: 1px solid var(--gray-light);
+	border-radius: 999px;
+	padding: 10px 20px;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+.pdh-chip a {
+	color: #fff;
 }
 
 .pdh-meta .pdh-chip strong {
@@ -121,20 +124,21 @@
 
 /* Stats grid */
 .pd-stats {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 14px;
+	display: grid;
+	grid-template-columns: repeat(6, 1fr);
+	gap: 14px;
+	padding: 0 0 20px;
 }
 
 .pd-stat {
-    background: white;
-    border: 1px solid var(--gray-light);
-    border-radius: 12px;
-    padding: 16px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    box-shadow: var(--card-shadow);
+	background: #0e1528;
+	border: 1px solid var(--gray-light);
+	border-radius: 12px;
+	padding: 16px;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	box-shadow: var(--card-shadow);
 }
 
 .pd-stat-icon {
@@ -691,12 +695,12 @@
 .pd-btn-accent:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .pd-audit-panel {
-    background: var(--white, #fff);
-    border: 1px solid var(--gray-light, #e5e7eb);
-    border-radius: 14px;
-    padding: 20px;
-    margin-bottom: 20px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+	background: #0e1528;
+	border: 1px solid var(--gray-light, #e5e7eb);
+	border-radius: 14px;
+	padding: 20px;
+	margin-bottom: 20px;
+	box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 .pd-audit-running,
 .pd-audit-failed {

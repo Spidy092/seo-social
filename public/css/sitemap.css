@@ -27,7 +27,7 @@
 /* Checks */
 .sitemap-checks { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 18px; }
 .sitemap-check { display: flex; align-items: center; gap: 9px; font-size: 13px; cursor: pointer; padding: 6px 10px; border-radius: 8px; transition: background .15s; }
-.sitemap-check:hover { background: var(--bg,#f8fafc); }
+.sitemap-check:hover {color: #ffffff82;}
 .sitemap-check input[type=checkbox] { accent-color: #4f46e5; width: 15px; height: 15px; flex-shrink: 0; }
 .sitemap-generate-btn { width: 100%; justify-content: center; height: 46px; font-size: .95rem; font-weight: 700; border-radius: 10px; }
 

@@ -3792,11 +3792,11 @@ function renderSeoClients(clients) {
                         <h4>${escapeHtml(client.name)}</h4>
                         <p>${escapeHtml(client.industry || 'No industry set')} ${client.website_url ? `· <a href="${escapeHtml(client.website_url)}" target="_blank" rel="noopener">${escapeHtml(client.website_url)}</a>` : ''}</p>
                     </div>
-                    <div style="display:flex;gap:8px;align-items:center;">
-                        <select class="assign-client-select" data-client-id="${client.id}" style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);max-width:160px;">
+                    <div style="display:flex;gap:12px;align-items:center;">
+                        <select class="form-control assign-client-select" data-client-id="${client.id}" style="font-size:12px;padding:7px 12px;max-width:160px;min-height:36px;">
                             <option value="">Unassigned</option>
                         </select>
-                        <button class="btn btn-sm btn-outline client-select-btn" data-client-id="${client.id}">Use</button>
+                        <button class="btn btn-sm btn-primary client-select-btn" data-client-id="${client.id}" style="min-height:36px;">Use</button>
                     </div>
                 </div>
                 <div class="client-meta-grid">

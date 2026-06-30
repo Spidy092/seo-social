@@ -502,15 +502,28 @@ function renderPdRankedKeywords(data) {
                     <i class="fas fa-rotate"></i> Refresh
                 </button>
             </div>
-            <div class="pd-ranked-kw-empty">
-                ${pdEmpty(`No keywords found for <strong>${pdEscape(defaultUrl)}</strong>.`, 'fa-key')}
-                <div style="margin-top:10px;font-size:0.82rem;color:var(--gray,#6b7280);text-align:left">
-                    Tried in order: Google Search Console → Serper.dev → internal rank tracker. None returned data.
-                    <br>To see ranked keywords, either:
-                    <ul style="margin:6px 0 0 18px;padding:0">
-                        <li>Connect Google Search Console for this client (best — real query data)</li>
-                        <li>Add a <code>SERPER_API_KEY</code> to <code>.env</code> (live SERP, costs credits)</li>
-                        <li>Add this domain to your rank tracker and run a rank check</li>
+            <div class="pd-empty">
+                <div class="pd-empty-icon"><i class="fas fa-key"></i></div>
+                <h3>No keywords found for <strong>${pdEscape(defaultUrl)}</strong></h3>
+                
+                <div style="margin-top: 24px; text-align: left; background: var(--bg-body, #f8fafc); border: 1px solid var(--border-color, #e2e8f0); padding: 24px; border-radius: var(--border-radius-sm, 8px); max-width: 580px; margin-left: auto; margin-right: auto; box-shadow: var(--shadow-sm, 0 1px 2px 0 rgba(0,0,0,0.05));">
+                    <p style="margin-bottom: 16px; color: var(--text-secondary, #475569); font-size: 0.9rem; line-height: 1.5;">
+                        Tried in order: <strong>Google Search Console</strong> <i class="fas fa-arrow-right" style="margin: 0 4px; font-size: 0.75rem; opacity: 0.5;"></i> <strong>Serper.dev</strong> <i class="fas fa-arrow-right" style="margin: 0 4px; font-size: 0.75rem; opacity: 0.5;"></i> <strong>internal rank tracker</strong>. None returned data.
+                    </p>
+                    <p style="font-weight: 600; font-size: 0.95rem; margin-bottom: 12px; color: var(--text-primary, #0f172a);">To see ranked keywords, either:</p>
+                    <ul style="list-style: none; padding: 0; margin: 0;">
+                        <li style="margin-bottom: 10px; font-size: 0.9rem; color: var(--text-secondary, #475569); display: flex; align-items: flex-start; gap: 10px;">
+                            <i class="fas fa-check-circle" style="color: var(--secondary, #10b981); margin-top: 3px; font-size: 0.9rem;"></i>
+                            <span>Connect <strong>Google Search Console</strong> for this client (best — real query data)</span>
+                        </li>
+                        <li style="margin-bottom: 10px; font-size: 0.9rem; color: var(--text-secondary, #475569); display: flex; align-items: flex-start; gap: 10px;">
+                            <i class="fas fa-check-circle" style="color: var(--secondary, #10b981); margin-top: 3px; font-size: 0.9rem;"></i>
+                            <span>Add a <code>SERPER_API_KEY</code> to <code>.env</code> (live SERP, costs credits)</span>
+                        </li>
+                        <li style="font-size: 0.9rem; color: var(--text-secondary, #475569); display: flex; align-items: flex-start; gap: 10px;">
+                            <i class="fas fa-check-circle" style="color: var(--secondary, #10b981); margin-top: 3px; font-size: 0.9rem;"></i>
+                            <span>Add this domain to your <strong>rank tracker</strong> and run a rank check</span>
+                        </li>
                     </ul>
                 </div>
             </div>

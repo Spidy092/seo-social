@@ -59,7 +59,7 @@ async function main() {
     });
 
     await fastify.register(multipart, {
-        limits: { fileSize: 100 * 1024 * 1024 }, // 100MB for video uploads
+        limits: { fileSize: 100 * 1024 * 1024 }, 
     });
 
     await fastify.register(formbody);

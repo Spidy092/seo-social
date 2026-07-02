@@ -101,14 +101,15 @@ document.addEventListener('DOMContentLoaded', () => {
     initVoiceProfiles();
     initDiffModeToggler();
     initToneAdjusters();
-        // Check for hash on load for deep linking
-    const hash = window.location.hash.substring(1);
-    const validPages = commandPages.map(p => p.page);
+    // Check for path on load for deep linking
+    let pathPage = window.location.pathname.substring(1);
+    if (pathPage === '') pathPage = 'dashboard';
+    const validPages = commandPages.map(p => p.page).concat(['sitemap']); // Adding sitemap just in case
     
-    if (hash && validPages.includes(hash)) {
-        navigateTo(hash);
+    if (pathPage && validPages.includes(pathPage)) {
+        navigateTo(pathPage, true);
     } else {
-        navigateTo('dashboard');
+        navigateTo('dashboard', true);
     }
 
     refreshAlertBadge();
@@ -153,10 +154,22 @@ function initSidebarGroups() {
 }
 
 // ─── Sidebar Collapse ───
+// function initSidebarCollapse() {
+//     const btn = $('#sidebarCollapseBtn');
+//     const sidebar = $('.sidebar');
+//     if (!btn || !sidebar) return;
+
+//     const collapsed = localStorage.getItem('sidebar-collapsed') === 'true';
+//     if (collapsed) sidebar.classList.add('collapsed');
+
+//     btn.addEventListener('click', () => {
+//         sidebar.classList.toggle('collapsed');
+//         localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+//     });
+// }
 function initSidebarCollapse() {
     const btn = $('#sidebarCollapseBtn');
     const sidebar = $('.sidebar');
-    if (!btn || !sidebar) return;
 
     const collapsed = localStorage.getItem('sidebar-collapsed') === 'true';
     if (collapsed) sidebar.classList.add('collapsed');
@@ -390,19 +403,22 @@ function initNavigation() {
         });
     });
 
-    // Handle back/forward buttons
-    window.addEventListener('hashchange', () => {
-        const hash = window.location.hash.substring(1);
-        if (hash && hash !== currentPage) {
-            navigateTo(hash, true);
+    // Handle back/forward buttons via History API
+    window.addEventListener('popstate', () => {
+        let pathPage = window.location.pathname.substring(1);
+        if (pathPage === '') pathPage = 'dashboard';
+        if (pathPage && pathPage !== currentPage) {
+            navigateTo(pathPage, true);
         }
     });
 }
 
-function navigateTo(page, isHashChange = false) {
+function navigateTo(page, isPopState = false) {
     if (currentPage !== page) {
         currentPage = page;
-        if (!isHashChange) window.location.hash = page;
+        if (!isPopState) {
+            window.history.pushState(null, '', '/' + page);
+        }
     }
     
     // Update nav

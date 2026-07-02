@@ -809,7 +809,7 @@
     margin: 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 16px;
 }
 .pd-audit-action {
     display: flex;
@@ -1024,15 +1024,15 @@
     margin-bottom: 14px;
 }
 .pd-ranked-kw-bar input {
-    flex: 1;
-    min-width: 0;
-    padding: 8px 12px;
-    border: 1px solid var(--gray-light, #e5e7eb);
-    border-radius: 8px;
-    font-size: 0.88rem;
-    font-family: inherit;
-    background: #fff;
-    color: var(--dark, #111827);
+	flex: 1;
+	min-width: 0;
+	padding: 8px 12px;
+	border: 1px solid var(--gray-light, #e5e7eb);
+	border-radius: 8px;
+	font-size: 0.88rem;
+	font-family: inherit;
+	background: #fff;
+	color: #000;
 }
 .pd-ranked-kw-bar input:focus {
     outline: none;

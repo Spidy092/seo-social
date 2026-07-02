@@ -3,14 +3,14 @@
 .sitemap-page { max-width: 1200px; margin: 0 auto; padding: 0 4px 40px; }
 
 /* Hero */
-.sitemap-hero { position: relative; border-radius: 20px; overflow: hidden; background: linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%); padding: 36px 40px; margin-bottom: 28px; color: #fff; box-shadow: 0 10px 30px -10px rgba(67, 56, 202, 0.4); }
+.sitemap-hero {position: relative;border-radius: 20px;overflow: hidden;background: linear-gradient(135deg, #5a54a2 0%, #494696 60%, #393473 100%);padding: 36px 40px;margin-bottom: 28px;color: #fff;box-shadow: 0 10px 30px -10px rgba(67, 56, 202, 0.4);}
 .sitemap-hero-bg { position: absolute; inset: 0; background: radial-gradient(ellipse at 85% 15%, rgba(255,255,255,.15) 0%, transparent 60%); pointer-events: none; }
 .sitemap-hero-content { position: relative; display: flex; align-items: center; gap: 20px; margin-bottom: 20px; }
 .sitemap-hero-icon { width: 64px; height: 64px; border-radius: 16px; background: rgba(255,255,255,.15); box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; font-size: 2rem; flex-shrink: 0; }
 .sitemap-hero-content h2 { margin: 0 0 6px; font-size: 1.8rem; font-weight: 800; letter-spacing: -0.5px; }
 .sitemap-hero-content p { margin: 0; opacity: .9; font-size: 15px; max-width: 600px; line-height: 1.5; }
 .sitemap-hero-pills { position: relative; display: flex; flex-wrap: wrap; gap: 10px; }
-.sitemap-hero-pills span { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.15); border-radius: 30px; padding: 6px 14px; font-size: 12.5px; font-weight: 500; white-space: nowrap; display: flex; align-items: center; gap: 6px; backdrop-filter: blur(5px); }
+.sitemap-hero-pills span {background: rgba(255,255,255,.1);border: 1px solid rgba(255,255,255,.15);border-radius: 30px;padding: 15px 25px;font-size: 15px;font-weight: 500;backdrop-filter: blur(5px);}
 
 /* Tabs */
 .sitemap-tabs { display: flex; gap: 8px; margin-bottom: 24px; background: var(--bg-body,#f8fafc); border: 1px solid var(--border-color,#e2e8f0); border-radius: 14px; padding: 6px; width: fit-content; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }

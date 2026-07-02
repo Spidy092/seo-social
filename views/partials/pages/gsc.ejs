@@ -1,0 +1,93 @@
+<div class="page" id="page-gsc">
+                <div class="content-section">
+                    <div class="card" style="margin-bottom:18px;">
+                        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                            <div>
+                                <h2 style="font-size:1.35rem;font-weight:800;margin:0;">Google Search Console</h2>
+                                <p style="color:var(--text-muted);margin:4px 0 0;font-size:.86rem;">Connect client GSC properties, sync search performance, and find query/page opportunities.</p>
+                            </div>
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                <button class="btn btn-outline" onclick="gscRefreshClientManager()"><i class="fas fa-rotate-right"></i> Refresh</button>
+                                <button class="btn btn-primary" onclick="gscSyncAllClients()"><i class="fas fa-cloud-arrow-down"></i> Sync All</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="gscSetupWarning" class="card" style="display:none;margin-bottom:18px;border-color:#f59e0b;">
+                        <div class="card-body" style="display:flex;align-items:flex-start;gap:12px;">
+                            <i class="fas fa-triangle-exclamation" style="color:#f59e0b;font-size:1.25rem;margin-top:2px;"></i>
+                            <div>
+                                <h3 style="margin:0 0 6px;font-size:1rem;">GSC not configured</h3>
+                                <p class="text-muted" style="margin:0;font-size:.9rem;">Add <code>GOOGLE_SERVICE_ACCOUNT_JSON</code> or <code>GSC_SERVICE_ACCOUNT_JSON</code> to <code>.env</code>, then add the service account email to the client's Search Console property.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-bottom:18px;">
+                        <div class="card-header"><h3><i class="fas fa-link"></i> Connect And Sync</h3></div>
+                        <div class="card-body">
+                            <div style="display:grid;grid-template-columns:minmax(220px,1fr) minmax(260px,1fr) auto;gap:12px;align-items:end;">
+                                <div>
+                                    <label>Client</label>
+                                    <select id="gscClientSelect" class="form-control" style="width:100%;">
+                                        <option value="">Select a client</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>GSC Property URL</label>
+                                    <input id="gscSiteUrlInput" type="text" class="form-control" placeholder="https://example.com/ or sc-domain:example.com" style="width:100%;">
+                                </div>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <button class="btn btn-primary" onclick="gscConnect()"><i class="fas fa-link"></i> Connect</button>
+                                    <button class="btn btn-outline" onclick="gscSync()"><i class="fas fa-arrows-rotate"></i> Sync</button>
+                                    <button class="btn btn-outline" onclick="gscLoad()"><i class="fas fa-chart-line"></i> Load</button>
+                                    <button class="btn btn-outline" onclick="gscGenerateClientReport()"><i class="fas fa-file-lines"></i> Report</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-bottom:18px;">
+                        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                            <div>
+                                <h3><i class="fas fa-sitemap"></i> Client GSC Connections</h3>
+                                <p class="text-muted" style="margin:4px 0 0;font-size:.84rem;">One service account can manage many client properties.</p>
+                            </div>
+                        </div>
+                        <div class="card-body" id="gscClientManagerList"><p class="text-muted">Loading client GSC connections...</p></div>
+                    </div>
+
+                    <div class="card" style="margin-bottom:18px;">
+                        <div class="card-header"><h3><i class="fas fa-clock-rotate-left"></i> Recent GSC Syncs</h3></div>
+                        <div class="card-body" id="gscSyncLogList"><p class="text-muted">Loading sync history...</p></div>
+                    </div>
+
+                    <div class="metrics-grid" id="gscOverviewCards" style="display:none;margin-bottom:18px;">
+                        <div class="metric-card"><div class="metric-header"><span class="metric-label">Total Clicks</span><span class="metric-icon"><i class="fas fa-mouse-pointer"></i></span></div><div class="metric-value" id="gscStatClicks">—</div></div>
+                        <div class="metric-card"><div class="metric-header"><span class="metric-label">Impressions</span><span class="metric-icon"><i class="fas fa-eye"></i></span></div><div class="metric-value" id="gscStatImpressions">—</div></div>
+                        <div class="metric-card"><div class="metric-header"><span class="metric-label">Average CTR</span><span class="metric-icon"><i class="fas fa-percent"></i></span></div><div class="metric-value" id="gscStatCtr">—</div></div>
+                        <div class="metric-card"><div class="metric-header"><span class="metric-label">Average Position</span><span class="metric-icon"><i class="fas fa-ranking-star"></i></span></div><div class="metric-value" id="gscStatPosition">—</div></div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;" id="gscMainGrid">
+                        <div class="card">
+                            <div class="card-header"><h3><i class="fas fa-search"></i> Top Queries</h3></div>
+                            <div class="card-body" id="gscTopQueriesTable"><p class="text-muted">Load data to see top queries.</p></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header"><h3><i class="fas fa-arrow-trend-up"></i> Quick Win Keywords</h3></div>
+                            <div class="card-body" id="gscOpportunitiesTable"><p class="text-muted">Load data to see opportunities.</p></div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-bottom:18px;">
+                        <div class="card-header"><h3><i class="fas fa-percent"></i> Low CTR Pages</h3></div>
+                        <div class="card-body" id="gscLowCtrTable"><p class="text-muted">Load data to see low CTR pages.</p></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header"><h3><i class="fas fa-file-lines"></i> Top Pages By Clicks</h3></div>
+                        <div class="card-body" id="gscTopPagesTable"><p class="text-muted">Load data to see top pages.</p></div>
+                    </div>
+                </div>
+            </div>

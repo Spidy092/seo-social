@@ -1,0 +1,56 @@
+<div class="page" id="page-agency-settings">
+                <div style="max-width: 900px; margin: 0 auto; padding: 0 4px;">
+                    <div class="card" style="margin-bottom: 24px;">
+                        <div class="card-header">
+                            <h3><i class="fas fa-building"></i> Agency Settings</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>Agency Name</label>
+                                <input type="text" id="agencyNameInput" placeholder="Your Agency Name" style="width: 100%;">
+                            </div>
+                            <div style="display: flex; gap: 12px; align-items: center; margin-top: 16px;">
+                                <button class="btn btn-primary" id="saveAgencyNameBtn">
+                                    <i class="fas fa-save"></i> Save Changes
+                                </button>
+                                <span id="agencySettingsStatus" style="font-size: 13px; color: var(--text-muted);"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-bottom: 24px;">
+                        <div class="card-header">
+                            <h3><i class="fas fa-user-plus"></i> Invite Team Member</h3>
+                        </div>
+                        <div class="card-body">
+                            <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
+                                <div class="form-group" style="flex: 1; min-width: 250px; margin: 0;">
+                                    <label>Email Address</label>
+                                    <input type="email" id="inviteEmailInput" placeholder="colleague@example.com" style="width: 100%;">
+                                </div>
+                                <div class="form-group" style="min-width: 150px; margin: 0;">
+                                    <label>Role</label>
+                                    <select id="inviteRoleSelect" style="width: 100%;">
+                                        <option value="agent">Agent</option>
+                                        <option value="manager">Manager</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-primary" id="sendInviteBtn">
+                                    <i class="fas fa-paper-plane"></i> Send Invite
+                                </button>
+                            </div>
+                            <div id="inviteResult" style="margin-top: 12px; font-size: 13px;"></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-envelope"></i> Pending Invites</h3>
+                            <button class="btn btn-sm btn-outline" id="refreshInvitesBtn"><i class="fas fa-rotate-right"></i> Refresh</button>
+                        </div>
+                        <div class="card-body" id="pendingInvitesList">
+                            <p class="text-muted">Loading invites...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>

@@ -1,0 +1,90 @@
+<div class="page" id="page-content-brief">
+                <div class="research-container">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Content Brief Generator</h3>
+                            <span class="header-hint">Turn a keyword into a practical SEO content plan using SERP and competitor signals</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Target keyword</label>
+                                    <input type="text" id="briefKeyword" placeholder="e.g. web design company in Bangalore">
+                                </div>
+                                <div class="form-group">
+                                    <label>Location</label>
+                                    <input type="text" id="briefLocation" value="India" placeholder="India, Bangalore, Whitefield">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Your domain</label>
+                                    <input type="text" id="briefDomain" placeholder="example.com">
+                                </div>
+                                <div class="form-group">
+                                    <label>Audience</label>
+                                    <input type="text" id="briefAudience" placeholder="startup founders, local customers, SaaS buyers">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Brand voice</label>
+                                    <input type="text" id="briefBrandVoice" placeholder="clear, expert, practical">
+                                </div>
+                                <div class="form-group">
+                                    <label>Attach to project</label>
+                                    <select id="briefProjectSelect">
+                                        <option value="">Do not attach to project</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Competitor depth</label>
+                                    <select id="briefNumResults">
+                                        <option value="5">Top 5</option>
+                                        <option value="10" selected>Top 10</option>
+                                        <option value="20">Top 20</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <label class="checkbox-label" style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+                                <input type="checkbox" id="briefUseAi" checked>
+                                <span>Use AI to polish title, meta, and outline when configured</span>
+                            </label>
+                            <button class="btn btn-primary" id="generateBriefBtn" style="width:220px;justify-content:center;height:50px;font-weight:600;">
+                                <i class="fas fa-file-lines"></i> Generate Brief
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="contentBriefResults" style="display:none;margin-top:20px;">
+                        <div class="metrics-grid" style="margin-bottom:20px;">
+                            <div class="metric-card"><div class="metric-header"><span class="metric-label">Intent</span><span class="metric-icon"><i class="fas fa-bullseye"></i></span></div><div class="metric-value" id="briefIntent">-</div></div>
+                            <div class="metric-card"><div class="metric-header"><span class="metric-label">Page Type</span><span class="metric-icon"><i class="fas fa-layer-group"></i></span></div><div class="metric-value" id="briefPageType">-</div></div>
+                            <div class="metric-card"><div class="metric-header"><span class="metric-label">Target Words</span><span class="metric-icon"><i class="fas fa-align-left"></i></span></div><div class="metric-value" id="briefWordCount">-</div></div>
+                            <div class="metric-card"><div class="metric-header"><span class="metric-label">AI Enhanced</span><span class="metric-icon"><i class="fas fa-wand-magic-sparkles"></i></span></div><div class="metric-value" id="briefAiStatus">-</div></div>
+                        </div>
+
+                        <div class="card" style="margin-bottom:20px;">
+                            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                                <h3>SEO Brief</h3>
+                                <button class="btn btn-sm btn-outline" id="sendBriefToHumanizerBtn"><i class="fas fa-pen-nib"></i> Send to Humanizer</button>
+                            </div>
+                            <div class="card-body" id="briefSummary"></div>
+                        </div>
+
+                        <div class="dashboard-grid">
+                            <div class="card"><div class="card-header"><h3>Outline</h3></div><div class="card-body" id="briefOutline"></div></div>
+                            <div class="card"><div class="card-header"><h3>Entities and Topics</h3></div><div class="card-body" id="briefEntities"></div></div>
+                            <div class="card"><div class="card-header"><h3>FAQs from SERP</h3></div><div class="card-body" id="briefFaqs"></div></div>
+                            <div class="card"><div class="card-header"><h3>Schema and Links</h3></div><div class="card-body" id="briefSchemaLinks"></div></div>
+                        </div>
+
+                        <div class="card" style="margin-top:20px;">
+                            <div class="card-header"><h3>Competitor Examples</h3></div>
+                            <div class="card-body" id="briefCompetitors"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>

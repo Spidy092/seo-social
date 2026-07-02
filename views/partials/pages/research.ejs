@@ -1,0 +1,232 @@
+<div class="page" id="page-research">
+                <div class="research-container">
+                    <div class="research-form card">
+                        <h3>🔍 Advanced Keyword Research</h3>
+                        <div class="form-group">
+                            <label>Enter Keyword</label>
+                            <input type="text" id="keywordInput" placeholder="e.g., web design company in bangalore">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Country</label>
+                                <select id="countryInput">
+                                    <option value="India">India</option>
+                                    <option value="United States">United States</option>
+                                    <option value="United Kingdom">United Kingdom</option>
+                                    <option value="Canada">Canada</option>
+                                    <option value="Australia">Australia</option>
+                                    <option value="Germany">Germany</option>
+                                    <option value="UAE">UAE</option>
+                                    <option value="Singapore">Singapore</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="cityGroup">
+                                <label>City / Location</label>
+                                <select id="cityInput">
+                                    <option value="">All India</option>
+                                    <option value="Bangalore">Bangalore</option>
+                                    <option value="Mumbai">Mumbai</option>
+                                    <option value="Delhi">Delhi</option>
+                                    <option value="Chennai">Chennai</option>
+                                    <option value="Hyderabad">Hyderabad</option>
+                                    <option value="Pune">Pune</option>
+                                    <option value="Kolkata">Kolkata</option>
+                                    <option value="Ahmedabad">Ahmedabad</option>
+                                    <option value="Jaipur">Jaipur</option>
+                                    <option value="Kochi">Kochi</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group" id="areaGroup" style="display: none;">
+                            <label>Specific Area / Locality</label>
+                            <select id="areaInput">
+                                    <option value="">All Bangalore</option>
+                            </select>
+                        </div>
+
+                        <!-- Collapsible Advanced Options -->
+                        <div class="collapsible-section">
+                            <div class="collapsible-header" id="researchAdvancedToggle">
+                                <h4><i class="fas fa-sliders"></i> Advanced Options</h4>
+                                <i class="fas fa-chevron-down chevron"></i>
+                            </div>
+                            <div class="collapsible-body" id="researchAdvancedBody">
+                                <div class="form-group">
+                                    <label>Save research to project</label>
+                                    <select id="researchProjectSelect">
+                                        <option value="">Do not attach to project</option>
+                                    </select>
+                                </div>
+                                <div class="checkbox-row">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="includeIntent" checked>
+                                        <span>Intent Analysis</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="includeSerpFeatures" checked>
+                                        <span>SERP Features</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="includeContentGap" checked>
+                                        <span>Content Gap Analysis</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button class="btn btn-primary" id="researchBtn" style="width: 200px; justify-content: center; height: 50px; font-weight: 600;">
+                            <i class="fas fa-search"></i> Research Now
+                        </button>
+                    </div>
+
+                    <div class="research-results" id="researchResults" style="display: none;">
+                        <!-- Advanced Metrics -->
+                        <div class="keyword-metrics card">
+                            <h3>📊 Keyword Overview</h3>
+                            <div class="metrics-grid">
+                                <div class="metric-card">
+                                    <div class="metric-header">
+                                        <span class="metric-label">Search Volume</span>
+                                        <span class="metric-icon"><i class="fas fa-search"></i></span>
+                                    </div>
+                                    <div class="metric-value" id="searchVolume">-</div>
+                                </div>
+                                <div class="metric-card">
+                                    <div class="metric-header">
+                                        <span class="metric-label">Opportunity Score</span>
+                                        <span class="metric-icon"><i class="fas fa-star"></i></span>
+                                    </div>
+                                    <div class="metric-value" id="opportunityScore">-</div>
+                                </div>
+                                <div class="metric-card">
+                                    <div class="metric-header">
+                                        <span class="metric-label">Competition</span>
+                                        <span class="metric-icon"><i class="fas fa-chart-bar"></i></span>
+                                    </div>
+                                    <div class="metric-value" id="competition">-</div>
+                                </div>
+                                <div class="metric-card">
+                                    <div class="metric-header">
+                                        <span class="metric-label">Difficulty</span>
+                                        <span class="metric-icon"><i class="fas fa-tachometer-alt"></i></span>
+                                    </div>
+                                    <div class="metric-value" id="difficulty">-</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Intent Analysis -->
+                        <div class="intent-analysis card" id="intentSection" style="display: none;">
+                            <h3>🎯 Keyword Intent</h3>
+                            <div class="intent-content">
+                                <div class="intent-primary">
+                                    <span class="intent-badge" id="intentPrimary">-</span>
+                                    <span class="intent-stage" id="intentStage">-</span>
+                                </div>
+                                <div class="intent-description" id="intentDescription">-</div>
+                                <div class="intent-breakdown" id="intentBreakdown"></div>
+                            </div>
+                        </div>
+
+                        <!-- SERP Features -->
+                        <div class="serp-features card" id="serpFeaturesSection" style="display: none;">
+                            <h3>🔎 SERP Features</h3>
+                            <div class="features-grid" id="serpFeaturesGrid"></div>
+                            <div class="rich-opportunity" id="richOpportunity"></div>
+                        </div>
+
+                        <!-- CPC Range -->
+                        <div class="cpc-analysis card">
+                            <h3>💰 CPC Estimation</h3>
+                            <div class="cpc-range" id="cpcRange">-</div>
+                        </div>
+
+                        <!-- Content Gaps -->
+                        <div class="content-gap card" id="contentGapSection" style="display: none;">
+                            <h3>📝 Content Gap Analysis</h3>
+                            <div class="gap-section" id="gapQuestions"></div>
+                            <div class="gap-section" id="gapTopics"></div>
+                            <div class="gap-section" id="gapLength"></div>
+                            <div class="gap-section" id="gapElements"></div>
+                        </div>
+
+                        <!-- Top Pages Analysis -->
+                        <div class="top-pages card" id="topPagesSection" style="display: none;">
+                            <h3>📈 Top Pages Analysis</h3>
+                            <div class="pages-stats" id="pagesStats"></div>
+                            <div class="pages-recommendations" id="pagesRecommendations"></div>
+                        </div>
+
+                        <!-- Location Display -->
+                        <div class="location-info card">
+                            <h3>📍 Location</h3>
+                            <div class="location-display" id="locationDisplay">-</div>
+                        </div>
+
+                        <!-- Competitors -->
+                        <div class="competitors-table card">
+                            <div class="card-header">
+                                <h3>🏆 Ranking Pages</h3>
+                                <span class="badge" id="competitorCount">0</span>
+                            </div>
+                            <div class="card-body">
+                                <table class="data-table premium" id="competitorsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Domain</th>
+                                            <th>Title</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                                <div id="competitorsPagination"></div>
+                            </div>
+                        </div>
+
+                        <!-- Related Keywords -->
+                        <div class="related-searches card">
+                            <div class="card-header">
+                                <h3>🔗 Related Keywords</h3>
+                                <span class="badge" id="relatedCount">0</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="research-bulk-actions" id="researchBulkActions" style="display:none;">
+                                    <div class="research-selection-meta">
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" id="selectVisibleKeywords" onchange="toggleVisibleRelatedKeywords(this.checked)">
+                                            <span>Select visible</span>
+                                        </label>
+                                        <button class="btn btn-sm btn-outline" onclick="selectAllRelatedKeywords()">All</button>
+                                        <button class="btn btn-sm btn-outline" onclick="clearRelatedKeywordSelection()">Clear</button>
+                                        <span id="selectedKeywordCount">0 selected</span>
+                                    </div>
+                                    <div class="research-action-buttons">
+                                        <button class="btn btn-sm btn-outline" onclick="exportRelatedKeywordsCsv()"><i class="fas fa-file-csv"></i> CSV</button>
+                                        <button class="btn btn-sm btn-outline" onclick="saveSelectedKeywordsToProject()"><i class="fas fa-folder-plus"></i> Project keywords</button>
+                                        <button class="btn btn-sm btn-outline" onclick="createTasksFromSelectedKeywords()"><i class="fas fa-tasks"></i> SEO tasks</button>
+                                        <button class="btn btn-sm btn-primary" onclick="createBriefsFromSelectedKeywords()"><i class="fas fa-file-lines"></i> Content briefs</button>
+                                    </div>
+                                </div>
+                                <table class="data-table premium" id="relatedSearchesTable">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:42px;"></th>
+                                            <th>Keyword</th>
+                                            <th>Search Volume</th>
+                                            <th>CPC (USD)</th>
+                                            <th>Difficulty</th>
+                                            <th>Intent</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                                <div id="relatedSearchesPagination" style="margin-top: 15px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>

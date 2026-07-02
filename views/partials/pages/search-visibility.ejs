@@ -1,0 +1,129 @@
+<div class="page" id="page-search-visibility">
+                <div class="content-section">
+                    <div class="card" style="margin-bottom:18px;">
+                        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                            <div>
+                                <h2 style="font-size:1.35rem;font-weight:800;margin:0;">Search Visibility Control Center</h2>
+                                <p style="color:var(--text-muted);margin:4px 0 0;font-size:.86rem;">Connect, inspect, submit discovery signals, and turn search visibility issues into tasks.</p>
+                            </div>
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                <select id="svClientSelect" class="form-control" style="min-width:260px;"></select>
+                                <button class="btn btn-primary" id="svRefreshBtn"><i class="fas fa-rotate-right"></i> Refresh</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metrics-grid" id="svStatusCards" style="margin-bottom:18px;"></div>
+
+                    <div class="card" style="margin-bottom:18px;">
+                        <div class="card-header"><h3><i class="fas fa-list-check"></i> Next Actions</h3></div>
+                        <div class="card-body" id="svNextActions"><p class="text-muted">Select a client to see setup actions.</p></div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:18px;">
+                        <div class="card">
+                            <div class="card-header"><h3><i class="fab fa-google"></i> Search Console</h3></div>
+                            <div class="card-body">
+                                <label>GSC Property URL</label>
+                                <input id="svGscSiteUrl" type="text" class="form-control sv-input-field" placeholder="https://example.com/ or sc-domain:example.com">
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <button class="btn btn-primary" id="svConnectGscBtn"><i class="fas fa-link"></i> Connect</button>
+                                    <button class="btn btn-outline" id="svSyncGscBtn"><i class="fas fa-arrows-rotate"></i> Sync GSC</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header"><h3><i class="fas fa-chart-simple"></i> GA4</h3></div>
+                            <div class="card-body">
+                                <label>Numeric GA4 Property ID</label>
+                                <input id="svGa4PropertyId" type="text" class="form-control sv-input-field" placeholder="123456789">
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <button class="btn btn-primary" id="svConnectGa4Btn"><i class="fas fa-link"></i> Connect</button>
+                                    <button class="btn btn-outline" id="svSyncGa4Btn"><i class="fas fa-arrows-rotate"></i> Sync GA4</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header"><h3><i class="fas fa-bolt"></i> IndexNow</h3></div>
+                            <div class="card-body">
+                                <label>IndexNow Key</label>
+                                <input id="svIndexNowKey" type="password" class="form-control sv-input-field" placeholder="8-128 character key">
+                                <label>Key Location</label>
+                                <input id="svIndexNowLocation" type="text" class="form-control sv-input-field" placeholder="https://example.com/key.txt">
+                                <button class="btn btn-primary" id="svSaveIndexNowBtn"><i class="fas fa-save"></i> Save Key</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex;gap:18px;margin-bottom:18px;align-items:stretch;" class="sv-layout-row">
+                        <div class="card" style="flex: 1; max-width: 100%; width: 100%;">
+                            <div class="card-header"><h3><i class="fas fa-magnifying-glass"></i> URL Inspection</h3></div>
+                            <div class="card-body">
+                                <label>Inspect URL</label>
+                                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                                    <input id="svInspectionUrl" type="url" class="form-control sv-input-field" placeholder="https://example.com/blog/post">
+                                    <button class="btn btn-primary" id="svInspectBtn"><i class="fas fa-search"></i> Inspect</button>
+                                </div>
+                                <div id="svInspectionResult"><p class="text-muted">Inspect a URL to see canonical, robots, fetch, and index coverage signals.</p></div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="flex: 1; max-width: 100%; width: 100%;">
+                            <div class="card-header"><h3><i class="fas fa-clipboard-check"></i> Create Task</h3></div>
+                            <div class="card-body">
+                                <label>Project</label>
+                                <select id="svProjectSelect" class="form-control sv-input-field"></select>
+                                <button class="btn btn-primary" id="svCreateTaskBtn" disabled style="width:100%;justify-content:center;"><i class="fas fa-plus"></i> Create Task From Recommendation</button>
+                                <p class="text-muted" style="font-size:.82rem;margin-top:10px;">Tasks are created only after an inspection or discovery action returns recommendations.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex;gap:18px;margin-bottom:18px;align-items:stretch;" class="sv-layout-row">
+                        <div class="card" style="flex: 1; max-width: 100%; width: 100%;">
+                            <div class="card-header"><h3><i class="fas fa-sitemap"></i> Sitemap Tools</h3></div>
+                            <div class="card-body">
+                                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                                    <input id="svSitemapUrl" type="url" class="form-control" placeholder="https://example.com/sitemap.xml" style="flex:1;min-width:0;">
+                                    <button class="btn btn-primary" id="svSubmitSitemapBtn"><i class="fas fa-paper-plane"></i> Submit</button>
+                                    <button class="btn btn-outline" id="svListSitemapsBtn"><i class="fas fa-list"></i> List</button>
+                                </div>
+                                <p class="text-muted" style="font-size:.82rem;">Sitemap submission helps Google discover URLs. It does not guarantee indexing.</p>
+                                <div id="svSitemapsList"></div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="flex: 1; max-width: 100%; width: 100%;">
+                            <div class="card-header"><h3><i class="fas fa-bullhorn"></i> Discovery Notifications</h3></div>
+                            <div class="card-body">
+                                <label>IndexNow URLs</label>
+                                <textarea id="svIndexNowUrls" class="form-control sv-input-field" rows="4" placeholder="https://example.com/blog/post"></textarea>
+                                <button class="btn btn-primary" id="svSubmitIndexNowBtn" style="margin-bottom:16px;"><i class="fas fa-bolt"></i> Notify IndexNow</button>
+
+                                <div style="border-top:1px solid var(--border);padding-top:24px;margin-top:6px;display:flex;flex-direction:column;gap:16px;">
+                                    <label style="margin-bottom:0;">Google Indexing API Eligible URL</label>
+                                    <input id="svGoogleIndexingUrl" type="url" class="form-control sv-input-field" placeholder="JobPosting or livestream URL only" style="margin:0;">
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0;">
+                                        <select id="svGoogleIndexingType" class="form-control">
+                                            <option value="URL_UPDATED">URL Updated</option>
+                                            <option value="URL_DELETED">URL Deleted</option>
+                                        </select>
+                                        <select id="svGoogleIndexingPageType" class="form-control">
+                                            <option value="">Select eligible type</option>
+                                            <option value="job_posting">JobPosting</option>
+                                            <option value="broadcast_event_video">BroadcastEvent Video</option>
+                                        </select>
+                                    </div>
+                                    <button class="btn btn-outline" id="svGoogleIndexingBtn"><i class="fab fa-google"></i> Send Eligible Notification</button>
+                                    <p class="text-muted" style="font-size:.82rem;margin:0;">Normal blog and service pages should use URL Inspection, sitemap submission, IndexNow, and GSC monitoring.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;"><h3><i class="fas fa-clock-rotate-left"></i> Recent Search Visibility Actions</h3><div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-sm btn-outline" id="svCreateTasksBtn"><i class="fas fa-list-check"></i> Create Tasks</button><button class="btn btn-sm btn-outline" id="svCreateAlertsBtn"><i class="fas fa-bell"></i> Create Alerts</button></div></div>
+                        <div class="card-body" id="svActionsTable"><p class="text-muted">No actions loaded yet.</p></div>
+                    </div>
+                </div>
+            </div>

@@ -91,10 +91,21 @@ async function main() {
     log.info({ count: registered.length, routes: registered }, '✅ routes registered');
 
     // ─── 5. Dashboard + onboarding + health routes (live here, not in /routes) ───
-    fastify.get('/', async (request, reply) => {
-        return reply.view('index.ejs', {
-            title: 'Keyword Analyzer & Social Poster',
-            version: '1.0.0',
+    const frontendRoutes = [
+        '/', '/dashboard', '/clients', '/project-dashboard', '/research', '/competitors',
+        '/analysis', '/tracking', '/gsc', '/seo-performance', '/search-visibility',
+        '/alerts', '/onpage', '/page-optimization', '/page-speed', '/technical',
+        '/humanizer', '/content-brief', '/reports', '/tasks', '/agency-settings',
+        '/agency-members', '/social-upload', '/social-schedule', '/social-platforms',
+        '/social-analytics', '/sitemap'
+    ];
+
+    frontendRoutes.forEach(route => {
+        fastify.get(route, async (request, reply) => {
+            return reply.view('index.ejs', {
+                title: 'Keyword Analyzer & Social Poster',
+                version: '1.0.0',
+            });
         });
     });
 

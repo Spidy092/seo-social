@@ -1,0 +1,126 @@
+<div class="page active" id="page-dashboard">
+                <!-- Quick Actions -->
+                <div class="quick-actions">
+                    <button class="quick-action-btn" data-page="research">
+                        <i class="fas fa-search blue"></i>
+                        <span>New Research</span>
+                    </button>
+                    <button class="quick-action-btn" data-page="onpage">
+                        <i class="fas fa-spider green"></i>
+                        <span>Run Audit</span>
+                    </button>
+                    <button class="quick-action-btn" data-page="reports">
+                        <i class="fas fa-file-pdf purple"></i>
+                        <span>Generate Report</span>
+                    </button>
+                    <button class="quick-action-btn" data-page="tasks">
+                        <i class="fas fa-tasks blue"></i>
+                        <span>View Tasks</span>
+                    </button>
+                </div>
+
+                <!-- Onboarding Checklist (shown until dismissed) -->
+                <div id="onboardingChecklist" class="card" style="display:none; margin-bottom: 20px; border-left: 4px solid #6366f1;">
+                    <div class="card-body" style="padding: 20px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <span style="font-size:1.3rem;">🚀</span>
+                                <h3 style="margin:0; font-size:1rem; font-weight:700;">Welcome! Here's how to get started</h3>
+                            </div>
+                            <button id="dismissOnboarding" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1.2rem;padding:4px;" title="Dismiss">&times;</button>
+                        </div>
+                        <div id="checklistItems" style="display:flex;flex-direction:column;gap:10px;"></div>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">
+                            <i class="fas fa-key"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalKeywords">0</h3>
+                            <p>Keywords Tracked</p>
+                            <div class="stat-trend neutral" id="keywordsTrend"></div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">
+                            <i class="fas fa-trophy"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="topRankings">0</h3>
+                            <p>Top 10 Rankings</p>
+                            <div class="stat-trend neutral" id="rankingsTrend"></div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalCompetitors">0</h3>
+                            <p>Competitors Found</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple">
+                            <i class="fas fa-briefcase"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalClients">0</h3>
+                            <p>SEO Clients</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon teal">
+                            <i class="fas fa-folder-open"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalProjects">0</h3>
+                            <p>SEO Projects</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon red">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="activeAlerts">0</h3>
+                            <p>Active Alerts</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Recent Keywords</h3>
+                            <a href="#" class="view-all" data-page="research">View All</a>
+                        </div>
+                        <div class="card-body">
+                            <table class="data-table" id="recentKeywordsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Keyword</th>
+                                        <th>Volume</th>
+                                        <th>Competition</th>
+                                        <th>Difficulty</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Recent Alerts</h3>
+                            <a href="#" class="view-all" data-page="alerts">View All</a>
+                        </div>
+                        <div class="card-body">
+                            <div class="alerts-list" id="recentAlertsList"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>

@@ -1,0 +1,203 @@
+<div class="page" id="page-project-dashboard">
+                <div class="project-dashboard-container">
+                    <div class="card project-dashboard-header">
+                        <div class="card-body">
+                            <div class="pdh-top">
+                                <div>
+                                    <div class="pdh-eyebrow">Project SEO Dashboard</div>
+                                    <h2 id="pdProjectName" class="pdh-title">Select a project</h2>
+                                    <div class="pdh-sub" id="pdProjectSub"></div>
+                                </div>
+                                <div class="pdh-controls">
+                                    <select id="pdProjectSelect"><option value="">Loading projects…</option></select>
+                                    <button class="btn btn-sm btn-outline" id="pdRefreshBtn" title="Refresh dashboard data">
+                                        <i class="fas fa-rotate-right"></i> Refresh
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="pdh-meta" id="pdProjectMeta"></div>
+                        </div>
+                    </div>
+
+                    <div id="pdEmptyState" class="card pd-empty">
+                        <div class="card-body">
+                            <div class="pd-empty-icon"><i class="fas fa-folder-open"></i></div>
+                            <h3>Pick a project to see its SEO health</h3>
+                            <p>Create a project from the <strong>Clients</strong> page, then come back here for a one-glance view of keywords, ranks, technical health, competitors, alerts, and next actions.</p>
+                        </div>
+                    </div>
+
+                    <div id="pdDashboardBody" style="display:none">
+                        <!-- Summary tiles -->
+                        <div class="pd-stats">
+                            <div class="pd-stat">
+                                <div class="pd-stat-icon blue"><i class="fas fa-key"></i></div>
+                                <div class="pd-stat-info">
+                                    <h3 id="pdStatKeywords">0</h3>
+                                    <p>Target keywords</p>
+                                </div>
+                            </div>
+                            <div class="pd-stat">
+                                <div class="pd-stat-icon green"><i class="fas fa-trophy"></i></div>
+                                <div class="pd-stat-info">
+                                    <h3 id="pdStatTop10">0</h3>
+                                    <p>Top 10 rankings</p>
+                                </div>
+                            </div>
+                            <div class="pd-stat">
+                                <div class="pd-stat-icon orange"><i class="fas fa-arrow-trend-up"></i></div>
+                                <div class="pd-stat-info">
+                                    <h3 id="pdStatAvg">—</h3>
+                                    <p>Avg. position</p>
+                                </div>
+                            </div>
+                            <div class="pd-stat">
+                                <div class="pd-stat-icon purple"><i class="fas fa-spider"></i></div>
+                                <div class="pd-stat-info">
+                                    <h3 id="pdStatTech">—</h3>
+                                    <p>Technical score</p>
+                                </div>
+                            </div>
+                            <div class="pd-stat">
+                                <div class="pd-stat-icon teal"><i class="fas fa-bullseye"></i></div>
+                                <div class="pd-stat-info">
+                                    <h3 id="pdStatVolume">0</h3>
+                                    <p>Total search volume</p>
+                                </div>
+                            </div>
+                            <div class="pd-stat">
+                                <div class="pd-stat-icon red"><i class="fas fa-bell"></i></div>
+                                <div class="pd-stat-info">
+                                    <h3 id="pdStatAlerts">0</h3>
+                                    <p>Unread alerts</p>
+                                </div>
+                            </div>
+                            <div class="pd-stat">
+                                <div class="pd-stat-icon teal"><i class="fas fa-magnifying-glass-chart"></i></div>
+                                <div class="pd-stat-info">
+                                    <h3 id="pdStatGscClicks">—</h3>
+                                    <p>GSC clicks</p>
+                                </div>
+                            </div>
+                            <div class="pd-stat">
+                                <div class="pd-stat-icon purple"><i class="fas fa-bolt"></i></div>
+                                <div class="pd-stat-info">
+                                    <h3 id="pdStatGscScore">—</h3>
+                                    <p>GSC score</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card pd-gsc-card" id="pdGscCard">
+                            <div class="card-header">
+                                <h3><i class="fas fa-magnifying-glass-chart"></i> GSC Performance</h3>
+                                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                    <span class="header-hint">Real Google clicks, impressions, CTR, and opportunity data</span>
+                                    <button class="btn btn-sm btn-outline" id="pdGscSyncBtn"><i class="fas fa-cloud-arrow-down"></i> Sync GSC</button>
+                                </div>
+                            </div>
+                            <div class="card-body" id="pdGscBlock"></div>
+                        </div>
+
+                        <!-- Movement strip -->
+                        <div class="card pd-movement">
+                            <div class="card-header">
+                                <h3>7-day movement</h3>
+                                <span class="header-hint">Rank changes for this project's keywords</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="pd-movement-grid">
+                                    <div class="pd-move up"><i class="fas fa-arrow-up"></i><strong id="pdMoveUp">0</strong><span>Improved</span></div>
+                                    <div class="pd-move down"><i class="fas fa-arrow-down"></i><strong id="pdMoveDown">0</strong><span>Dropped</span></div>
+                                    <div class="pd-move new"><i class="fas fa-sparkles"></i><strong id="pdMoveNew">0</strong><span>New</span></div>
+                                    <div class="pd-move lost"><i class="fas fa-ghost"></i><strong id="pdMoveLost">0</strong><span>Lost</span></div>
+                                    <div class="pd-move gap"><i class="fas fa-circle-question"></i><strong id="pdMoveGap">0</strong><span>Unranked</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pd-row">
+                            <!-- Target keywords table -->
+                            <div class="card pd-section-flex">
+                                <div class="card-header">
+                                    <h3><i class="fas fa-key"></i> Target keywords</h3>
+                                    <span class="header-hint">Current rank, change, and on-page intent</span>
+                                </div>
+                                <div class="card-body pd-table-wrap">
+                                    <table class="data-table" id="pdKeywordsTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Keyword</th>
+                                                <th>Intent</th>
+                                                <th>Volume</th>
+                                                <th>Difficulty</th>
+                                                <th>Current rank</th>
+                                                <th>Change</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Top competitors -->
+                            <div class="card pd-section-fixed">
+                                <div class="card-header">
+                                    <h3><i class="fas fa-users"></i> Top competitors</h3>
+                                    <span class="header-hint">Domains outranking you on the most project keywords</span>
+                                </div>
+                                <div class="card-body" id="pdCompetitorsList"></div>
+                            </div>
+                        </div>
+
+                        <div class="pd-row">
+                            <!-- Technical health -->
+                            <div class="card pd-section-fixed">
+                                <div class="card-header">
+                                    <h3><i class="fas fa-spider"></i> Technical health</h3>
+                                    <span class="header-hint">Latest crawl for the client's website</span>
+                                </div>
+                                <div class="card-body" id="pdTechnicalBlock"></div>
+                            </div>
+
+                            <!-- Ranked keywords (what this URL actually ranks for) -->
+                            <div class="card pd-section-flex">
+                                <div class="card-header">
+                                    <h3><i class="fas fa-magnifying-glass-chart"></i> Ranked keywords</h3>
+                                    <span class="header-hint">What this URL actually ranks for (GSC → Serper → rank tracker)</span>
+                                </div>
+                                <div class="card-body" id="pdRankedKeywordsBlock"></div>
+                            </div>
+
+                            <!-- Content gaps -->
+                            <div class="card pd-section-flex">
+                                <div class="card-header">
+                                    <h3><i class="fas fa-puzzle-piece"></i> Content gaps</h3>
+                                    <span class="header-hint">Priority keywords that are unranked or missing</span>
+                                </div>
+                                <div class="card-body" id="pdContentGaps"></div>
+                            </div>
+                        </div>
+
+                        <div class="pd-row">
+                            <!-- Alerts -->
+                            <div class="card pd-section-flex">
+                                <div class="card-header">
+                                    <h3><i class="fas fa-bell"></i> Recent alerts</h3>
+                                    <span class="header-hint">Rank and indexing events for project keywords</span>
+                                </div>
+                                <div class="card-body" id="pdAlertsList"></div>
+                            </div>
+
+                            <!-- Recommended actions -->
+                            <div class="card pd-section-fixed pd-actions-card">
+                                <div class="card-header">
+                                    <h3><i class="fas fa-flag-checkered"></i> Next recommended actions</h3>
+                                    <span class="header-hint">Derived from current rank, tech, and gap data</span>
+                                </div>
+                                <div class="card-body" id="pdActionsList"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>

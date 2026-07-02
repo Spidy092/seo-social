@@ -1,0 +1,116 @@
+<div class="page" id="page-technical">
+                <div class="technical-container">
+                    <div class="card onpage-form-card">
+                        <div class="card-header">
+                            <h3>🕸️ Technical SEO Audit</h3>
+                            <span class="header-hint">Crawl your site · Find crawl/index issues · Flag sitemap and architecture gaps</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="technical-input-row">
+                                <input type="text" id="technical-site-input" placeholder="https://example.com">
+                                <select id="technical-max-pages">
+                                    <option value="10">Crawl 10 pages</option>
+                                    <option value="20" selected>Crawl 20 pages</option>
+                                    <option value="30">Crawl 30 pages</option>
+                                    <option value="50">Crawl 50 pages</option>
+                                </select>
+                                <label class="checkbox-inline" style="white-space:nowrap;">
+                                    <input type="checkbox" id="technical-check-security-headers">
+                                    Include security headers
+                                </label>
+                            </div>
+                            <button class="btn btn-primary" id="technical-audit-btn">
+                                <i class="fas fa-spider"></i> Run Technical Audit
+                            </button>
+                        </div>
+                    </div>
+
+
+                    <div id="technical-results" style="display:none">
+                        <div class="technical-top-grid">
+                            <div class="card">
+                                <div class="card-header"><h3>Audit Score</h3></div>
+                                <div class="onpage-score-wrap">
+                                    <div class="onpage-score-ring">
+                                        <svg width="120" height="120" viewBox="0 0 120 120">
+                                            <circle class="track" cx="60" cy="60" r="45"></circle>
+                                            <circle class="fill" id="technical-score-circle" cx="60" cy="60" r="45" stroke-dasharray="283" stroke-dashoffset="283"></circle>
+                                        </svg>
+                                        <div class="onpage-score-num">
+                                            <div class="onpage-score-big" id="technical-overall-score">—</div>
+                                            <div class="onpage-score-slash">/100</div>
+                                        </div>
+                                    </div>
+                                    <div class="onpage-score-info">
+                                        <div class="score-label" id="technical-overall-label">—</div>
+                                        <div class="score-sublabel" id="technical-overall-info">Run a crawl to see your score</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card">
+                                <div class="card-header"><h3>Audit Summary</h3></div>
+                                <div class="card-body">
+                                    <div class="technical-summary-grid" id="technical-summary-grid"></div>
+                                    <div class="technical-infra-summary" id="technical-infra-summary" style="margin-top:16px"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-bottom:20px">
+                            <div class="card-header">
+                                <h3>Score by Category</h3>
+                                <span class="header-hint">Click a category card to filter issues below</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="technical-categories" id="technical-category-scores"></div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-bottom:20px">
+                            <div class="onpage-issues-header">
+                                <h3>Technical Issues</h3>
+                                <div class="technical-issues-controls">
+                                    <button class="onpage-filter-btn active" data-category="all" onclick="technicalFilterByCategory('all')">All</button>
+                                    <button class="onpage-filter-btn" data-category="crawlability" onclick="technicalFilterByCategory('crawlability')">Crawlability</button>
+                                    <button class="onpage-filter-btn" data-category="indexability" onclick="technicalFilterByCategory('indexability')">Indexability</button>
+                                    <button class="onpage-filter-btn" data-category="sitemaps" onclick="technicalFilterByCategory('sitemaps')">Sitemaps</button>
+                                    <button class="onpage-filter-btn" data-category="architecture" onclick="technicalFilterByCategory('architecture')">Architecture</button>
+                                    <button class="onpage-filter-btn" data-category="content" onclick="technicalFilterByCategory('content')">Content</button>
+                                    <button class="onpage-filter-btn" data-category="performance" onclick="technicalFilterByCategory('performance')">Performance</button>
+                                    <button class="onpage-filter-btn" data-category="security" onclick="technicalFilterByCategory('security')">Security</button>
+                                </div>
+                            </div>
+                            <div id="technical-issues-list"></div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Crawled Pages</h3>
+                                <span class="header-hint">Status, depth, canonical health, and per-page findings</span>
+                            </div>
+                            <div class="card-body" style="padding:0;overflow:auto">
+                                <table class="technical-pages-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Status</th>
+                                            <th>URL</th>
+                                            <th>Title</th>
+                                            <th>Depth</th>
+                                            <th>Canonical</th>
+                                            <th>Headings</th>
+                                            <th>Images</th>
+                                            <th>Words</th>
+                                            <th>Security</th>
+                                            <th>Issues</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="technical-pages-body">
+                                        <tr><td colspan="11" class="technical-table-empty">Run an audit to inspect crawled pages.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>

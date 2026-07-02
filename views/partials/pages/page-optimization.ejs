@@ -1,0 +1,204 @@
+<div class="page" id="page-page-optimization">
+                <div class="po-container">
+                    <div class="card po-header">
+                        <div class="card-body">
+                            <div class="po-header-top">
+                                <div>
+                                    <h2 style="margin-bottom:6px"><i class="fas fa-bullseye"></i> Existing Page Optimization</h2>
+                                    <p class="po-header-sub">Enter a URL and target keyword. We crawl your page plus the top 10 SERP competitors and surface 8 specific gaps you can fix today.</p>
+                                </div>
+                                <div class="po-header-stats" id="poHeaderStats" style="display:none">
+                                    <div class="po-stat">
+                                        <strong id="poStatMyScore">—</strong>
+                                        <span>Your page score</span>
+                                    </div>
+                                    <div class="po-stat">
+                                        <strong id="poStatCompScore">—</strong>
+                                        <span>Competitor avg</span>
+                                    </div>
+                                    <div class="po-stat">
+                                        <strong id="poStatHigh">—</strong>
+                                        <span>High-priority gaps</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="po-grid">
+                        <div class="card po-form-card">
+                            <div class="card-header">
+                                <h3>Optimize a page</h3>
+                                <span class="header-hint">We'll crawl the live page, fetch the SERP, and compare against up to 10 competitors.</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label>Your page URL</label>
+                                    <input type="text" id="poUrl" placeholder="https://yoursite.com/your-page">
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Target keyword</label>
+                                        <input type="text" id="poKeyword" placeholder="e.g. web design company bangalore">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Search location</label>
+                                        <select id="poLocation">
+                                            <option value="India">India</option>
+                                            <option value="United States">United States</option>
+                                            <option value="United Kingdom">United Kingdom</option>
+                                            <option value="Bangalore">Bangalore</option>
+                                            <option value="Mumbai">Mumbai</option>
+                                            <option value="Delhi">Delhi</option>
+                                            <option value="Dubai">Dubai</option>
+                                            <option value="Singapore">Singapore</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button class="btn btn-primary" id="poAnalyzeBtn">
+                                    <i class="fas fa-bullseye"></i> Run Optimization Analysis
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card po-history-card">
+                            <div class="card-header">
+                                <h3>Recent reports</h3>
+                                <button class="btn btn-sm btn-outline" id="poRefreshHistoryBtn"><i class="fas fa-rotate-right"></i></button>
+                            </div>
+                            <div class="card-body" id="poHistoryList">
+                                <p class="text-muted">No reports yet. Run your first analysis.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="poProgress" class="card po-progress" style="display:none">
+                        <div class="card-body">
+                            <div class="po-progress-step" id="poProgressStep">Starting analysis…</div>
+                            <div class="po-progress-bar"><div class="po-progress-fill" id="poProgressFill"></div></div>
+                            <div class="po-progress-detail" id="poProgressDetail"></div>
+                        </div>
+                    </div>
+
+                    <div id="poErrorBanner" class="card po-error" style="display:none">
+                        <div class="card-body" id="poErrorBody"></div>
+                    </div>
+
+                    <div id="poResults" style="display:none">
+                        <div class="po-report-header card">
+                            <div class="card-body">
+                                <div class="po-report-meta">
+                                    <div>
+                                        <div class="po-report-eyebrow">Report</div>
+                                        <h3 id="poReportKeyword" style="margin-bottom:4px">—</h3>
+                                        <a id="poReportUrl" href="#" target="_blank" rel="noopener" class="po-report-url">—</a>
+                                    </div>
+                                    <div class="po-report-badges" id="poReportBadges"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="po-categories">
+                            <div class="po-category" data-category="headings">
+                                <div class="po-category-icon"><i class="fas fa-heading"></i></div>
+                                <div class="po-category-info">
+                                    <h4>Missing headings</h4>
+                                    <p id="poCatHeadingsSummary">—</p>
+                                </div>
+                                <div class="po-category-priority" id="poCatHeadingsPriority">—</div>
+                            </div>
+                            <div class="po-category" data-category="title-meta">
+                                <div class="po-category-icon"><i class="fas fa-tag"></i></div>
+                                <div class="po-category-info">
+                                    <h4>Title &amp; meta</h4>
+                                    <p id="poCatTitleSummary">—</p>
+                                </div>
+                                <div class="po-category-priority" id="poCatTitlePriority">—</div>
+                            </div>
+                            <div class="po-category" data-category="content-depth">
+                                <div class="po-category-icon"><i class="fas fa-ruler-vertical"></i></div>
+                                <div class="po-category-info">
+                                    <h4>Content depth</h4>
+                                    <p id="poCatContentSummary">—</p>
+                                </div>
+                                <div class="po-category-priority" id="poCatContentPriority">—</div>
+                            </div>
+                            <div class="po-category" data-category="faqs">
+                                <div class="po-category-icon"><i class="fas fa-circle-question"></i></div>
+                                <div class="po-category-info">
+                                    <h4>FAQ coverage</h4>
+                                    <p id="poCatFaqSummary">—</p>
+                                </div>
+                                <div class="po-category-priority" id="poCatFaqPriority">—</div>
+                            </div>
+                            <div class="po-category" data-category="schema">
+                                <div class="po-category-icon"><i class="fas fa-code"></i></div>
+                                <div class="po-category-info">
+                                    <h4>Schema markup</h4>
+                                    <p id="poCatSchemaSummary">—</p>
+                                </div>
+                                <div class="po-category-priority" id="poCatSchemaPriority">—</div>
+                            </div>
+                            <div class="po-category" data-category="images">
+                                <div class="po-category-icon"><i class="fas fa-image"></i></div>
+                                <div class="po-category-info">
+                                    <h4>Image alt issues</h4>
+                                    <p id="poCatImagesSummary">—</p>
+                                </div>
+                                <div class="po-category-priority" id="poCatImagesPriority">—</div>
+                            </div>
+                            <div class="po-category" data-category="internal-links">
+                                <div class="po-category-icon"><i class="fas fa-link"></i></div>
+                                <div class="po-category-info">
+                                    <h4>Internal linking</h4>
+                                    <p id="poCatLinksSummary">—</p>
+                                </div>
+                                <div class="po-category-priority" id="poCatLinksPriority">—</div>
+                            </div>
+                            <div class="po-category" data-category="keyword-coverage">
+                                <div class="po-category-icon"><i class="fas fa-key"></i></div>
+                                <div class="po-category-info">
+                                    <h4>Keyword &amp; entity coverage</h4>
+                                    <p id="poCatEntitySummary">—</p>
+                                </div>
+                                <div class="po-category-priority" id="poCatEntityPriority">—</div>
+                            </div>
+                        </div>
+
+                        <div class="po-sections">
+                            <div class="po-section card" id="poSection-headings">
+                                <div class="card-header"><h3><i class="fas fa-heading"></i> Missing headings</h3><span class="po-section-priority" id="poSecHeadingsPriority">—</span></div>
+                                <div class="card-body" id="poSecHeadingsBody"></div>
+                            </div>
+                            <div class="po-section card" id="poSection-title-meta">
+                                <div class="card-header"><h3><i class="fas fa-tag"></i> Title &amp; meta description</h3><span class="po-section-priority" id="poSecTitlePriority">—</span></div>
+                                <div class="card-body" id="poSecTitleBody"></div>
+                            </div>
+                            <div class="po-section card" id="poSection-content-depth">
+                                <div class="card-header"><h3><i class="fas fa-ruler-vertical"></i> Content depth gap</h3><span class="po-section-priority" id="poSecContentPriority">—</span></div>
+                                <div class="card-body" id="poSecContentBody"></div>
+                            </div>
+                            <div class="po-section card" id="poSection-faqs">
+                                <div class="card-header"><h3><i class="fas fa-circle-question"></i> FAQ coverage</h3><span class="po-section-priority" id="poSecFaqPriority">—</span></div>
+                                <div class="card-body" id="poSecFaqBody"></div>
+                            </div>
+                            <div class="po-section card" id="poSection-schema">
+                                <div class="card-header"><h3><i class="fas fa-code"></i> Schema markup</h3><span class="po-section-priority" id="poSecSchemaPriority">—</span></div>
+                                <div class="card-body" id="poSecSchemaBody"></div>
+                            </div>
+                            <div class="po-section card" id="poSection-images">
+                                <div class="card-header"><h3><i class="fas fa-image"></i> Image alt issues</h3><span class="po-section-priority" id="poSecImagesPriority">—</span></div>
+                                <div class="card-body" id="poSecImagesBody"></div>
+                            </div>
+                            <div class="po-section card" id="poSection-internal-links">
+                                <div class="card-header"><h3><i class="fas fa-link"></i> Internal link opportunities</h3><span class="po-section-priority" id="poSecLinksPriority">—</span></div>
+                                <div class="card-body" id="poSecLinksBody"></div>
+                            </div>
+                            <div class="po-section card" id="poSection-keyword-coverage">
+                                <div class="card-header"><h3><i class="fas fa-key"></i> Keyword &amp; entity coverage</h3><span class="po-section-priority" id="poSecEntityPriority">—</span></div>
+                                <div class="card-body" id="poSecEntityBody"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>

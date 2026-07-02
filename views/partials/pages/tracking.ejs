@@ -1,0 +1,78 @@
+<div class="page" id="page-tracking">
+                <div class="tracking-container">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📈 Project Rank Tracking</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Project</label>
+                                    <select id="rankProjectSelect" onchange="handleRankProjectChange()">
+                                        <option value="">All projects</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Legacy domain tracking</label>
+                                    <div class="form-inline">
+                                        <input type="text" id="trackDomainInput" placeholder="yourdomain.com">
+                                        <button class="btn btn-primary" id="trackDomainBtn">
+                                            <i class="fas fa-plus"></i> Add Domain
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <button class="btn btn-outline" id="checkProjectRankingsBtn" onclick="checkSelectedProjectRankings()" disabled>
+                                <i class="fas fa-sync"></i> Run Project Rank Check
+                            </button>
+                            <div id="rankSetupChecklist" style="margin-top:14px;"></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📊 Tracked Domains</h3>
+                        </div>
+                        <div class="card-body">
+                            <table class="data-table" id="trackedDomainsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Domain</th>
+                                        <th>Keywords</th>
+                                        <th>Improved</th>
+                                        <th>Dropped</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📉 Current Rankings</h3>
+                            <div class="card-header-actions">
+                                <select id="rankDomainFilter" class="filter-select" onchange="loadCurrentRankings(1)" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text);font-size:0.875rem;">
+                                    <option value="">All Domains</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <table class="data-table" id="rankHistoryTable">
+                                <thead>
+                                    <tr>
+                                        <th>Keyword</th>
+                                        <th>Domain</th>
+                                        <th>Project</th>
+                                        <th>Position</th>
+                                        <th>Last Checked</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                            <div id="rankHistoryPagination"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>

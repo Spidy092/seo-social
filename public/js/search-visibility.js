@@ -12,8 +12,9 @@ function svEscape(value) {
 }
 
 function svStatusBadge(value, label) {
-    return `<span class="badge" style="background:${value ? '#dcfce7' : '#fee2e2'};color:${value ? '#166534' : '#991b1b'};">${label || (value ? 'Ready' : 'Missing')}</span>`;
+    return `<span class="badge" style= color:${value ? '#166534' : '#991b1b'};">${label || (value ? 'Ready' : 'Missing')}</span>`;
 }
+
 
 
 function svInspectionIndexStatus(result) {

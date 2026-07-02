@@ -1,0 +1,32 @@
+<div class="page" id="page-alerts">
+                <div class="alerts-container">
+                    <div class="alerts-header card">
+                        <div class="card-header">
+                            <h3>🔔 Alerts</h3>
+                            <button class="btn btn-sm btn-outline" id="markAllReadBtn">
+                                <i class="fas fa-check-double"></i> Mark All Read
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-bottom:14px;">
+                        <div class="card-body">
+                            <label>Project filter</label>
+                            <select id="alertProjectSelect" onchange="loadAlerts(1)" style="width:100%;max-width:420px;">
+                                <option value="">All projects</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="alerts-filter">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="rank_drop">Rank Drops</button>
+                        <button class="filter-btn" data-filter="rank_improvement">Improvements</button>
+                        <button class="filter-btn" data-filter="new_ranking">New Rankings</button>
+                        <button class="filter-btn" data-filter="lost_ranking">Lost Rankings</button>
+                    </div>
+
+                    <div class="alerts-list-full" id="alertsListFull"></div>
+                    <div id="alertsPagination"></div>
+                </div>
+            </div>

@@ -1,0 +1,92 @@
+<div class="page" id="page-analysis">
+                <div class="analysis-container">
+                    <!-- Info Banner -->
+                    <div class="page-description card">
+                        <div class="card-body page-desc-body">
+                            <div class="page-desc-icon"><i class="fas fa-balance-scale"></i></div>
+                            <div class="page-desc-text">
+                                <strong>How it works:</strong> This tool performs a real-time comparison between two pages. It analyzes 
+                                <strong>Domain Authority</strong>, <strong>Content Length</strong>, <strong>Keyword Density</strong>, and 
+                                <strong>Technical SEO</strong> elements. The "Key Comparative Differences" section highlights the specific factors where either domain has an edge, helping you prioritize your optimizations.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="analysis-form card">
+                        <h3>⚖️ Compare & Analyze</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Your Domain</label>
+                                <input type="text" id="myDomainInput" placeholder="yourdomain.com">
+                                <span class="field-hint">We'll auto-strip https:// and www.</span>
+                            </div>
+                            <div class="form-group">
+                                <label>Competitor Domain</label>
+                                <input type="text" id="competitorDomainInput" placeholder="competitor.com">
+                                <span class="field-hint">A direct competitor for the same keyword.</span>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Your Page URL (Optional)</label>
+                                <input type="text" id="myUrlInput" placeholder="https://yourdomain.com/page">
+                                <span class="field-hint">Add a URL to compare content & on-page SEO in depth.</span>
+                            </div>
+                            <div class="form-group">
+                                <label>Competitor Page URL (Optional)</label>
+                                <input type="text" id="competitorUrlInput" placeholder="https://competitor.com/page">
+                                <span class="field-hint">Best results come from providing both URLs.</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Target Keyword</label>
+                            <input type="text" id="analysisKeywordInput" placeholder="web design company">
+                        </div>
+                        <label class="checkbox-label" style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+                            <input type="checkbox" id="analysisIncludePageSpeed">
+                            <span>Include PageSpeed & Core Web Vitals comparison (slower)</span>
+                        </label>
+                        <div class="form-actions">
+                            <button class="btn btn-primary" id="analyzeBtn">
+                                <i class="fas fa-balance-scale"></i>
+                                <span class="btn-label">Compare & Analyze</span>
+                            </button>
+                            <div class="analysis-progress" id="analysisProgress" hidden>
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <span class="progress-text">Starting analysis…</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="analysis-results" id="analysisResults" style="display: none;">
+                        <!-- AI Expert Insight (HERO) -->
+                        <div id="aiInsight" class="ai-expert-box" style="display: none;"></div>
+
+                        <!-- Side-by-side metrics grid -->
+                        <div class="comparison-overview card">
+                            <div class="card-header-row">
+                                <h3>📊 Side-by-Side Comparison</h3>
+                                <div class="overall-score-pill" id="overallScorePill" hidden>
+                                    <span class="label">Overall</span>
+                                    <span class="value" id="overallScoreValue">–</span>
+                                    <span class="suffix">/100</span>
+                                </div>
+                            </div>
+                            <div class="comparison-grid" id="comparisonGrid"></div>
+                        </div>
+
+                        <div class="why-ranking card">
+                            <h3>⚖️ Key Comparative Differences</h3>
+                            <div class="reasons-list" id="reasonsList"></div>
+                        </div>
+
+                        <div class="suggestions card">
+                            <div class="card-header-row">
+                                <h3>💡 Improvement Suggestions</h3>
+                                <span class="suggestions-count" id="suggestionsCount"></span>
+                            </div>
+                            <div class="suggestions-list" id="suggestionsList"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>

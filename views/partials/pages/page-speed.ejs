@@ -1,0 +1,49 @@
+<div class="page" id="page-page-speed">
+                <div class="technical-container">
+                    <div class="card onpage-form-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-bolt"></i> PageSpeed</h3>
+                            <span class="header-hint">Check mobile speed, Core Web Vitals, Lighthouse scores, and priority performance fixes</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="technical-input-row">
+                                <select id="pagespeed-client-select">
+                                    <option value="">No client selected</option>
+                                </select>
+                                <input type="text" id="pagespeed-url-input" placeholder="https://example.com">
+                                <select id="pagespeed-strategy-input">
+                                    <option value="mobile" selected>Mobile</option>
+                                    <option value="desktop">Desktop</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary" id="pagespeed-check-btn">
+                                <i class="fas fa-bolt"></i> Run PageSpeed
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card pagespeed-history-card" style="margin-bottom:20px;">
+                        <div class="card-header">
+                            <h3><i class="fas fa-clock-rotate-left"></i> Recent PageSpeed Checks</h3>
+                            <button class="btn btn-sm btn-outline" id="pagespeed-refresh-history-btn"><i class="fas fa-rotate-right"></i> Refresh</button>
+                        </div>
+                        <div class="card-body" id="pagespeed-history-list">
+                            <p class="text-muted">Select a client or run a check to see recent PageSpeed history.</p>
+                        </div>
+                    </div>
+
+                    <div class="card pagespeed-card" id="pagespeed-results" style="display:none;margin-bottom:20px;">
+                        <div class="card-header">
+                            <h3><i class="fas fa-bolt"></i> PageSpeed & Core Web Vitals</h3>
+                            <span class="header-hint" id="pagespeed-source-label">Mobile lab data from Google PageSpeed Insights</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="pagespeed-score-grid" id="pagespeed-score-grid"></div>
+                            <div class="pagespeed-metric-grid" id="pagespeed-metric-grid"></div>
+                            <div class="pagespeed-crux" id="pagespeed-crux-grid"></div>
+                            <div class="pagespeed-suggestions" id="pagespeed-suggestions"></div>
+                            <div class="pagespeed-opportunities" id="pagespeed-opportunities"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>

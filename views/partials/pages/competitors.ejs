@@ -1,0 +1,41 @@
+<div class="page" id="page-competitors">
+                <div class="competitors-container">
+                    <!-- Info Banner -->
+                    <div class="page-description card">
+                        <div class="card-body page-desc-body">
+                            <div class="page-desc-icon"><i class="fas fa-users"></i></div>
+                            <div class="page-desc-text">
+                                <strong>What is this?</strong> The Competitors page shows all domains that appeared in Google search results for your researched keywords. 
+                                Every time you research a keyword, the top-ranking websites are tracked here automatically.
+                                Click <strong>View</strong> to see which keywords a competitor ranks for and their positions.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>🏆 Top Competing Domains</h3>
+                            <div class="card-header-actions">
+                                <select id="competitorProjectSelect" onchange="loadTopCompetitors(1)" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text);font-size:0.875rem;">
+                                    <option value="">All projects</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <table class="data-table" id="topCompetitorsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Domain</th>
+                                        <th title="How many project keywords this domain overlaps with">Overlap</th>
+                                        <th title="Their average Google ranking position">Avg Position</th>
+                                        <th title="Their best ranking position across all keywords">Best Position</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                            <div id="topCompetitorsPagination"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>

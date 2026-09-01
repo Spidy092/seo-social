@@ -1,5 +1,15 @@
 let seoPerfLoaded = false;
 
+function seoPerfEscape(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+    }[char]));
+}
+
 function seoPerfNumber(value) {
     const n = Number(value) || 0;
     return n.toLocaleString();
@@ -33,7 +43,7 @@ async function loadSeoPerformanceClients() {
         const data = await res.json();
         const clients = data.clients || [];
         select.innerHTML = clients.length
-            ? clients.map(client => `<option value="${client.id}">${client.name}${client.ga4_property_id ? '' : ' (GA4 not connected)'}</option>`).join('')
+            ? clients.map(client => `<option value="${seoPerfEscape(client.id)}">${seoPerfEscape(client.name)}${client.ga4_property_id ? '' : ' (GA4 not connected)'}</option>`).join('')
             : '<option value="">No clients found</option>';
     } catch (err) {
         select.innerHTML = '<option value="">Could not load clients</option>';
@@ -63,7 +73,7 @@ async function loadSeoPerformanceData() {
         renderSeoPerformanceOpportunities(oppRes.data || []);
         renderSeoPerformanceKeywordPages(keywordRes.data || []);
     } catch (err) {
-        if (kpis) kpis.innerHTML = `<div class="card"><p class="text-danger">${err.message || 'Could not load SEO performance.'}</p></div>`;
+        if (kpis) kpis.innerHTML = `<div class="card"><p class="text-danger">${seoPerfEscape(err.message || 'Could not load SEO performance.')}</p></div>`;
     }
 }
 
@@ -106,13 +116,13 @@ function renderSeoPerformanceOpportunities(rows) {
             <tbody>
                 ${rows.map(row => `
                     <tr>
-                        <td style="max-width:260px;word-break:break-word;">${row.page || row.normalizedUrl}</td>
-                        <td><span class="badge">${row.insightTitle}</span></td>
+                        <td style="max-width:260px;word-break:break-word;">${seoPerfEscape(row.page || row.normalizedUrl)}</td>
+                        <td><span class="badge">${seoPerfEscape(row.insightTitle)}</span></td>
                         <td>${seoPerfNumber(row.clicks)}</td>
                         <td>${seoPerfNumber(row.sessions)}</td>
                         <td>${seoPerfPct(row.bounceRate)}</td>
                         <td>${seoPerfNumber(row.conversions)}</td>
-                        <td>${row.recommendedAction}</td>
+                        <td>${seoPerfEscape(row.recommendedAction)}</td>
                     </tr>
                 `).join('')}
             </tbody>
@@ -135,8 +145,8 @@ function renderSeoPerformanceKeywordPages(rows) {
             <tbody>
                 ${rows.map(row => `
                     <tr>
-                        <td>${row.keyword || '-'}</td>
-                        <td style="max-width:260px;word-break:break-word;">${row.page || row.normalizedUrl}</td>
+                        <td>${seoPerfEscape(row.keyword || '-')}</td>
+                        <td style="max-width:260px;word-break:break-word;">${seoPerfEscape(row.page || row.normalizedUrl)}</td>
                         <td>${seoPerfNumber(row.clicks)}</td>
                         <td>${seoPerfNumber(row.impressions)}</td>
                         <td>${seoPerfPct(row.ctrPct)}</td>

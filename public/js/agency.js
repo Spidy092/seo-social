@@ -27,6 +27,16 @@
         console.log(`[${type || 'info'}] ${msg}`);
     }
 
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+        }[char]));
+    }
+
     function roleBadge(role) {
         const colors = { owner: '#7c3aed', manager: '#2563eb', agent: '#059669' };
         const bg = colors[role] || '#64748b';
@@ -77,14 +87,14 @@
                 email,
                 role: roleSelect ? roleSelect.value : 'agent',
             });
-            resultDiv.innerHTML = `<span style="color:#059669;">${data.message}</span>`;
+            resultDiv.innerHTML = `<span style="color:#059669;">${escapeHtml(data.message)}</span>`;
             if (data.inviteToken) {
-                resultDiv.innerHTML += `<br><code style="font-size:12px;word-break:break-all;">/register?invite=${data.inviteToken}</code>`;
+                resultDiv.innerHTML += `<br><code style="font-size:12px;word-break:break-all;">/register?invite=${escapeHtml(data.inviteToken)}</code>`;
             }
             emailInput.value = '';
             loadPendingInvites();
         } catch (err) {
-            resultDiv.innerHTML = `<span style="color:#dc2626;">${err.message}</span>`;
+            resultDiv.innerHTML = `<span style="color:#dc2626;">${escapeHtml(err.message)}</span>`;
         }
     }
 
@@ -107,16 +117,16 @@
                     </tr></thead>
                     <tbody>${invites.map(inv => `
                         <tr style="border-bottom:1px solid var(--border);">
-                            <td style="padding:8px;">${inv.email}</td>
-                            <td style="padding:8px;">${roleBadge(inv.role)}</td>
+                            <td style="padding:8px;">${escapeHtml(inv.email)}</td>
+                            <td style="padding:8px;">${roleBadge(escapeHtml(inv.role))}</td>
                             <td style="padding:8px;">${formatDate(inv.expires_at)}</td>
                             <td style="padding:8px;">${inv.accepted ? '<span style="color:#059669;">Accepted</span>' : '<span style="color:#d97706;">Pending</span>'}</td>
-                            <td style="padding:8px;">${!inv.accepted ? `<button class="btn btn-sm btn-outline revoke-invite-btn" data-id="${inv.id}" style="font-size:11px;padding:2px 8px;">Revoke</button>` : ''}</td>
+                            <td style="padding:8px;">${!inv.accepted ? `<button class="btn btn-sm btn-outline revoke-invite-btn" data-id="${escapeHtml(inv.id)}" style="font-size:11px;padding:2px 8px;">Revoke</button>` : ''}</td>
                         </tr>`).join('')}
                     </tbody>
                 </table>`;
         } catch (err) {
-            container.innerHTML = `<p style="color:#dc2626;">${err.message}</p>`;
+            container.innerHTML = `<p style="color:#dc2626;">${escapeHtml(err.message)}</p>`;
         }
     }
 
@@ -148,23 +158,23 @@
                     </tr></thead>
                     <tbody>${members.map(m => `
                         <tr style="border-bottom:1px solid var(--border);">
-                            <td style="padding:10px;font-weight:600;">${m.email}${m.user_id === currentUserId ? ' <span style="color:#64748b;font-size:11px;">(you)</span>' : ''}</td>
-                            <td style="padding:10px;">${roleBadge(m.role)}</td>
+                            <td style="padding:10px;font-weight:600;">${escapeHtml(m.email)}${m.user_id === currentUserId ? ' <span style="color:#64748b;font-size:11px;">(you)</span>' : ''}</td>
+                            <td style="padding:10px;">${roleBadge(escapeHtml(m.role))}</td>
                             <td style="padding:10px;">${formatDate(m.joined_at)}</td>
                             <td style="padding:10px;">
                                 ${m.role !== 'owner' && m.user_id !== currentUserId ? `
-                                    <select class="member-role-select" data-user-id="${m.user_id}" style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);margin-right:6px;">
+                                    <select class="member-role-select" data-user-id="${escapeHtml(m.user_id)}" style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);margin-right:6px;">
                                         <option value="manager" ${m.role === 'manager' ? 'selected' : ''}>Manager</option>
                                         <option value="agent" ${m.role === 'agent' ? 'selected' : ''}>Agent</option>
                                     </select>
-                                    <button class="btn btn-sm btn-outline remove-member-btn" data-user-id="${m.user_id}" style="font-size:11px;padding:4px 10px;color:#dc2626;">Remove</button>
+                                    <button class="btn btn-sm btn-outline remove-member-btn" data-user-id="${escapeHtml(m.user_id)}" style="font-size:11px;padding:4px 10px;color:#dc2626;">Remove</button>
                                 ` : ''}
                             </td>
                         </tr>`).join('')}
                     </tbody>
                 </table>`;
         } catch (err) {
-            container.innerHTML = `<p style="color:#dc2626;">${err.message}</p>`;
+            container.innerHTML = `<p style="color:#dc2626;">${escapeHtml(err.message)}</p>`;
         }
     }
 

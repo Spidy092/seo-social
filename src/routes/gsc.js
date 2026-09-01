@@ -70,7 +70,7 @@ async function gscRoutes(fastify, { db }) {
                 lm.last_synced_at
              FROM seo_clients c
              LEFT JOIN latest_metrics lm ON lm.client_id = c.id
-             WHERE c.agency_id = $1 OR c.agency_id IS NULL
+             WHERE c.agency_id = $1
              ORDER BY c.updated_at DESC`,
             [ctx.agencyId]
         );
@@ -108,7 +108,7 @@ async function gscRoutes(fastify, { db }) {
                 r.created_at
              FROM gsc_sync_runs r
              JOIN seo_clients c ON c.id = r.client_id
-             WHERE (c.agency_id = $1 OR c.agency_id IS NULL)
+             WHERE c.agency_id = $1
                ${clientFilter}
              ORDER BY r.created_at DESC
              LIMIT ${limitPlaceholder}`,
@@ -146,7 +146,7 @@ async function gscRoutes(fastify, { db }) {
 
         // Verify the client belongs to this agency
         const clientCheck = await db.query(
-            `SELECT id FROM seo_clients WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL)`,
+            `SELECT id FROM seo_clients WHERE id = $1 AND agency_id = $2`,
             [clientId, ctx.agencyId]
         );
         if (!clientCheck.rows.length) {
@@ -171,7 +171,7 @@ async function gscRoutes(fastify, { db }) {
         if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
 
         const clientCheck = await db.query(
-            `SELECT id FROM seo_clients WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL)`,
+            `SELECT id FROM seo_clients WHERE id = $1 AND agency_id = $2`,
             [clientId, ctx.agencyId]
         );
         if (!clientCheck.rows.length) {
@@ -200,7 +200,7 @@ async function gscRoutes(fastify, { db }) {
         const clients = await db.query(
             `SELECT id, name, gsc_site_url
              FROM seo_clients
-             WHERE (agency_id = $1 OR agency_id IS NULL)
+             WHERE agency_id = $1
                AND gsc_site_url IS NOT NULL
                AND TRIM(gsc_site_url) <> ''
              ORDER BY updated_at DESC`,
@@ -278,7 +278,7 @@ async function gscRoutes(fastify, { db }) {
         const days = Number(request.body?.days) || 30;
 
         const clientRes = await db.query(
-            `SELECT id, gsc_site_url FROM seo_clients WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL)`,
+            `SELECT id, gsc_site_url FROM seo_clients WHERE id = $1 AND agency_id = $2`,
             [clientId, ctx.agencyId]
         );
         if (!clientRes.rows.length) {
@@ -332,7 +332,7 @@ async function gscRoutes(fastify, { db }) {
         if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
 
         const clientCheck = await db.query(
-            `SELECT id, gsc_site_url FROM seo_clients WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL)`,
+            `SELECT id, gsc_site_url FROM seo_clients WHERE id = $1 AND agency_id = $2`,
             [clientId, ctx.agencyId]
         );
         if (!clientCheck.rows.length) {
@@ -352,7 +352,7 @@ async function gscRoutes(fastify, { db }) {
 
         const limit  = Number(request.query.limit) || 20;
 
-        const check = await db.query(`SELECT id FROM seo_clients WHERE id=$1 AND (agency_id=$2 OR agency_id IS NULL)`, [clientId, ctx.agencyId]);
+        const check = await db.query(`SELECT id FROM seo_clients WHERE id=$1 AND agency_id=$2`, [clientId, ctx.agencyId]);
         if (!check.rows.length) return reply.code(403).send({ ok: false, error: 'Access denied' });
 
         const rows = await gsc.getTopQueries(db, clientId, limit);
@@ -367,7 +367,7 @@ async function gscRoutes(fastify, { db }) {
 
         const limit  = Number(request.query.limit) || 20;
 
-        const check = await db.query(`SELECT id FROM seo_clients WHERE id=$1 AND (agency_id=$2 OR agency_id IS NULL)`, [clientId, ctx.agencyId]);
+        const check = await db.query(`SELECT id FROM seo_clients WHERE id=$1 AND agency_id=$2`, [clientId, ctx.agencyId]);
         if (!check.rows.length) return reply.code(403).send({ ok: false, error: 'Access denied' });
 
         const rows = await gsc.getTopPages(db, clientId, limit);
@@ -384,7 +384,7 @@ async function gscRoutes(fastify, { db }) {
         const minImp = Number(request.query.minImpressions) || 100;
         const maxCtr = Number(request.query.maxCtr)         || 0.02; // 2%
 
-        const check = await db.query(`SELECT id FROM seo_clients WHERE id=$1 AND (agency_id=$2 OR agency_id IS NULL)`, [clientId, ctx.agencyId]);
+        const check = await db.query(`SELECT id FROM seo_clients WHERE id=$1 AND agency_id=$2`, [clientId, ctx.agencyId]);
         if (!check.rows.length) return reply.code(403).send({ ok: false, error: 'Access denied' });
 
         const rows = await gsc.getLowCtrPages(db, clientId, minImp, maxCtr);
@@ -402,7 +402,7 @@ async function gscRoutes(fastify, { db }) {
         const maxPos  = Number(request.query.maxPos)         || 20;
         const minImp  = Number(request.query.minImpressions) || 30;
 
-        const check = await db.query(`SELECT id FROM seo_clients WHERE id=$1 AND (agency_id=$2 OR agency_id IS NULL)`, [clientId, ctx.agencyId]);
+        const check = await db.query(`SELECT id FROM seo_clients WHERE id=$1 AND agency_id=$2`, [clientId, ctx.agencyId]);
         if (!check.rows.length) return reply.code(403).send({ ok: false, error: 'Access denied' });
 
         const rows = await gsc.getOpportunities(db, clientId, minPos, maxPos, minImp);

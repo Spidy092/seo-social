@@ -9,6 +9,7 @@ const cheerio = require('cheerio');
 const config = require('../config');
 const { createLogger } = require('../utils/logger');
 const { extractDomain } = require('../utils/domainUtils');
+const { assertSafeHttpUrl } = require('../utils/urlSecurity');
 const googleAdsService = require('./googleAdsService');
 const db = require('../db');
 const { KeyQuotaTracker } = require('../utils/keyQuota');
@@ -501,11 +502,20 @@ async function getSERPResults(keyword, location = 'India', numResults = 20) {
         try {
             return await getSERPViaSerper(keyword, location, numResults);
         } catch (err) {
-            log.warn({ err: err.message }, 'Serper SERP fetch failed, trying Google CSE');
+            log.warn({ err: err.message }, 'Serper SERP fetch failed, trying configured fallback sources');
         }
     }
 
-    // Tier 2: Google Custom Search API
+    // Tier 2: optional self-hosted OpenSERP fallback
+    if (config.apis.openSerp?.url) {
+        try {
+            return await getSERPViaOpenSerp(keyword, location, numResults);
+        } catch (err) {
+            log.warn({ err: err.message }, 'OpenSERP fetch failed, trying Google CSE');
+        }
+    }
+
+    // Tier 3: Google Custom Search API
     if (config.apis.googleCse.key && config.apis.googleCse.cx) {
         try {
             return await getSERPViaGoogleCse(keyword, location, numResults);
@@ -514,7 +524,7 @@ async function getSERPResults(keyword, location = 'India', numResults = 20) {
         }
     }
 
-    // Tier 3: Google scraping (no API key needed)
+    // Tier 4: Google scraping (no API key needed)
     try {
         return await getSERPViaGoogle(keyword, location, numResults);
     } catch (err) {
@@ -572,14 +582,15 @@ async function getSERPViaGoogleCse(keyword, location, numResults) {
 async function getSERPViaSerper(keyword, location, numResults) {
     const results = [];
     const pages = Math.ceil(numResults / 10);
+    const loc = getLocationConfig(location);
 
     for (let page = 0; page < pages; page++) {
         try {
             const data = await postSerperSearch({
                 q: keyword,
                 location: location,
-                gl: location.toLowerCase().includes('india') ? 'in' : 'us',
-                hl: 'en',
+                gl: loc.gl,
+                hl: loc.hl,
                 num: 10,
                 page: page,
             }, { keyword, location, page, purpose: 'serp' });
@@ -605,6 +616,43 @@ async function getSERPViaSerper(keyword, location, numResults) {
     }
 
     return results.slice(0, numResults);
+}
+
+async function getSERPViaOpenSerp(keyword, location, numResults) {
+    const baseUrl = String(config.apis.openSerp.url).replace(/\/$/, '');
+    const loc = getLocationConfig(location);
+    const endpoint = config.apis.openSerp.mode === 'balanced' || config.apis.openSerp.mode === 'fast' || config.apis.openSerp.mode === 'any'
+        ? `${baseUrl}/mega/search`
+        : `${baseUrl}/${encodeURIComponent(config.apis.openSerp.engine || 'google')}/search`;
+    const response = await axios.get(endpoint, {
+        params: {
+            text: keyword,
+            engines: config.apis.openSerp.engine || 'google',
+            mode: config.apis.openSerp.mode || 'any',
+            region: [loc.area, loc.city, loc.state, loc.country].filter(Boolean).join(', ') || location,
+            lang: String(loc.hl || 'en').toUpperCase(),
+            limit: Math.min(Math.max(Number(numResults) || 10, 1), 100),
+            format: 'json',
+            features: true,
+        },
+        headers: config.apis.openSerp.apiKey
+            ? { Authorization: `Bearer ${config.apis.openSerp.apiKey}` }
+            : undefined,
+        timeout: 15000,
+        maxContentLength: 5 * 1024 * 1024,
+    });
+
+    const items = response.data?.results || response.data?.organic || [];
+    return items.slice(0, numResults).map((item, index) => ({
+        position: item.rank || item.position?.absolute || item.position || index + 1,
+        url: item.url || item.link,
+        domain: item.domain || extractDomain(item.url || item.link),
+        title: item.title || '',
+        description: item.snippet || item.description || '',
+        provider: 'openserp',
+        engine: item.engine || config.apis.openSerp.engine || 'google',
+        features: response.data?.serp_features || [],
+    })).filter((item) => item.url);
 }
 
 // ─── SERP via Google Scraping ───
@@ -666,18 +714,18 @@ async function analyzePageContent(url, keyword) {
             throw new Error('Invalid URL: ' + url);
         }
 
-        const response = await axios.get(url, {
+        const safeUrl = await assertSafeHttpUrl(url);
+        const response = await axios.get(safeUrl.href, {
             headers: { 
                 'User-Agent': getRandomUA(),
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.9',
             },
             timeout: 20000,
-            maxRedirects: 10,
+            maxRedirects: 0,
+            maxContentLength: 5 * 1024 * 1024,
+            maxBodyLength: 5 * 1024 * 1024,
             validateStatus: (status) => status < 500, // Accept 4xx but not 5xx
-            httpsAgent: new (require('https').Agent)({ 
-                rejectUnauthorized: false // Allow self-signed certs
-            }),
         });
 
         const $ = cheerio.load(response.data);

@@ -6,7 +6,7 @@ module.exports = {
         port: parseInt(process.env.DB_PORT || '5432'),
         database: process.env.DB_NAME || 'keyword_analyzer',
         user: process.env.DB_USER || 'keyword_user',
-        password: process.env.DB_PASSWORD || 'keyword_pass',
+        password: process.env.DB_PASSWORD,
         max: 20,
         idleTimeoutMillis: 30000,
     },
@@ -35,6 +35,13 @@ module.exports = {
             dailyLimit: 100,
             url: 'https://www.googleapis.com/customsearch/v1',
         },
+        openSerp: {
+            url: process.env.OPENSERP_BASE_URL
+                || (process.env.OPENSERP_API_KEY ? 'https://api.openserp.org/v1' : ''),
+            apiKey: process.env.OPENSERP_API_KEY || '',
+            engine: process.env.OPENSERP_ENGINE || 'google',
+            mode: process.env.OPENSERP_MODE || 'any',
+        },
         openPageRank: { 
             key: process.env.OPENPAGERANK_API_KEY, 
             dailyLimit: 33000,
@@ -44,11 +51,20 @@ module.exports = {
             key: process.env.OPENROUTER_API_KEY,
             url: process.env.OPENROUTER_URL || 'https://openrouter.ai/api/v1/chat/completions',
             model: process.env.OPENROUTER_MODEL || 'stepfun/step-3.5-flash:free',
+            reasoningEffort: process.env.AI_REASONING_EFFORT || 'medium',
         },
         groq: {
             key: process.env.GROQ_API_KEY,
             url: 'https://api.groq.com/openai/v1/chat/completions',
             model: 'llama-3.3-70b-versatile',
+        },
+        // Optional third-party AI-detection cross-check for the content humanizer.
+        // Point this at any provider/proxy that accepts { text } and returns
+        // { score } (0-100, percent likelihood of being AI-written). Left unset
+        // by default; the humanizer silently skips this check when not configured.
+        aiDetector: {
+            key: process.env.AI_DETECTOR_API_KEY,
+            url: process.env.AI_DETECTOR_API_URL,
         },
     },
 

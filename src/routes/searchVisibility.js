@@ -241,7 +241,7 @@ async function searchVisibilityRoutes(fastify, { db }) {
         if (!await assertClient(request, reply, db, clientId, ctx)) return;
 
         const projectCheck = await db.query(
-            'SELECT p.id FROM seo_projects p JOIN seo_clients c ON c.id = p.client_id WHERE p.id = $1 AND p.client_id = $2 AND (c.agency_id = $3 OR c.agency_id IS NULL OR $3 IS NULL) LIMIT 1',
+            'SELECT p.id FROM seo_projects p JOIN seo_clients c ON c.id = p.client_id WHERE p.id = $1 AND p.client_id = $2 AND c.agency_id = $3 LIMIT 1',
             [projectId, clientId, ctx.agencyId]
         );
         if (!projectCheck.rows.length) {
@@ -277,7 +277,7 @@ async function searchVisibilityRoutes(fastify, { db }) {
              FROM seo_projects p
              JOIN seo_clients c ON c.id = p.client_id
              WHERE p.id = $1 AND p.client_id = $2
-               AND (c.agency_id = $3 OR c.agency_id IS NULL OR $3 IS NULL)
+               AND c.agency_id = $3
              LIMIT 1`,
             [projectId, clientId, ctx.agencyId]
         );

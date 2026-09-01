@@ -98,12 +98,12 @@ async function requireAgencyContext(request, reply, db) {
 }
 
 async function assertProjectAccess(db, projectId, agencyId) {
-    if (!projectId) return null;
+    if (!projectId || !agencyId) return null;
     const result = await db.query(
         `SELECT p.id, p.client_id, p.name AS project_name, c.website_url, c.agency_id
          FROM seo_projects p
          JOIN seo_clients c ON c.id = p.client_id
-         WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)
+         WHERE p.id = $1 AND c.agency_id = $2
          LIMIT 1`,
         [projectId, agencyId || null]
     );
@@ -111,11 +111,11 @@ async function assertProjectAccess(db, projectId, agencyId) {
 }
 
 async function assertClientAccess(db, clientId, agencyId) {
-    if (!clientId) return null;
+    if (!clientId || !agencyId) return null;
     const result = await db.query(
         `SELECT *
          FROM seo_clients
-         WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL OR $2 IS NULL)
+         WHERE id = $1 AND agency_id = $2
          LIMIT 1`,
         [clientId, agencyId || null]
     );

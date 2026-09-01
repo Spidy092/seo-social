@@ -11,7 +11,7 @@ const log = createLogger('routes:seo-performance');
 async function assertClientAccess(db, clientId, agencyId) {
     const res = await db.query(
         `SELECT id FROM seo_clients
-         WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL OR $2 IS NULL)`,
+         WHERE id = $1 AND agency_id = $2`,
         [clientId, agencyId]
     );
     return res.rows[0] || null;
@@ -84,7 +84,7 @@ async function seoPerformanceRoutes(fastify, { db }) {
             `SELECT p.id
              FROM seo_projects p
              JOIN seo_clients c ON c.id = p.client_id
-             WHERE p.id = $1 AND p.client_id = $2 AND (c.agency_id = $3 OR c.agency_id IS NULL OR $3 IS NULL)`,
+             WHERE p.id = $1 AND p.client_id = $2 AND c.agency_id = $3`,
             [projectId, clientId, ctx.agencyId]
         );
         if (!projectCheck.rows.length) {

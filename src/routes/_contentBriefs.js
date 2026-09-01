@@ -1,6 +1,6 @@
 const contentBriefService = require('../services/contentBriefService');
 const { createLogger } = require('../utils/logger');
-const { getAgencyContext } = require('../utils/authHelper');
+const { requireAgencyContext } = require('../utils/authHelper');
 
 const log = createLogger('routes:content-briefs');
 
@@ -14,7 +14,7 @@ async function contentBriefRoutes(fastify, options) {
             `SELECT p.id, p.client_id
              FROM seo_projects p
              JOIN seo_clients c ON c.id = p.client_id
-             WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`,
+             WHERE p.id = $1 AND c.agency_id = $2`,
             [projectId, agencyId]
         );
 
@@ -40,11 +40,12 @@ async function contentBriefRoutes(fastify, options) {
         },
         handler: async (request, reply) => {
             try {
-                const ctx = await getAgencyContext(request, db);
+                const ctx = await requireAgencyContext(request, reply, db);
+                if (!ctx) return;
                 const projectId = request.body.projectId || null;
 
                 if (projectId) {
-                    const projectAccess = await assertProjectAccess(projectId, ctx?.agencyId || null);
+                    const projectAccess = await assertProjectAccess(projectId, ctx.agencyId);
                     if (!projectAccess) {
                         return reply.code(404).send({ error: 'Project not found' });
                     }
@@ -53,7 +54,7 @@ async function contentBriefRoutes(fastify, options) {
                 const brief = await contentBriefService.generateContentBrief(request.body);
 
                 let savedBrief = null;
-                if (ctx?.userId) {
+                if (ctx.userId) {
                     const saved = await db.query(
                         `INSERT INTO content_briefs
                          (user_id, agency_id, project_id, keyword, location, brief, source_metrics)
@@ -87,16 +88,17 @@ async function contentBriefRoutes(fastify, options) {
 
     fastify.get('/api/content/briefs', async (request, reply) => {
         try {
-            const ctx = await getAgencyContext(request, db);
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
             const limit = Math.min(parseInt(request.query.limit || '10', 10), 25);
 
             const { rows } = await db.query(
                 `SELECT id, project_id, keyword, location, brief, created_at
                  FROM content_briefs
-                 WHERE agency_id = $1 OR agency_id IS NULL
+                 WHERE agency_id = $1
                  ORDER BY created_at DESC
                  LIMIT $2`,
-                [ctx?.agencyId || null, limit]
+                [ctx.agencyId, limit]
             );
 
             return {

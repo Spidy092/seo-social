@@ -121,7 +121,7 @@ module.exports = async function (fastify, options) {
               SELECT p.*, 
                 (SELECT json_agg(pr) FROM post_results pr WHERE pr.post_id = p.id) as results
               FROM posts p
-              WHERE p.user_id = $1 AND (p.agency_id = $2 OR p.agency_id IS NULL OR $2 IS NULL)
+              WHERE p.user_id = $1 AND p.agency_id = $2
               ORDER BY p.created_at DESC
             `, [ctx.userId, ctx.agencyId]);
 
@@ -151,7 +151,7 @@ module.exports = async function (fastify, options) {
         const ctx = await requireAgencyContext(request, reply, db);
         if (!ctx) return;
         try {
-            const result = await db.query('SELECT * FROM posts WHERE id = $1 AND user_id = $2 AND (agency_id = $3 OR agency_id IS NULL OR $3 IS NULL)', [request.params.id, ctx.userId, ctx.agencyId]);
+            const result = await db.query('SELECT * FROM posts WHERE id = $1 AND user_id = $2 AND agency_id = $3', [request.params.id, ctx.userId, ctx.agencyId]);
             const post = result.rows[0];
 
             if (!post) {
@@ -164,7 +164,7 @@ module.exports = async function (fastify, options) {
             const publicId = `social-poster/${lastPart.split('.')[0]}`;
             
             await deleteFile(publicId, post.media_type);
-            await db.query('DELETE FROM posts WHERE id = $1 AND user_id = $2 AND (agency_id = $3 OR agency_id IS NULL OR $3 IS NULL)', [request.params.id, ctx.userId, ctx.agencyId]);
+            await db.query('DELETE FROM posts WHERE id = $1 AND user_id = $2 AND agency_id = $3', [request.params.id, ctx.userId, ctx.agencyId]);
 
             request.session.set('success', 'Post deleted.');
         } catch (err) {
@@ -183,7 +183,7 @@ module.exports = async function (fastify, options) {
             const { id } = request.params;
             const userId = ctx.userId;
             
-            const checkResult = await db.query('SELECT * FROM posts WHERE id = $1 AND user_id = $2 AND (agency_id = $3 OR agency_id IS NULL OR $3 IS NULL)', [id, userId, ctx.agencyId]);
+            const checkResult = await db.query('SELECT * FROM posts WHERE id = $1 AND user_id = $2 AND agency_id = $3', [id, userId, ctx.agencyId]);
             const post = checkResult.rows[0];
 
             if (!post) {
@@ -191,14 +191,14 @@ module.exports = async function (fastify, options) {
                 return reply.redirect('/social/posts/schedule');
             }
 
-            await db.query('UPDATE posts SET status = $1 WHERE id = $2 AND user_id = $3 AND (agency_id = $4 OR agency_id IS NULL OR $4 IS NULL)', ['publishing', id, userId, ctx.agencyId]);
+            await db.query('UPDATE posts SET status = $1 WHERE id = $2 AND user_id = $3 AND agency_id = $4', ['publishing', id, userId, ctx.agencyId]);
 
             const platforms = Object.keys(post.platforms);
             
             const results = await Promise.allSettled(
                 platforms.map(async (platform) => {
                     const { rows: [conn] } = await db.query(
-                        `SELECT * FROM platform_connections WHERE user_id=$1 AND platform=$2 AND (agency_id = $3 OR agency_id IS NULL OR $3 IS NULL)`,
+                        `SELECT * FROM platform_connections WHERE user_id=$1 AND platform=$2 AND agency_id = $3`,
                         [post.user_id, platform, ctx.agencyId]
                     );
                     if (!conn) throw new Error(`No connection for ${platform}`);
@@ -216,7 +216,7 @@ module.exports = async function (fastify, options) {
             );
             
             const allOk = results.every(r => r.status === 'fulfilled');
-            await db.query('UPDATE posts SET status=$1 WHERE id=$2 AND user_id=$3 AND (agency_id = $4 OR agency_id IS NULL OR $4 IS NULL)', [allOk ? 'published' : 'failed', post.id, userId, ctx.agencyId]);
+            await db.query('UPDATE posts SET status=$1 WHERE id=$2 AND user_id=$3 AND agency_id = $4', [allOk ? 'published' : 'failed', post.id, userId, ctx.agencyId]);
             
             for (let i = 0; i < results.length; i++) {
                 if (results[i].status === 'rejected') {
@@ -234,7 +234,7 @@ module.exports = async function (fastify, options) {
             }
         } catch (err) {
             request.log.error(err, 'Publish-now error');
-            await db.query('UPDATE posts SET status = $1 WHERE id = $2 AND user_id = $3 AND (agency_id = $4 OR agency_id IS NULL OR $4 IS NULL)', ['failed', request.params.id, ctx?.userId || request.session.get('userId'), ctx?.agencyId || null]);
+            await db.query('UPDATE posts SET status = $1 WHERE id = $2 AND user_id = $3 AND agency_id = $4', ['failed', request.params.id, ctx.userId, ctx.agencyId]);
             request.session.set('error', 'Error triggering publish: ' + err.message);
         }
         return reply.redirect('/social/posts/schedule');

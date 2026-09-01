@@ -34,7 +34,7 @@ async function assertClientAccess(db, clientId, agencyId) {
     const res = await db.query(
         `SELECT id, name, website_url, ga4_property_id
          FROM seo_clients
-         WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL OR $2 IS NULL)`,
+         WHERE id = $1 AND agency_id = $2`,
         [clientId, agencyId]
     );
     return res.rows[0] || null;
@@ -70,7 +70,7 @@ async function ga4Routes(fastify, { db }) {
                     lm.last_synced_at
              FROM seo_clients c
              LEFT JOIN latest_metrics lm ON lm.client_id = c.id
-             WHERE c.agency_id = $1 OR c.agency_id IS NULL OR $1 IS NULL
+             WHERE c.agency_id = $1
              ORDER BY c.updated_at DESC`,
             [ctx.agencyId]
         );
@@ -92,7 +92,7 @@ async function ga4Routes(fastify, { db }) {
             `SELECT r.*, c.name AS client_name
              FROM ga4_sync_runs r
              JOIN seo_clients c ON c.id = r.client_id
-             WHERE (c.agency_id = $1 OR c.agency_id IS NULL OR $1 IS NULL)
+             WHERE c.agency_id = $1
                ${clientFilter}
              ORDER BY r.created_at DESC
              LIMIT ${limitPlaceholder}`,
@@ -199,7 +199,7 @@ async function ga4Routes(fastify, { db }) {
         const clients = await db.query(
             `SELECT id, name, website_url, ga4_property_id
              FROM seo_clients
-             WHERE (agency_id = $1 OR agency_id IS NULL OR $1 IS NULL)
+             WHERE agency_id = $1
                AND ga4_property_id IS NOT NULL
                AND TRIM(ga4_property_id) <> ''
              ORDER BY updated_at DESC`,

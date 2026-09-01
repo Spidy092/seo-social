@@ -122,7 +122,7 @@ async function getClientSite(db, clientId) {
  * generation. Includes just the site root so search engines can still ping.
  */
 function buildFallbackUrlsetXml(siteUrl) {
-    const safeUrl = String(siteUrl || '').replace(/[\x00-\x1F]/g, '');
+    const safeUrl = stripXmlControlChars(siteUrl || '');
     const today = new Date().toISOString();
     return `<?xml version="1.0" encoding="UTF-8"?>
 <?xml-stylesheet type="text/xsl" href="/sitemap.xsl" media="screen"?>
@@ -137,7 +137,7 @@ function buildFallbackUrlsetXml(siteUrl) {
 }
 
 function buildFallbackSitemapIndexXml(publicBaseUrl, siteUrl) {
-    const safeBase = String(publicBaseUrl).replace(/[\x00-\x1F]/g, '');
+    const safeBase = stripXmlControlChars(publicBaseUrl);
     const today = new Date().toISOString();
     return `<?xml version="1.0" encoding="UTF-8"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -146,6 +146,13 @@ function buildFallbackSitemapIndexXml(publicBaseUrl, siteUrl) {
     <lastmod>${today}</lastmod>
   </sitemap>
 </sitemapindex>`;
+}
+
+function stripXmlControlChars(value) {
+    return Array.from(String(value)).filter(char => {
+        const code = char.charCodeAt(0);
+        return !(code <= 0x1f && code !== 0x09 && code !== 0x0a && code !== 0x0d);
+    }).join('');
 }
 
 module.exports = {

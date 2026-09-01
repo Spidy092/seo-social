@@ -34,9 +34,9 @@
 
 const axios  = require('axios');
 const cheerio = require('cheerio');
-const https  = require('https');
 const crypto = require('crypto');
 const { createLogger } = require('../utils/logger');
+const { assertSafeHttpUrl } = require('../utils/urlSecurity');
 
 const log = createLogger('sitemapGenerator');
 
@@ -87,13 +87,18 @@ const VALID_CHANGEFREQ = new Set(['always','hourly','daily','weekly','monthly','
 
 async function fetchRobotsTxt(origin, userAgent, timeoutMs) {
     try {
-        const res = await axios.get(`${origin}/robots.txt`, {
+        const robotsUrl = `${origin}/robots.txt`;
+        const safeUrl = await assertSafeHttpUrl(robotsUrl);
+        const res = await axios.get(safeUrl.href, {
             timeout: timeoutMs,
+            maxRedirects: 0,
+            maxContentLength: 512 * 1024,
             validateStatus: s => s < 500,
             headers: { 'User-Agent': userAgent },
         });
-        if (res.status === 200 && typeof res.data === 'string') {
-            return parseRobotsTxt(res.data);
+        const body = Buffer.isBuffer(res.data) ? res.data.toString('utf8') : String(res.data || '');
+        if (res.status === 200 && body) {
+            return parseRobotsTxt(body);
         }
     } catch (e) {
         log.debug({ err: e.message }, 'robots.txt unavailable – allow all');
@@ -112,8 +117,11 @@ async function fetchSitemapUrls(sitemapUrl, { maxDepth = 2, timeoutMs = 10000 } 
         if (seenSitemaps.has(url)) continue;
         seenSitemaps.add(url);
         try {
-            const r = await axios.get(url, {
+            const safeUrl = await assertSafeHttpUrl(url);
+            const r = await axios.get(safeUrl.href, {
                 timeout: timeoutMs,
+                maxRedirects: 0,
+                maxContentLength: 5 * 1024 * 1024,
                 validateStatus: s => s < 500,
                 responseType: 'text',
                 headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SitemapBot/1.0)' },
@@ -182,8 +190,6 @@ function isDisallowed(pathname, disallowed) {
 
 // ─── URL helpers ──────────────────────────────────────────────────────────────
 
-const HTTPS_AGENT = new https.Agent({ rejectUnauthorized: false });
-
 function normalizeUrl(href, base, opts) {
     try {
         const u = new URL(href, base);
@@ -221,7 +227,10 @@ function getPathSegment(url) {
 
 // Strip XML control chars (Google rejects them)
 function sanitizeForXml(str) {
-    return String(str).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+    return Array.from(String(str)).filter(char => {
+        const code = char.charCodeAt(0);
+        return !(code <= 0x1f && code !== 0x09 && code !== 0x0a && code !== 0x0d) && code !== 0x7f;
+    }).join('');
 }
 
 function escapeXml(str) {
@@ -336,17 +345,17 @@ async function httpGet(url, opts = {}) {
     let lastErr;
     while (attempt <= MAX_RETRIES) {
         try {
-            const res = await axios.get(url, {
+            const safeUrl = await assertSafeHttpUrl(url);
+            const res = await axios.get(safeUrl.href, {
                 headers: {
                     'User-Agent': opts.userAgent,
                     'Accept':     'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
                     'Accept-Language': 'en-US,en;q=0.5',
                 },
                 timeout:        timeoutMs,
-                maxRedirects:   opts.maxRedirects || 5,
+                maxRedirects:   0,
                 maxContentLength: MAX_HTML_BYTES,  // R5
                 validateStatus: s => s < 600,
-                httpsAgent:     HTTPS_AGENT,
                 decompress:     true,
                 // Treat 4xx/5xx as resolved (we inspect res.status ourselves)
                 responseType: 'arraybuffer',
@@ -712,7 +721,7 @@ async function crawl(opts) {
         // them with a text/html content-type. We re-check the actual content-type
         // and a sniffed prefix before invoking cheerio.
         const sniffed = (res.data instanceof Buffer ? res.data.toString('utf8', 0, 512) : String(res.data || '').slice(0, 512)).trim();
-        if (!/^(<\!doctype html|<html|<head|<body)/i.test(sniffed) && !/text\/html|application\/xhtml/i.test(ct)) {
+        if (!/^(<!doctype html|<html|<head|<body)/i.test(sniffed) && !/text\/html|application\/xhtml/i.test(ct)) {
             stats.skipped.nonHtml++;
             continue;
         }

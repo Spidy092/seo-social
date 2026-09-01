@@ -14,8 +14,8 @@ async function contentRoutes(fastify, options) {
         const historyResult = await db.query(
             `INSERT INTO content_rewrite_history (
                 user_id, agency_id, input_text, output_text, mode, primary_keyword, related_keywords, tone, audience, brand_voice,
-                preserve_keywords, preserve_html, max_change, summary, verification, sample
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                preserve_keywords, preserve_html, max_change, summary, verification, sample, target_length
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
              RETURNING id, created_at`,
             [
                 userId,
@@ -34,6 +34,7 @@ async function contentRoutes(fastify, options) {
                 result.summary || null,
                 JSON.stringify(result.verification || {}),
                 payload.sample || null,
+                payload.targetLength || null,
             ]
         );
 
@@ -67,6 +68,7 @@ async function contentRoutes(fastify, options) {
                     preserveHtml: { type: 'boolean', default: false },
                     maxChange: { type: 'string', enum: ['light', 'balanced', 'strong'], default: 'balanced' },
                     sample: { type: 'string', default: '' },
+                    targetLength: { type: 'integer', minimum: 0, maximum: 4000, default: 0 },
                 },
             },
         },
@@ -88,7 +90,7 @@ async function contentRoutes(fastify, options) {
                 return { success: true, result };
             } catch (err) {
                 log.error({ err: err.message }, 'content humanizer failed');
-                return reply.code(500).send({ error: err.message });
+                return reply.code(500).send({ error: 'Unable to refine this draft right now' });
             }
         },
     });
@@ -112,7 +114,7 @@ async function contentRoutes(fastify, options) {
                 return { success: true, result };
             } catch (err) {
                 log.error({ err: err.message }, 'content tone adjustment failed');
-                return reply.code(500).send({ error: err.message });
+                return reply.code(500).send({ error: 'Unable to adjust this draft right now' });
             }
         }
     });
@@ -127,9 +129,9 @@ async function contentRoutes(fastify, options) {
 
             const { rows } = await db.query(
                 `SELECT id, input_text, output_text, mode, primary_keyword, related_keywords, tone, audience, brand_voice,
-                        preserve_keywords, preserve_html, max_change, summary, verification, created_at
+                        preserve_keywords, preserve_html, max_change, summary, verification, target_length, created_at
                  FROM content_rewrite_history
-                 WHERE agency_id = $1 OR agency_id IS NULL
+                 WHERE agency_id = $1
                  ORDER BY created_at DESC
                  LIMIT $2`,
                 [ctx.agencyId, limit]
@@ -141,7 +143,7 @@ async function contentRoutes(fastify, options) {
             };
         } catch (err) {
             log.error({ err: err.message }, 'failed to load content history');
-            return reply.code(500).send({ error: err.message });
+            return reply.code(500).send({ error: 'Unable to load rewrite history right now' });
         }
     });
 }

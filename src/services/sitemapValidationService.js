@@ -79,7 +79,7 @@ function validateSitemapOutput({ xml, sitemapFiles = [], pageDetails = {}, stats
             errors.push({ code: 'BAD_LOC', message: `Invalid <loc>: ${url}` });
         }
         // Control characters (best-effort)
-        if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(url)) {
+        if (containsXmlControlChars(url)) {
             errors.push({ code: 'CONTROL_CHAR_IN_LOC', message: `URL contains forbidden control characters: ${url}` });
         }
         // lastmod format
@@ -173,6 +173,13 @@ function validateSitemapOutput({ xml, sitemapFiles = [], pageDetails = {}, stats
             humanSize: `${(xmlStr.length / 1024).toFixed(1)} KB`,
         },
     };
+}
+
+function containsXmlControlChars(value) {
+    return Array.from(String(value)).some(char => {
+        const code = char.charCodeAt(0);
+        return code <= 0x1f && code !== 0x09 && code !== 0x0a && code !== 0x0d;
+    });
 }
 
 module.exports = {

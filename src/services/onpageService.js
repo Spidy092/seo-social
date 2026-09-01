@@ -6,6 +6,7 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { extractDomain } = require('../utils/domainUtils');
+const { assertSafeHttpUrl } = require('../utils/urlSecurity');
 
 const USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -25,12 +26,14 @@ async function analyzeOnPage(urlOrHtml, keyword = '', isHtml = false) {
     } else {
         pageUrl = urlOrHtml;
         try {
-            const res = await axios.get(pageUrl, {
+            const safeUrl = await assertSafeHttpUrl(pageUrl);
+            const res = await axios.get(safeUrl.href, {
                 headers: { 'User-Agent': getRandUA(), 'Accept': 'text/html' },
                 timeout: 20000,
-                maxRedirects: 10,
+                maxRedirects: 0,
+                maxContentLength: 5 * 1024 * 1024,
+                maxBodyLength: 5 * 1024 * 1024,
                 validateStatus: s => s < 500,
-                httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
             });
             rawHtml = res.data;
             finalUrl = res.request?.res?.responseUrl || pageUrl;

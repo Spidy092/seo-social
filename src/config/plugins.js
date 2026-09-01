@@ -9,6 +9,18 @@
 const { createLogger } = require('../utils/logger');
 const log = createLogger('plugins');
 
+const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+function escapeHtml(value) {
+    return String(value || '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+    }[char]));
+}
+
 // ─── Public route allowlist ──────────────────────────────────────────────
 // Anything that must NOT trigger the auth hook. Used by the preValidation
 // hook below AND by the rate-limit rules in registerRateLimits().
@@ -25,6 +37,7 @@ const PUBLIC_GET_ROUTES = new Set([
 const PUBLIC_PREFIXES = [
     '/public/',
     '/api/agency/validate-invite',
+    '/reports/shared/',
 ];
 
 /**
@@ -50,6 +63,13 @@ function registerAuthHook(fastify) {
                 return reply.code(401).send({ error: 'Unauthorized' });
             }
             return reply.redirect('/login');
+        }
+
+        if (UNSAFE_METHODS.has(request.method) && request.headers.origin && process.env.APP_URL) {
+            const allowedOrigin = process.env.APP_URL.replace(/\/$/, '');
+            if (request.headers.origin !== allowedOrigin) {
+                return reply.code(403).send({ error: 'Cross-origin request blocked' });
+            }
         }
     });
 
@@ -141,14 +161,26 @@ function registerErrorHandlers(fastify) {
 
         return reply.code(statusCode).send(
             `<!DOCTYPE html><html><head><title>Error ${statusCode}</title></head>
-             <body><h1>Error ${statusCode}</h1><p>${err.message}</p><a href="/">Back to Dashboard</a></body></html>`
+             <body><h1>Error ${statusCode}</h1><p>${escapeHtml(err.message)}</p><a href="/">Back to Dashboard</a></body></html>`
         );
+    });
+
+    fastify.addHook('onSend', async (_request, reply, payload) => {
+        reply.header('X-Content-Type-Options', 'nosniff');
+        reply.header('X-Frame-Options', 'DENY');
+        reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+        reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+        if (process.env.NODE_ENV === 'production') {
+            reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+        }
+        return payload;
     });
 
     log.info('error + 404 handlers registered');
 }
 
 function FALLBACK_404_HTML(urlPath) {
+    const safePath = escapeHtml(urlPath);
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -171,7 +203,7 @@ function FALLBACK_404_HTML(urlPath) {
   <div class="container">
     <div class="code">404</div>
     <h1>Page Not Found</h1>
-    <p>The page <strong>${urlPath}</strong> doesn't exist or has been moved.</p>
+    <p>The page <strong>${safePath}</strong> doesn't exist or has been moved.</p>
     <a href="/">← Back to Dashboard</a>
   </div>
 </body>

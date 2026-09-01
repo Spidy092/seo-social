@@ -20,7 +20,7 @@ async function ensureProjectAccess(db, projectId, agencyId) {
         `SELECT p.id, p.client_id
          FROM seo_projects p
          JOIN seo_clients c ON c.id = p.client_id
-         WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL)`,
+         WHERE p.id = $1 AND c.agency_id = $2`,
         [projectId, agencyId]
     );
     return result.rows[0] || null;
@@ -41,14 +41,14 @@ async function clientRoutes(fastify, options) {
 
             const [clients, projects, linkedKeywords] = await Promise.all([
                 db.query(
-                    `SELECT COUNT(*) AS total FROM seo_clients c WHERE (c.agency_id = $1 OR c.agency_id IS NULL) ${agentFilter}`,
+                    `SELECT COUNT(*) AS total FROM seo_clients c WHERE c.agency_id = $1 ${agentFilter}`,
                     params
                 ),
                 db.query(
                     `SELECT COUNT(*) AS total
                      FROM seo_projects p
                      JOIN seo_clients c ON c.id = p.client_id
-                     WHERE (c.agency_id = $1 OR c.agency_id IS NULL) ${agentFilter}`,
+                     WHERE c.agency_id = $1 ${agentFilter}`,
                     params
                 ),
                 db.query(
@@ -56,7 +56,7 @@ async function clientRoutes(fastify, options) {
                      FROM seo_project_keywords pk
                      JOIN seo_projects p ON p.id = pk.project_id
                      JOIN seo_clients c ON c.id = p.client_id
-                     WHERE (c.agency_id = $1 OR c.agency_id IS NULL) ${agentFilter}`,
+                     WHERE c.agency_id = $1 ${agentFilter}`,
                     params
                 ),
             ]);
@@ -92,7 +92,7 @@ async function clientRoutes(fastify, options) {
                  LEFT JOIN seo_projects p ON p.client_id = c.id
                  LEFT JOIN seo_project_keywords pk ON pk.project_id = p.id
                  LEFT JOIN users u ON u.id = c.assigned_to
-                 WHERE (c.agency_id = $1 OR c.agency_id IS NULL) ${agentFilter}
+                 WHERE c.agency_id = $1 ${agentFilter}
                  GROUP BY c.id, u.email
                  ORDER BY c.updated_at DESC`,
                 params
@@ -170,7 +170,7 @@ async function clientRoutes(fastify, options) {
                     notes = $11,
                     updated_at = NOW()
                  WHERE id = $1
-                   AND (agency_id = $2 OR agency_id IS NULL)
+                   AND agency_id = $2
                  RETURNING *`,
                 [
                     id,
@@ -211,7 +211,7 @@ async function clientRoutes(fastify, options) {
                  JOIN seo_clients c ON c.id = p.client_id
                  LEFT JOIN seo_project_keywords pk ON pk.project_id = p.id
                  LEFT JOIN keywords k ON k.id = pk.keyword_id
-                 WHERE p.client_id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL)
+                 WHERE p.client_id = $1 AND c.agency_id = $2
                  GROUP BY p.id
                  ORDER BY p.updated_at DESC`,
                 [id, ctx.agencyId]
@@ -238,7 +238,7 @@ async function clientRoutes(fastify, options) {
 
         try {
             const access = await db.query(
-                'SELECT id FROM seo_clients WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL)',
+                'SELECT id FROM seo_clients WHERE id = $1 AND agency_id = $2',
                 [id, ctx.agencyId]
             );
             if (!access.rows.length) return reply.code(404).send({ error: 'Client not found' });
@@ -317,7 +317,7 @@ async function clientRoutes(fastify, options) {
                 `SELECT p.id, p.name, p.project_type, p.target_location, p.tracking_domain, p.client_id, c.name AS client_name, c.website_url
                  FROM seo_projects p
                  JOIN seo_clients c ON c.id = p.client_id
-                 WHERE (c.agency_id = $1 OR c.agency_id IS NULL) ${agentFilter}
+                 WHERE c.agency_id = $1 ${agentFilter}
                  ORDER BY c.name ASC, p.name ASC`,
                 params
             );
@@ -404,7 +404,7 @@ async function clientRoutes(fastify, options) {
         try {
             // Verify client belongs to this agency
             const clientCheck = await db.query(
-                `SELECT id FROM seo_clients WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL)`,
+                `SELECT id FROM seo_clients WHERE id = $1 AND agency_id = $2`,
                 [id, ctx.agencyId]
             );
             if (!clientCheck.rows.length) {

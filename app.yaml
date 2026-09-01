@@ -1,0 +1,15 @@
+runtime: nodejs20
+
+instance_class: F1
+
+env_variables:
+  NODE_ENV: "production"
+  # Add other environment variables here if needed
+  # FASTIFY_PORT is not needed, App Engine uses PORT 8080 by default
+
+# Ignore unnecessary files when deploying
+skip_files:
+  - ^node_modules/.*
+  - ^\.git/.*
+  - ^\.env$
+  - ^\.github/.*

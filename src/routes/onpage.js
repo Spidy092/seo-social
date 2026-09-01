@@ -18,10 +18,10 @@ async function onpageRoutes(fastify, options) {
             body: {
                 type: 'object',
                 properties: {
-                    url:       { type: 'string' },
-                    html:      { type: 'string' },
-                    keyword:   { type: 'string', default: '' },
-                    projectId: { type: 'string', default: '' },
+                    url:       { type: 'string', maxLength: 2048 },
+                    html:      { type: 'string', maxLength: 2_000_000 },
+                    keyword:   { type: 'string', maxLength: 250, default: '' },
+                    projectId: { type: 'string', maxLength: 128, default: '' },
                 },
             },
         },

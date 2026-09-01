@@ -13,6 +13,7 @@
 const { generateSitemap, buildSitemapFromUrls, DEFAULT_OPTS } = require('../services/sitemapGeneratorService');
 const { requireAgencyContext } = require('../utils/authHelper');
 const { createLogger } = require('../utils/logger');
+const { assertSafeHttpUrl } = require('../utils/urlSecurity');
 
 const log = createLogger('routes:sitemap');
 
@@ -267,9 +268,10 @@ async function sitemapRoutes(fastify, options) {
             const { url } = request.body;
             let startUrl;
             try {
-                startUrl = new URL(url.startsWith('http') ? url : `https://${url}`).href;
+                const candidate = url.startsWith('http') ? url : `https://${url}`;
+                startUrl = (await assertSafeHttpUrl(candidate)).href;
             } catch {
-                return reply.code(400).send({ success: false, error: 'Invalid URL format.' });
+                return reply.code(400).send({ success: false, error: 'Only public HTTP(S) URLs are allowed.' });
             }
 
             const opts = {
@@ -590,7 +592,7 @@ async function sitemapRoutes(fastify, options) {
             log.info({ startUrl, clientId, jobId, seedUrls: seedUrls.size, maxPages: opts.maxPages, maxDepth: opts.maxDepth }, 'client sitemap job queued');
 
             // Fire-and-forget background task — runs after we respond
-            setImmediate(async () => {
+            setTimeout(async () => {
                 let result;
                 try {
                     const start = Date.now();

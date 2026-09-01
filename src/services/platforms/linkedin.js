@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { assertSafeHttpUrl } = require('../../utils/urlSecurity');
 
 const API_BASE = 'https://api.linkedin.com';
 
@@ -46,7 +47,13 @@ async function registerUpload(personUrn, accessToken) {
  */
 async function uploadImage(uploadUrl, mediaUrl, accessToken) {
   // Download the image from Cloudinary first
-  const imageResponse = await axios.get(mediaUrl, { responseType: 'arraybuffer' });
+  const safeMediaUrl = await assertSafeHttpUrl(mediaUrl);
+  const imageResponse = await axios.get(safeMediaUrl.href, {
+    responseType: 'arraybuffer',
+    maxRedirects: 0,
+    maxContentLength: 20 * 1024 * 1024,
+    maxBodyLength: 20 * 1024 * 1024,
+  });
 
   await axios.put(uploadUrl, imageResponse.data, {
     headers: {

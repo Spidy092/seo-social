@@ -580,14 +580,14 @@ async function getRankedKeywords(db, opts = {}) {
         log.info({ projectId, targetUrl }, 'ranked-kw: no gsc_site_url on client, skipping to serper');
     }
 
-    if (result.keywords.length === 0 && !result.error) {
+    if (result.keywords.length === 0) {
         result = await lookupBySerper(db, { projectId, targetUrl, location });
         if (result.keywords.length === 0) {
             log.info({ projectId, targetUrl, location }, 'ranked-kw: serper had no data, falling back to rank_tracker');
         }
     }
 
-    if (result.keywords.length === 0 && !result.error) {
+    if (result.keywords.length === 0) {
         result = await lookupByRankTracker(db, { projectId, targetUrl });
         if (result.keywords.length === 0) {
             log.info({ projectId, targetUrl }, 'ranked-kw: all sources returned no data');

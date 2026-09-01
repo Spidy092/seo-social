@@ -7,6 +7,7 @@ const { resilientLlmRequest, extractJson } = require('../utils/aiHelper');
 const { safeRunPageSpeed } = require('./pageSpeedService');
 const { buildSummary: buildGscSummary } = require('./gscService');
 const seoPerformanceService = require('./seoPerformanceService');
+const { buildReportProvenance } = require('./reportProvenance');
 const { createLogger } = require('../utils/logger');
 
 const log = createLogger('report-service');
@@ -16,7 +17,7 @@ function normalizeDomain(value) {
     if (!raw) return '';
     try {
         return new URL(raw.startsWith('http') ? raw : `https://${raw}`).hostname.replace(/^www\./, '').toLowerCase();
-    } catch (_) {
+    } catch {
         return raw.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '').toLowerCase();
     }
 }
@@ -65,11 +66,11 @@ function buildPageSpeedFallback(technicalAudits) {
     };
 }
 
-async function gatherReportData(db, { clientId, domain, periodDays = 30, includePageSpeed = true }) {
+async function gatherReportData(db, { clientId, domain, agencyId, periodDays = 30, includePageSpeed = true }) {
     const safePeriodDays = Math.max(1, Math.min(365, parseInt(periodDays, 10) || 30));
     const since = `NOW() - INTERVAL '${safePeriodDays} days'`;
     const clientResult = clientId
-        ? await db.query('SELECT * FROM seo_clients WHERE id = $1', [clientId])
+        ? await db.query('SELECT * FROM seo_clients WHERE id = $1 AND agency_id = $2', [clientId, agencyId])
         : { rows: [{ name: normalizeDomain(domain) || domain || 'Your Website', website_url: domain }] };
     const client = clientResult.rows[0] || {};
     const reportDomain = normalizeDomain(domain || client.website_url);
@@ -83,7 +84,6 @@ async function gatherReportData(db, { clientId, domain, periodDays = 30, include
         : '';
     const clientParam = hasClient ? [clientId] : [];
     const domainParam = hasClient ? [clientId, reportDomain] : [reportDomain];
-    const siteParam = [domainPattern];
     const scopedPlaceholder = hasClient ? 2 : 1;
     const sitePlaceholder = 1;
 
@@ -165,9 +165,10 @@ async function gatherReportData(db, { clientId, domain, periodDays = 30, include
                 `SELECT ta.*, ta.created_at as audit_date
                  FROM technical_audits ta
                  WHERE ta.site_url ILIKE $${sitePlaceholder}
+                   AND ta.agency_id = $2
                  ORDER BY ta.created_at DESC
                  LIMIT 5`,
-                siteParam
+                [domainPattern, agencyId]
             ).catch(() => ({ rows: [] }))
             : Promise.resolve({ rows: [] }),
         reportDomain
@@ -177,9 +178,10 @@ async function gatherReportData(db, { clientId, domain, periodDays = 30, include
                  FROM page_optimizations po
                  WHERE po.created_at > ${since}
                    AND po.url ILIKE $${sitePlaceholder}
+                   AND po.agency_id = $2
                  ORDER BY po.created_at DESC
                  LIMIT 10`,
-                siteParam
+                [domainPattern, agencyId]
             ).catch(() => ({ rows: [] }))
             : Promise.resolve({ rows: [] }),
         hasClient
@@ -264,7 +266,7 @@ async function gatherReportData(db, { clientId, domain, periodDays = 30, include
         }
     }
 
-    return { client, projects: projectsResult.rows, keywords: keywordsResult.rows, rankings: rankingsResult.rows, rankHistory: rankHistoryResult.rows, alerts: alertsResult.rows, competitors: competitorsResult.rows, technicalAudits: technicalResult.rows, contentHistory: [], pageOptimizations: pageOptimizationResult.rows, contentBriefs: contentBriefResult.rows, pageSpeed, gsc, seoPerformance, searchVisibility: searchVisibilityResult.rows, reportDomain };
+    return { client, projects: projectsResult.rows, keywords: keywordsResult.rows, rankings: rankingsResult.rows, rankHistory: rankHistoryResult.rows, alerts: alertsResult.rows, competitors: competitorsResult.rows, technicalAudits: technicalResult.rows, contentHistory: [], pageOptimizations: pageOptimizationResult.rows, contentBriefs: contentBriefResult.rows, pageSpeed, gsc, gscRows, seoPerformance, searchVisibility: searchVisibilityResult.rows, reportDomain };
 }
 
 function computeSummary(data, periodDays) {
@@ -375,17 +377,18 @@ Respond ONLY with a JSON object in this exact structure:
 }
 
 async function buildReport(db, options) {
-    const { clientId, domain, periodDays = 30, reportTitle, includePageSpeed = true } = options;
+    const { clientId, domain, agencyId, periodDays = 30, reportTitle, includePageSpeed = true } = options;
     log.info({ clientId, domain, periodDays, includePageSpeed }, 'Building SEO report');
-    const data = await gatherReportData(db, { clientId, domain, periodDays, includePageSpeed });
+    const data = await gatherReportData(db, { clientId, domain, agencyId, periodDays, includePageSpeed });
     const summary = computeSummary(data, periodDays);
     const aiNarrative = await generateAiNarrative(summary, data);
     const reportDate = new Date();
     const periodStart = new Date(reportDate - periodDays * 24 * 60 * 60 * 1000);
     return {
-        meta: { title: reportTitle || `SEO Report - ${data.client?.name || data.reportDomain || 'Website'}`, clientName: data.client?.name || data.reportDomain || 'Website', domain: data.reportDomain || normalizeDomain(domain || data.client?.website_url) || '', generatedAt: reportDate.toISOString(), periodStart: periodStart.toISOString(), periodEnd: reportDate.toISOString(), periodDays },
+        meta: { title: reportTitle || `SEO Report - ${data.client?.name || data.reportDomain || 'Website'}`, clientName: data.client?.name || data.reportDomain || 'Website', domain: data.reportDomain || normalizeDomain(domain || data.client?.website_url) || '', generatedAt: reportDate.toISOString(), periodStart: periodStart.toISOString(), periodEnd: reportDate.toISOString(), periodDays, scope: clientId ? 'client' : 'domain' },
         summary,
         aiNarrative,
+        provenance: buildReportProvenance(data),
         data: { rankings: data.rankings.slice(0, 50), biggestGains: summary.biggestGains, biggestDrops: summary.biggestDrops, competitors: data.competitors, recentAlerts: data.alerts.slice(0, 20), technicalAudits: data.technicalAudits.slice(0, 3), pageSpeed: data.pageSpeed, gsc: data.gsc, projects: data.projects, projectKeywords: data.keywords.slice(0, 50), pageOptimizations: data.pageOptimizations, contentBriefs: data.contentBriefs, seoPerformance: data.seoPerformance },
     };
 }

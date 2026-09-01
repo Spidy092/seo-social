@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { assertSafeHttpUrl } = require('../../utils/urlSecurity');
 
 const UPLOAD_BASE = 'https://www.googleapis.com/upload/youtube/v3';
 
@@ -13,6 +14,8 @@ async function postContent(connection, { mediaUrl, mediaType, caption }) {
   if (mediaType === 'image') {
     throw new Error('YouTube only supports video posts. Please upload a video file.');
   }
+
+  const safeMediaUrl = await assertSafeHttpUrl(mediaUrl);
 
   const accessToken = connection.access_token;
 
@@ -45,8 +48,11 @@ async function postContent(connection, { mediaUrl, mediaType, caption }) {
   }
 
   // Step 2: Download video from Cloudinary and upload to YouTube
-  const videoResponse = await axios.get(mediaUrl, {
+  const videoResponse = await axios.get(safeMediaUrl.href, {
     responseType: 'arraybuffer',
+    maxRedirects: 0,
+    maxContentLength: 256 * 1024 * 1024,
+    maxBodyLength: 256 * 1024 * 1024,
   });
 
   const { data: uploadResult } = await axios.put(resumableUploadUrl, videoResponse.data, {

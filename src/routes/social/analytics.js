@@ -19,7 +19,7 @@ module.exports = async function (fastify, options) {
                 FROM analytics_snapshots
                 JOIN post_results pr ON analytics_snapshots.post_result_id = pr.id
                 JOIN posts p ON pr.post_id = p.id
-                WHERE p.user_id = $1 AND (p.agency_id = $2 OR p.agency_id IS NULL OR $2 IS NULL)
+                WHERE p.user_id = $1 AND p.agency_id = $2
               ) latest
               WHERE rn = 1
             `, [ctx.userId, ctx.agencyId]);
@@ -37,7 +37,7 @@ module.exports = async function (fastify, options) {
                        ROW_NUMBER() OVER(PARTITION BY post_result_id ORDER BY snapped_at DESC) as rn
                 FROM analytics_snapshots
               ) latest ON latest.post_result_id = pr.id AND latest.rn = 1
-              WHERE p.user_id = $1 AND (p.agency_id = $2 OR p.agency_id IS NULL OR $2 IS NULL) AND pr.status = 'success'
+              WHERE p.user_id = $1 AND p.agency_id = $2 AND pr.status = 'success'
               GROUP BY pr.platform
             `, [ctx.userId, ctx.agencyId]);
 
@@ -57,7 +57,7 @@ module.exports = async function (fastify, options) {
                        ROW_NUMBER() OVER(PARTITION BY post_result_id ORDER BY snapped_at DESC) as rn
                 FROM analytics_snapshots
               ) latest ON latest.post_result_id = pr.id AND latest.rn = 1
-              WHERE p.user_id = $1 AND (p.agency_id = $2 OR p.agency_id IS NULL OR $2 IS NULL) AND pr.status = 'success'
+              WHERE p.user_id = $1 AND p.agency_id = $2 AND pr.status = 'success'
               ORDER BY p.created_at DESC
               LIMIT 10
             `, [ctx.userId, ctx.agencyId]);

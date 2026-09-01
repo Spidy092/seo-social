@@ -13,7 +13,7 @@ function extractJson(content) {
 
     try {
         return JSON.parse(trimmed);
-    } catch (err) {
+    } catch {
         // Continue with fenced/embedded JSON extraction below.
     }
 
@@ -53,8 +53,9 @@ function extractJson(content) {
  * @param {string[]} [params.providerOrder] - Optional provider order, e.g. ['OpenRouter'].
  * @param {boolean} [params.allowFallback=true] - Whether to try additional providers after the first configured provider.
  * @param {number} [params.maxTokens] - Optional response token limit.
+ * @param {'low'|'medium'|'high'} [params.reasoningEffort] - Optional reasoning budget for providers that support it.
  */
-async function resilientLlmRequest({ prompt, systemPrompt, expectJson = true, timeoutMs = 30000, maxRetries = 3, providerOrder, allowFallback = true, maxTokens }) {
+async function resilientLlmRequest({ prompt, systemPrompt, expectJson = true, timeoutMs = 30000, maxRetries = 3, providerOrder, allowFallback = true, maxTokens, reasoningEffort }) {
     const providers = [];
 
     // Add OpenRouter as provider 1 if configured
@@ -129,6 +130,11 @@ async function resilientLlmRequest({ prompt, systemPrompt, expectJson = true, ti
                     messages
                 };
 
+                const configuredReasoning = reasoningEffort || config.apis.openRouter?.reasoningEffort;
+                if (provider.name === 'OpenRouter' && ['low', 'medium', 'high'].includes(configuredReasoning)) {
+                    payload.reasoning = { effort: configuredReasoning };
+                }
+
                 if (Number.isFinite(maxTokens) && maxTokens > 0) {
                     payload.max_tokens = maxTokens;
                 }
@@ -162,6 +168,14 @@ async function resilientLlmRequest({ prompt, systemPrompt, expectJson = true, ti
                     log.warn({ provider: provider.name, error: errorText }, 'JSON format parameter not supported. Disabling JSON mode parameter and retrying.');
                     useJsonFormat = false;
                     attempt--; // Don't count this payload adjustment as a transient error attempt
+                    continue;
+                }
+
+                if (response.status === 400 && payload.reasoning) {
+                    const errorText = await response.text();
+                    log.warn({ provider: provider.name, error: errorText }, 'Reasoning control is not supported by this model; retrying without it.');
+                    delete payload.reasoning;
+                    attempt--;
                     continue;
                 }
 

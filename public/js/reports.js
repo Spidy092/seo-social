@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('generateReportBtn').addEventListener('click', generateReport);
     document.getElementById('saveReportBtn')?.addEventListener('click', saveReport);
+    document.getElementById('shareReportBtn')?.addEventListener('click', createShareLink);
     document.getElementById('openReportBtn')?.addEventListener('click', openFullReport);
 
     // Auto-fill title when period or domain changes
@@ -31,7 +32,7 @@ async function loadClients() {
         const { clients = [] } = await res.json();
         const select = document.getElementById('reportClientSelect');
         if (!select) return;
-        select.innerHTML = '<option value="">No specific client (by domain)</option>';
+        select.innerHTML = '<option value="">Choose a client</option>';
         clients.forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.id;
@@ -46,7 +47,7 @@ async function loadClients() {
                 document.getElementById('reportDomain').value = domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
             }
             autoFillTitle();
-            if (select.value) generateReport();
+            if (select.value) showReportToast('Client context set. Review the period, then generate the evidence draft.', 'info');
         });
     } catch (err) {
         console.warn('Could not load clients for report builder:', err.message);
@@ -73,8 +74,8 @@ async function generateReport() {
     const reportTitle = document.getElementById('reportTitle')?.value?.trim();
     const includePageSpeed = document.getElementById('reportIncludePageSpeed')?.checked !== false;
 
-    if (!domain && !clientId) {
-        showReportToast('Please enter a domain or select a client', 'error');
+    if (!clientId) {
+        showReportToast('Choose a client to keep this report agency-scoped.', 'error');
         return;
     }
 
@@ -117,117 +118,50 @@ function renderReportPreview(report) {
     const content = document.getElementById('reportPreviewContent');
     if (!card || !content) return;
 
-    const { meta, summary, aiNarrative, data } = report;
-
-    const healthColor = aiNarrative.overallHealthScore >= 70 ? '#10b981'
-        : aiNarrative.overallHealthScore >= 40 ? '#f59e0b' : '#ef4444';
+    const { meta = {}, summary = {}, aiNarrative = {}, data = {} } = report || {};
+    const list = value => Array.isArray(value) ? value : [];
+    const metric = value => value === null || value === undefined || value === '' ? 'Not collected' : value;
+    const wins = list(aiNarrative.keyWins);
+    const issues = list(aiNarrative.keyIssues);
+    const recommendations = list(aiNarrative.contentRecommendations);
+    const plan = list(aiNarrative.nextMonthPlan);
+    const provenance = report.provenance || {};
+    const sourceCount = Object.values(provenance).filter(item => item && item.status !== 'not_collected').length;
+    const estimatedTraffic = summary.trackedKeywords ? Number(summary.estimatedMonthlyTraffic || 0).toLocaleString() : 'Not collected';
+    const gscClicks = data.gsc ? summary.gscClicks : 'Not collected';
 
     content.innerHTML = `
-        <!-- Meta bar -->
-        <div style="display:flex;align-items:center;gap:12px;padding:16px;background:var(--bg);border-radius:10px;margin-bottom:20px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:200px;">
-                <div style="font-weight:700;font-size:1rem;">${escHtml(meta.title)}</div>
-                <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
-                    ${formatDate(meta.periodStart)} → ${formatDate(meta.periodEnd)}
-                    ${meta.domain ? ' · ' + escHtml(meta.domain) : ''}
-                </div>
-            </div>
-            <div style="text-align:center;background:white;border:2px solid ${healthColor};border-radius:50%;width:64px;height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;">
-                <div style="font-size:1.2rem;font-weight:800;color:${healthColor};line-height:1;">${aiNarrative.overallHealthScore}%</div>
-                <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Health</div>
-            </div>
+        <div class="ed-preview-meta">
+            <div><div class="ed-preview-title">${escHtml(meta.title || 'Untitled report')}</div><div class="ed-preview-meta-copy">${formatDate(meta.periodStart)} → ${formatDate(meta.periodEnd)}${meta.domain ? ` · ${escHtml(meta.domain)}` : ''}</div></div>
+            <div class="ed-preview-score"><strong>${metric(aiNarrative.overallHealthScore)}${aiNarrative.overallHealthScore !== undefined && aiNarrative.overallHealthScore !== null ? '%' : ''}</strong><span>Narrative signal</span></div>
         </div>
-
-        <!-- Stats -->
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;">
-            ${statChip(summary.trackedKeywords, 'Keywords Tracked', '#4f46e5')}
-            ${statChip(summary.top10, 'Top 10', '#10b981')}
-            ${statChip(summary.top3, 'Top 3', '#7c3aed')}
-            ${statChip(summary.avgPosition || '—', 'Avg Position', '#f59e0b')}
-            ${statChip('+' + summary.improved, 'Improved', '#10b981')}
-            ${statChip('-' + summary.dropped, 'Dropped', '#ef4444')}
-            ${statChip(summary.projectKeywords || summary.totalKeywords || 0, 'Client Keywords', '#0f766e')}
-            ${statChip(summary.pageSpeedScore ?? '—', 'PageSpeed', '#2563eb')}
-            ${statChip(summary.latestTechnicalScore ?? '—', 'Tech Score', '#64748b')}
-            ${statChip(summary.gscClicks ?? 0, 'GSC Clicks', '#0f766e')}
-            ${statChip(summary.gscImpressions ?? 0, 'GSC Impr.', '#4f46e5')}
-            ${statChip(summary.gscQuickWins ?? 0, 'GSC Wins', '#f59e0b')}
+        <div class="ed-preview-grid">
+            ${statChip(metric(summary.trackedKeywords), 'Tracked keywords')}
+            ${statChip(metric(summary.top10), 'Top 10 positions')}
+            ${statChip(metric(summary.top3), 'Top 3 positions')}
+            ${statChip(metric(summary.avgPosition), 'Average position')}
+            ${statChip(`+${metric(summary.improved)}`, 'Improved')}
+            ${statChip(`-${metric(summary.dropped)}`, 'Dropped')}
+            ${statChip(metric(summary.projectKeywords || summary.totalKeywords), 'Client keywords')}
+            ${statChip(metric(summary.latestTechnicalScore), 'Technical score')}
+            ${statChip(metric(gscClicks), 'GSC clicks')}
         </div>
-
-        <!-- Traffic estimate -->
-        <div style="background:linear-gradient(135deg,#eef2ff,#f5f3ff);border:1px solid #c7d2fe;border-radius:10px;padding:14px 16px;margin-bottom:20px;">
-            <div style="font-size:11px;font-weight:600;color:#6366f1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Estimated Monthly Traffic</div>
-            <div style="font-size:1.8rem;font-weight:800;color:#4f46e5;">${summary.estimatedMonthlyTraffic.toLocaleString()} <span style="font-size:0.9rem;color:var(--text-muted);font-weight:400;">visits/month</span></div>
+        <div class="ed-preview-block"><h3>Traffic estimate <span class="ed-preview-inline-note">Proxy from ranking CTR model</span></h3><p class="ed-preview-large-value">${estimatedTraffic} <span>visits / month</span></p></div>
+        <div class="ed-preview-columns">
+            <div class="ed-preview-block"><h3>Executive summary</h3><p>${escHtml(aiNarrative.executiveSummary || 'No narrative was generated for this draft.')}</p></div>
+            <div class="ed-preview-block"><h3>Report coverage</h3><p>${sourceCount} source${sourceCount === 1 ? '' : 's'} contributed. Open the source coverage row above before saving this draft.</p></div>
         </div>
-
-        <!-- Client coverage -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
-            <div style="border:1px solid var(--border);border-radius:10px;padding:14px;background:var(--bg);">
-                <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Client Pack Included</div>
-                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
-                    ${statChip(summary.projectCount || 0, 'Projects', '#4f46e5')}
-                    ${statChip(summary.projectKeywords || 0, 'Keywords', '#0f766e')}
-                    ${statChip(summary.pageOptimizations || 0, 'Page Reports', '#f59e0b')}
-                    ${statChip(summary.contentBriefs || 0, 'Briefs', '#7c3aed')}
-                </div>
-            </div>
-            <div style="border:1px solid var(--border);border-radius:10px;padding:14px;">
-                <div style="font-size:11px;font-weight:600;color:#2563eb;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">PageSpeed & Core Web Vitals</div>
-                ${renderPageSpeedPreview(data.pageSpeed)}
-            </div>
+        <div class="ed-preview-columns">
+            <div class="ed-preview-block"><h3>Key wins</h3>${renderPreviewList(wins, 'No wins recorded in this period.', 'green')}</div>
+            <div class="ed-preview-block"><h3>Issues to review</h3>${renderPreviewList(issues, 'No issues recorded in this period.', 'amber')}</div>
         </div>
-
         ${renderGscPreview(data.gsc)}
-
-        <!-- Executive Summary -->
-        <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:14px 16px;margin-bottom:20px;">
-            <div style="font-size:11px;font-weight:600;color:#6366f1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Executive Summary</div>
-            <p style="font-size:13px;color:#3730a3;line-height:1.7;margin:0;">${escHtml(aiNarrative.executiveSummary)}</p>
-        </div>
-
-        <!-- Wins & Issues -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
-            <div style="border:1px solid var(--border);border-radius:10px;padding:14px;">
-                <div style="font-size:11px;font-weight:600;color:#10b981;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">✓ Key Wins</div>
-                ${aiNarrative.keyWins.map(w => `<div style="font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);padding-left:20px;position:relative;"><span style="position:absolute;left:0;color:#10b981;font-weight:700;">✓</span>${escHtml(w)}</div>`).join('')}
-            </div>
-            <div style="border:1px solid var(--border);border-radius:10px;padding:14px;">
-                <div style="font-size:11px;font-weight:600;color:#f59e0b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">⚠ Issues</div>
-                ${aiNarrative.keyIssues.map(i => `<div style="font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);padding-left:20px;position:relative;"><span style="position:absolute;left:0;color:#f59e0b;">⚠</span>${escHtml(i)}</div>`).join('')}
-            </div>
-        </div>
-
-        <!-- Content Recs -->
-        <div style="margin-bottom:20px;">
-            <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">✍️ Content Recommendations</div>
-            ${aiNarrative.contentRecommendations.map(rec => {
-                const icons = { blog: '📝', 'service-page': '🛠️', 'landing-page': '🎯' };
-                const colors = { blog: '#eef2ff', 'service-page': '#d1fae5', 'landing-page': '#fef3c7' };
-                return `
-                <div style="display:flex;gap:10px;border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;align-items:flex-start;">
-                    <div style="width:32px;height:32px;border-radius:8px;background:${colors[rec.type]||'#f3f4f6'};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1rem;">${icons[rec.type]||'📄'}</div>
-                    <div>
-                        <div style="font-weight:600;font-size:13px;">${escHtml(rec.title)}</div>
-                        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escHtml(rec.rationale)}</div>
-                        <span style="display:inline-block;margin-top:4px;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:#eef2ff;color:#4f46e5;">${rec.type}</span>
-                    </div>
-                </div>`;
-            }).join('')}
-        </div>
-
-        <!-- Next Month Plan -->
-        <div>
-            <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">🗓️ Next Month Action Plan</div>
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
-                ${aiNarrative.nextMonthPlan.map(item => `
-                <div style="border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--bg);">
-                    <div style="font-size:10px;font-weight:700;color:#4f46e5;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Week ${item.week}</div>
-                    <div style="font-size:12px;line-height:1.5;">${escHtml(item.action)}</div>
-                </div>`).join('')}
-            </div>
-        </div>
+        <div class="ed-preview-block"><h3>PageSpeed and Core Web Vitals</h3>${renderPageSpeedPreview(data.pageSpeed)}</div>
+        <div class="ed-preview-block"><h3>Content recommendations</h3>${recommendations.length ? recommendations.map(rec => `<div class="ed-preview-recommendation"><strong>${escHtml(rec.title)}</strong><span>${escHtml(rec.rationale)}</span><small>${escHtml(rec.type || 'recommendation')}</small></div>`).join('') : '<p>Not collected.</p>'}</div>
+        <div class="ed-preview-block"><h3>Next month action plan</h3>${plan.length ? `<ol class="ed-preview-plan">${plan.map(item => `<li><strong>Week ${escHtml(item.week)}</strong><span>${escHtml(item.action)}</span></li>`).join('')}</ol>` : '<p>No action plan was generated.</p>'}</div>
     `;
 
+    window.evidenceDesk?.markReportSources(report);
     card.style.display = '';
     card.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -251,6 +185,8 @@ async function saveReport() {
         savedReportId = data.reportId;
         showReportToast('Report saved!', 'success');
         loadSavedReports();
+        const shareBtn = document.getElementById('shareReportBtn');
+        if (shareBtn) shareBtn.disabled = false;
         // Update open button
         document.getElementById('openReportBtn').onclick = () => window.open(`/reports/${savedReportId}/html`, '_blank');
     } catch (err) {
@@ -258,6 +194,58 @@ async function saveReport() {
     } finally {
         btn.innerHTML = orig;
         btn.disabled = false;
+    }
+}
+
+async function requestShareLink(id) {
+    const res = await fetch(`/api/reports/${id}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expiresInHours: 168 }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not create share link');
+    return `${window.location.origin}${data.sharePath}`;
+}
+
+async function copyShareLink(id) {
+    const url = await requestShareLink(id);
+    try {
+        await navigator.clipboard.writeText(url);
+        showReportToast('Share link copied. It expires in 7 days.', 'success');
+    } catch {
+        window.prompt('Copy this share link', url);
+    }
+}
+
+async function createShareLink() {
+    if (!savedReportId) {
+        showReportToast('Save the report first to create a controlled share link.', 'warning');
+        return;
+    }
+    const btn = document.getElementById('shareReportBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+    }
+    try {
+        await copyShareLink(savedReportId);
+    } catch (err) {
+        showReportToast(`Share failed: ${err.message}`, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-link"></i> Copy share link';
+        }
+    }
+}
+
+async function shareReportById(id) {
+    try {
+        await copyShareLink(id);
+        loadSavedReports();
+    } catch (err) {
+        showReportToast(`Share failed: ${err.message}`, 'error');
     }
 }
 
@@ -280,13 +268,13 @@ async function loadSavedReports() {
         const { reports = [] } = await res.json();
 
         if (!reports.length) {
-            container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">No saved reports yet. Generate your first report above.</p>';
+            container.innerHTML = '<p class="ed-empty-copy">No saved reports yet. Generate the first evidence draft above.</p>';
             return;
         }
 
         container.innerHTML = reports.map(r => `
             <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">
-                <div style="width:36px;height:36px;background:#eef2ff;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">📊</div>
+                <div style="width:30px;height:30px;background:#f4e6df;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#8f3d20;flex-shrink:0;"><i class="fas fa-file-lines"></i></div>
                 <div style="flex:1;min-width:0;">
                     <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(r.title)}</div>
                     <div style="font-size:11px;color:var(--text-muted);">
@@ -294,6 +282,9 @@ async function loadSavedReports() {
                     </div>
                 </div>
                 <div style="display:flex;gap:6px;flex-shrink:0;">
+                    <button onclick="shareReportById(${r.id})" class="btn btn-sm btn-outline" title="Copy expiring share link">
+                        <i class="fas fa-link"></i>
+                    </button>
                     <button onclick="window.open('/reports/${r.id}/html','_blank')" class="btn btn-sm btn-primary" title="Open full report">
                         <i class="fas fa-external-link-alt"></i>
                     </button>
@@ -330,17 +321,17 @@ function renderGscPreview(gsc) {
     const quickWins = (gsc.quickWinKeywords || []).slice(0, 4);
     const lowCtr = (gsc.lowCtrPages || []).slice(0, 4);
     return `
-        <div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:20px;">
-            <div style="font-size:11px;font-weight:600;color:#0f766e;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Google Search Console</div>
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
-                ${statChip(gsc.clicks || 0, 'Clicks', '#0f766e')}
-                ${statChip(gsc.impressions || 0, 'Impressions', '#4f46e5')}
-                ${statChip(ctr, 'CTR', '#f59e0b')}
-                ${statChip(position, 'Avg Pos', '#7c3aed')}
+        <div class="ed-preview-block ed-preview-source-block">
+            <h3>Google Search Console <span class="ed-preview-inline-note">Stored client source</span></h3>
+            <div class="ed-preview-grid ed-preview-grid-compact">
+                ${statChip(gsc.clicks || 0, 'Clicks')}
+                ${statChip(gsc.impressions || 0, 'Impressions')}
+                ${statChip(ctr, 'CTR')}
+                ${statChip(position, 'Average position')}
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                <div>${quickWins.length ? `<strong style="font-size:12px;">Quick wins</strong>${quickWins.map(row => `<div style="font-size:12px;padding-top:5px;">${escHtml(row.query)} · #${Number(row.position).toFixed(1)}</div>`).join('')}` : '<span style="font-size:12px;color:var(--text-muted);">No quick-win keywords synced.</span>'}</div>
-                <div>${lowCtr.length ? `<strong style="font-size:12px;">Low CTR pages</strong>${lowCtr.map(row => `<div style="font-size:12px;padding-top:5px;">${escHtml((row.page || '').replace(/^https?:\/\//, ''))} · ${(Number(row.ctr) * 100).toFixed(1)}%</div>`).join('')}` : '<span style="font-size:12px;color:var(--text-muted);">No low-CTR pages synced.</span>'}</div>
+            <div class="ed-preview-source-columns">
+                <div>${quickWins.length ? `<strong>Quick wins</strong>${quickWins.map(row => `<span>${escHtml(row.query)} · #${Number(row.position).toFixed(1)}</span>`).join('')}` : '<span>Not collected.</span>'}</div>
+                <div>${lowCtr.length ? `<strong>Low CTR pages</strong>${lowCtr.map(row => `<span>${escHtml((row.page || '').replace(/^https?:\/\//, ''))} · ${(Number(row.ctr) * 100).toFixed(1)}%</span>`).join('')}` : '<span>Not collected.</span>'}</div>
             </div>
         </div>
     `;
@@ -348,40 +339,45 @@ function renderGscPreview(gsc) {
 
 function renderPageSpeedPreview(pageSpeed) {
     if (!pageSpeed) {
-        return '<div style="font-size:13px;color:var(--text-muted);line-height:1.6;">No PageSpeed data yet. Add a website URL for the client or run a technical audit for crawl-based speed signals.</div>';
+        return '<p>Not collected. Add a website URL or run a PageSpeed check before using performance data in a client report.</p>';
     }
     const scores = pageSpeed.scores || {};
     const metrics = pageSpeed.metrics || {};
-    const source = pageSpeed.source === 'google-pagespeed-insights' ? 'Google PSI mobile' : 'Technical crawl fallback';
+    const source = pageSpeed.source === 'google-pagespeed-insights' ? 'Google PSI mobile' : 'Technical crawl proxy';
     const metricItems = [metrics.lcp, metrics.inp, metrics.cls, metrics.fcp, metrics.speedIndex, metrics.avgLoad]
         .filter(Boolean)
         .slice(0, 4)
-        .map(item => `<div style="font-size:12px;padding:5px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px;"><span>${escHtml(item.title)}</span><strong>${escHtml(item.displayValue || '—')}</strong></div>`)
+        .map(item => `<div class="ed-preview-metric"><span>${escHtml(item.title)}</span><strong>${escHtml(item.displayValue || '—')}</strong></div>`)
         .join('');
     const opportunities = (pageSpeed.opportunities || [])
         .slice(0, 2)
-        .map(item => `<div style="font-size:12px;color:var(--text-muted);padding-top:6px;">• ${escHtml(item.title)} ${item.displayValue ? `(${escHtml(item.displayValue)})` : ''}</div>`)
+        .map(item => `<span class="ed-preview-opportunity">${escHtml(item.title)} ${item.displayValue ? `(${escHtml(item.displayValue)})` : ''}</span>`)
         .join('');
 
     return `
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;">
-            ${statChip(scores.performance ?? '—', 'Perf', '#2563eb')}
-            ${statChip(scores.accessibility ?? '—', 'A11y', '#10b981')}
-            ${statChip(scores.bestPractices ?? '—', 'Best', '#f59e0b')}
-            ${statChip(scores.seo ?? '—', 'SEO', '#7c3aed')}
+        <div class="ed-preview-source-note"><span class="ed-status-dot ${pageSpeed.source === 'google-pagespeed-insights' ? 'ed-status-dot-green' : 'ed-status-dot-amber'}"></span> ${source}</div>
+        <div class="ed-preview-grid ed-preview-grid-compact">
+            ${statChip(scores.performance ?? '—', 'Performance')}
+            ${statChip(scores.accessibility ?? '—', 'Accessibility')}
+            ${statChip(scores.bestPractices ?? '—', 'Best practices')}
+            ${statChip(scores.seo ?? '—', 'SEO')}
         </div>
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">Source: ${source}</div>
-        ${metricItems || '<div style="font-size:12px;color:var(--text-muted);">No metric details available.</div>'}
-        ${opportunities ? `<div style="margin-top:8px;">${opportunities}</div>` : ''}
+        ${metricItems || '<p>No metric details available.</p>'}
+        ${opportunities ? `<div class="ed-preview-opportunities">${opportunities}</div>` : ''}
     `;
 }
 
-function statChip(value, label, color) {
+function statChip(value, label) {
     return `
-        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;">
-            <div style="font-size:1.4rem;font-weight:800;color:${color};line-height:1;">${value}</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${label}</div>
+        <div class="ed-preview-stat">
+            <strong>${escHtml(value)}</strong>
+            <span>${escHtml(label)}</span>
         </div>`;
+}
+
+function renderPreviewList(items, emptyMessage, tone) {
+    if (!items.length) return `<p>${escHtml(emptyMessage)}</p>`;
+    return `<ul class="ed-preview-list ed-preview-list-${tone}">${items.map(item => `<li>${escHtml(item)}</li>`).join('')}</ul>`;
 }
 
 function formatDate(iso) {
@@ -390,7 +386,7 @@ function formatDate(iso) {
 }
 
 function escHtml(str) {
-    if (!str) return '';
+    if (str === null || str === undefined) return '';
     return String(str)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')

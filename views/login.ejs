@@ -3,174 +3,180 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Keyword Analyzer</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Outfit', 'sans-serif'],
-                    },
-                    animation: {
-                        'fade-in-up': 'fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-                        'float': 'float 6s ease-in-out infinite',
-                        'blob': 'blob 7s infinite',
-                    },
-                    keyframes: {
-                        fadeInUp: {
-                            '0%': { opacity: '0', transform: 'translateY(30px)' },
-                            '100%': { opacity: '1', transform: 'translateY(0)' },
-                        },
-                        float: {
-                            '0%, 100%': { transform: 'translateY(0)' },
-                            '50%': { transform: 'translateY(-10px)' },
-                        },
-                        blob: {
-                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
-                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
-                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
-                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
-                        }
-                    }
-                }
-            }
-        }
-
-    </script>
+    <meta name="theme-color" content="#F6F5F0">
+    <meta name="color-scheme" content="light dark">
+    <meta name="description" content="Evidence Desk — sign in to continue to your SEO workspace">
+    <title>Sign in — Evidence Desk</title>
+    <link rel="icon" type="image/x-icon" href="/public/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/public/css/style.css">
+    <link rel="stylesheet" href="/public/css/evidence-desk.css">
     <style>
-        .to-purple-600 {
-            --tw-gradient-to: #09050c var(--tw-gradient-to-position);
+        /* Login — Evidence Desk only, no Tailwind/Outfit/blobs */
+        body.ed-login {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 16px;
+            background: var(--ed-canvas);
+            color: var(--ed-ink);
+            font-family: "Plus Jakarta Sans", sans-serif;
         }
-        
-        .from-indigo-500 {
-            --tw-gradient-to: rgb(99 102 241 / 0) var(--tw-gradient-to-position);
-            --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+        .ed-login-wrap { width: 100%; max-width: 440px; }
+        .ed-login-kicker {
+            margin-bottom: 18px;
+            text-align: center;
         }
-        body {
-            font-family: 'Outfit', sans-serif;
-            background-color: #f8fafc;
+        .ed-login-card {
+            background: var(--ed-surface);
+            border: 1px solid var(--ed-line);
+            border-radius: 10px;
+            overflow: hidden;
         }
-        .animation-delay-2000 {
-            animation-delay: 2s;
+        .ed-login-head {
+            padding: 28px 28px 0 28px;
+            text-align: center;
         }
-        .animation-delay-4000 {
-            animation-delay: 4s;
+        .ed-login-mark {
+            width: 36px; height: 36px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: var(--ed-ink); color: var(--ed-surface);
+            border-radius: 6px; font-weight: 800; letter-spacing: 0.04em; font-size: 12px;
         }
-        @keyframes gradientShift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+        .ed-login-title { margin: 14px 0 6px; font-size: 28px; line-height: 1.05; letter-spacing: -0.04em; font-weight: 800; text-wrap: balance; }
+        .ed-login-sub { margin: 0; color: var(--ed-muted); font-size: 13px; line-height: 1.5; }
+        .ed-login-form { padding: 22px 28px 24px; }
+        .ed-login-field { margin-bottom: 14px; }
+        .ed-login-field label {
+            display: block; margin-bottom: 7px;
+            color: var(--ed-ink); font: 800 10px "IBM Plex Mono", monospace; letter-spacing: 0.06em; text-transform: uppercase;
         }
-        .bg-animate {
-            background-size: 200% auto; 
-            animation: gradientShift 3s linear infinite;
+        .ed-login-field label small { float: right; text-transform: none; letter-spacing: 0; font-weight: 600; }
+        .ed-login-field label small a { color: var(--ed-copper-dark); text-decoration: none; }
+        .ed-login-field label small a:hover { color: var(--ed-copper); }
+        .ed-input-wrap { position: relative; }
+        .ed-input-wrap i.ed-input-icon {
+            position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+            color: var(--ed-muted); font-size: 13px; pointer-events: none;
         }
+        .ed-login-field input {
+            width: 100%; min-height: 44px;
+            padding: 11px 12px 11px 34px;
+            border: 1px solid var(--ed-line); border-radius: 6px;
+            background: var(--ed-surface); color: var(--ed-ink);
+            font-size: 13px; font-weight: 500;
+        }
+        .ed-login-field input::placeholder { color: #9AA6A0; }
+        .ed-login-field input:focus { border-color: var(--ed-copper); box-shadow: 0 0 0 3px rgba(183,85,44,0.12); outline: 0; }
+        .ed-login-field input[aria-invalid="true"] { border-color: var(--ed-red); }
+        .ed-field-hint { margin-top: 6px; color: var(--ed-muted); font-size: 10px; line-height: 1.4; }
+        .ed-alert {
+            display: flex; gap: 10px; align-items: flex-start;
+            padding: 10px 12px; border-radius: 6px; border: 1px solid;
+            font-size: 12px; line-height: 1.45; margin-bottom: 16px;
+        }
+        .ed-alert-success { background: var(--ed-green-soft); border-color: #CDE3D3; color: #234132; }
+        .ed-alert-error { background: #FDF0EF; border-color: #E8C4C0; color: #6B2E2A; }
+        .ed-alert i { margin-top: 1px; font-size: 13px; flex-shrink: 0; }
+        .ed-login-submit {
+            width: 100%; min-height: 44px;
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            background: var(--ed-copper); color: #fff; border: 1px solid transparent; border-radius: 6px;
+            font-size: 11px; font-weight: 800; letter-spacing: -0.01em; cursor: pointer;
+            transition: transform 150ms ease, background 150ms ease;
+        }
+        .ed-login-submit:hover { background: var(--ed-copper-dark); transform: translateY(-1px); }
+        .ed-login-submit:active { transform: none; }
+        .ed-login-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .ed-login-submit:focus-visible { outline: 3px solid rgba(183,85,44,0.3); outline-offset: 2px; }
+        .ed-login-meta {
+            margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--ed-line);
+            text-align: center;
+        }
+        .ed-login-toggle {
+            background: none; border: 0; padding: 6px 8px; cursor: pointer;
+            color: var(--ed-muted); font-size: 12px; font-weight: 600;
+        }
+        .ed-login-toggle strong { color: var(--ed-copper-dark); }
+        .ed-login-toggle:hover strong { color: var(--ed-copper); }
+        .ed-login-toggle:focus-visible { outline: 3px solid rgba(183,85,44,0.3); outline-offset: 2px; border-radius: 4px; }
+        .ed-login-foot {
+            margin-top: 18px; text-align: center;
+            color: var(--ed-muted); font: 10px "IBM Plex Mono", monospace; line-height: 1.6;
+        }
+        .ed-login-foot a { color: var(--ed-muted); text-decoration: none; }
+        .ed-login-foot a:hover { color: var(--ed-ink); }
+        .ed-login-foot span.dot { margin: 0 6px; color: var(--ed-line-strong); }
+        @media (prefers-reduced-motion: reduce) { * { transition-duration: 0.01ms !important; } }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-6 relative overflow-hidden bg-slate-50">
-    
-    <!-- Animated background blobs -->
-    <div class="absolute top-0 left-1/4 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob"></div>
-    <div class="absolute top-0 right-1/4 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-2000"></div>
-    <div class="absolute -bottom-8 left-1/3 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-4000"></div>
+<body class="ed-login">
+    <div class="ed-login-wrap">
+        <div class="ed-login-kicker">
+            <p class="ed-eyebrow" style="margin:0 0 6px; text-align:center;">Evidence desk / sign in</p>
+            <div style="color:var(--ed-muted); font:10px 'IBM Plex Mono',monospace;">Paper · Ink · Copper · Mono</div>
+        </div>
 
-    <div class="max-w-[440px] w-full relative z-10 animate-fade-in-up">
-        <!-- Glassmorphism Card -->
-        <div class="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_8px_40px_rgb(0,0,0,0.08)] border border-white overflow-hidden relative">
-            <div class="p-10 pb-0 text-center relative mt-2">
-                <!-- Icon -->
-                <div class="w-20 h-20 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-indigo-200/50 animate-float border border-white/20">
-                    <svg class="w-10 h-10 text-white drop-shadow-md" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A10.003 10.003 0 014.243 4.243m1.457 1.457L10.954 11m4.508 4.508L20 18.046m-1.457-1.457L14.046 12m.054-.09A10.003 10.003 0 0119.757 19.757m-1.457-1.457L11 11"></path>
-                    </svg>
-                </div>
-                <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight" id="formTitle">Welcome Back</h1>
-                <p class="text-slate-500 mt-3 text-[15px] font-medium" id="formSubtitle">Sign in to Keyword Analyzer & Social</p>
+        <div class="ed-login-card">
+            <div class="ed-login-head">
+                <div class="ed-login-mark" aria-hidden="true">ED</div>
+                <h1 class="ed-login-title" id="formTitle">Welcome back</h1>
+                <p class="ed-login-sub" id="formSubtitle">Sign in to your evidence workspace.</p>
             </div>
 
-            <form id="authForm" action="/login" method="POST" class="p-10 pt-8">
+            <form id="authForm" action="/login" method="POST" class="ed-login-form">
                 <% if (typeof success !== 'undefined' && success === 'register') { %>
-                    <div class="mb-6 p-4 rounded-2xl bg-emerald-50/80 backdrop-blur-sm border border-emerald-100/50 text-emerald-700 text-sm flex items-center shadow-sm">
-                        <svg class="w-5 h-5 mr-3 flex-shrink-0 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span class="font-semibold">Account created successfully! Please sign in.</span>
+                    <div class="ed-alert ed-alert-success" role="status">
+                        <i class="fas fa-circle-check" aria-hidden="true"></i>
+                        <span><strong>Account created.</strong> Please sign in with your new credentials.</span>
                     </div>
                 <% } %>
 
                 <% if (typeof error !== 'undefined' && error && error.length > 0) { %>
-                    <div class="mb-6 p-4 rounded-2xl bg-rose-50/80 backdrop-blur-sm border border-rose-100/50 text-rose-700 text-sm flex items-center shadow-sm">
-                        <svg class="w-5 h-5 mr-3 flex-shrink-0 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span class="font-semibold"><%= error %></span>
+                    <div class="ed-alert ed-alert-error" role="alert">
+                        <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+                        <span><%= error %></span>
                     </div>
                 <% } %>
 
-                <div class="space-y-5">
-                    <div class="group relative">
-                        <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Email Address</label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <svg class="h-5 w-5 text-slate-400 group-focus-within:text-indigo-600 transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                </svg>
-                            </div>
-                            <input type="email" name="email" required 
-                                class="w-full pl-11 pr-4 py-3.5 bg-slate-50/50 hover:bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-[3px] focus:ring-indigo-500/20 outline-none transition-all duration-300 placeholder:text-slate-400 text-slate-800 font-semibold shadow-sm"
-                                placeholder="admin@example.com">
-                        </div>
+                <div class="ed-login-field">
+                    <label for="emailInput">Email address</label>
+                    <div class="ed-input-wrap">
+                        <i class="fas fa-envelope ed-input-icon" aria-hidden="true"></i>
+                        <input id="emailInput" type="email" name="email" required autocomplete="email" spellcheck="false" inputmode="email" placeholder="name@example.com…" aria-describedby="emailHint">
                     </div>
-                    
-                    <div class="group relative">
-                        <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1 flex justify-between items-center">
-                            Password
-                            <a href="#" tabindex="-1" class="text-indigo-600 hover:text-indigo-700 normal-case tracking-normal font-semibold transition-colors">Forgot?</a>
-                        </label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <svg class="h-5 w-5 text-slate-400 group-focus-within:text-indigo-600 transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                </svg>
-                            </div>
-                            <input type="password" name="password" required 
-                                class="w-full pl-11 pr-4 py-3.5 bg-slate-50/50 hover:bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-[3px] focus:ring-indigo-500/20 outline-none transition-all duration-300 placeholder:text-slate-400 text-slate-800 font-semibold shadow-sm"
-                                placeholder="••••••••">
-                        </div>
-                    </div>
+                    <div class="ed-field-hint" id="emailHint">Use your workspace email. We never share it.</div>
                 </div>
 
-                <button type="submit" id="submitBtn"
-                    class="relative w-full mt-8 bg-slate-900 text-white font-bold py-4 rounded-2xl overflow-hidden group transition-all duration-300 hover:shadow-[0_8px_25px_rgb(17,24,39,0.2)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]">
-                    <div class="absolute inset-0 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-animate"></div>
-                    <span class="relative z-10 flex items-center justify-center gap-2 text-[15px]">
-                        Sign In
-                        <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                        </svg>
-                    </span>
+                <div class="ed-login-field">
+                    <label for="passwordInput">Password <small><a href="#" tabindex="-1">Forgot?</a></small></label>
+                    <div class="ed-input-wrap">
+                        <i class="fas fa-lock ed-input-icon" aria-hidden="true"></i>
+                        <input id="passwordInput" type="password" name="password" required autocomplete="current-password" placeholder="••••••••" aria-describedby="passwordHint">
+                    </div>
+                    <div class="ed-field-hint" id="passwordHint">At least 6 characters. Credentials stay on this device only.</div>
+                </div>
+
+                <button type="submit" id="submitBtn" class="ed-login-submit">
+                    <span>Sign in</span>
+                    <i class="fas fa-arrow-right" aria-hidden="true"></i>
                 </button>
 
-                <div class="mt-8 text-center pt-6 border-t border-slate-100/50">
-                    <button type="button" id="toggleMode" class="text-[14px] font-semibold text-slate-500 hover:text-slate-800 transition-colors">
-                        Don't have an account? <span class="text-indigo-600 font-bold hover:text-indigo-700">Register</span>
+                <div class="ed-login-meta">
+                    <button type="button" id="toggleMode" class="ed-login-toggle" aria-label="Switch to registration form">
+                        Don't have an account? <strong>Register</strong>
                     </button>
                 </div>
             </form>
         </div>
-        
-        <!-- Bottom text -->
-        <div class="text-center mt-8 space-y-2">
-            <div class="flex items-center justify-center gap-4 text-sm font-semibold text-slate-500">
-                <a href="#" class="hover:text-slate-800 transition-colors">Privacy Policy</a>
-                <span class="w-1 h-1 rounded-full bg-slate-300"></span>
-                <a href="#" class="hover:text-slate-800 transition-colors">Terms of Service</a>
-            </div>
-            <p class="text-slate-400 text-xs font-medium">
-                &copy; 2026 Keyword Analyzer & Social
-            </p>
+
+        <div class="ed-login-foot">
+            <a href="#">Privacy</a><span class="dot">·</span><a href="#">Terms</a>
+            <div style="margin-top:6px;">&copy; 2026 Evidence Desk</div>
         </div>
     </div>
 
@@ -180,50 +186,50 @@
         const formSubtitle = document.getElementById('formSubtitle');
         const submitBtn = document.getElementById('submitBtn');
         const toggleMode = document.getElementById('toggleMode');
+        const emailInput = document.getElementById('emailInput');
+        const passwordInput = document.getElementById('passwordInput');
         let isLogin = true;
 
-        const btnLoginHtml = `
-            <div class="absolute inset-0 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-animate"></div>
-            <span class="relative z-10 flex items-center justify-center gap-2 text-[15px]">
-                Sign In
-                <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-            </span>
-        `;
-        const btnRegisterHtml = `
-            <div class="absolute inset-0 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-animate"></div>
-            <span class="relative z-10 flex items-center justify-center gap-2 text-[15px]">
-                Create Account
-                <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-            </span>
-        `;
+        function syncToggleLabels() {
+            if (isLogin) {
+                authForm.action = '/login';
+                formTitle.textContent = 'Welcome back';
+                formSubtitle.textContent = 'Sign in to your evidence workspace.';
+                submitBtn.innerHTML = '<span>Sign in</span><i class="fas fa-arrow-right" aria-hidden="true"></i>';
+                toggleMode.innerHTML = 'Don\u0027t have an account? <strong>Register</strong>';
+                passwordInput.setAttribute('autocomplete', 'current-password');
+                toggleMode.setAttribute('aria-label', 'Switch to registration form');
+            } else {
+                authForm.action = '/register';
+                formTitle.textContent = 'Create account';
+                formSubtitle.textContent = 'Start a workspace — paper, ink, copper, no guesses.';
+                submitBtn.innerHTML = '<span>Create account</span><i class="fas fa-arrow-right" aria-hidden="true"></i>';
+                toggleMode.innerHTML = 'Already have an account? <strong>Sign in</strong>';
+                passwordInput.setAttribute('autocomplete', 'new-password');
+                toggleMode.setAttribute('aria-label', 'Switch to sign-in form');
+            }
+        }
 
         toggleMode.addEventListener('click', () => {
             isLogin = !isLogin;
-            
-            const card = authForm.parentElement;
-            card.style.transform = 'scale(0.98)';
-            setTimeout(() => {
-                card.style.transform = 'scale(1)';
-            }, 150);
-            card.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            // reduced-motion safe: only opacity transform
+            const card = authForm.closest('.ed-login-card');
+            card.style.opacity = '0.96';
+            setTimeout(() => { card.style.opacity = '1'; }, 120);
+            syncToggleLabels();
+        });
 
-            if (isLogin) {
-                authForm.action = '/login';
-                formTitle.textContent = 'Welcome Back';
-                formSubtitle.textContent = 'Sign in to Keyword Analyzer & Social';
-                submitBtn.innerHTML = btnLoginHtml;
-                toggleMode.innerHTML = "Don't have an account? <span class='text-indigo-600 font-bold hover:text-indigo-700'>Register</span>";
-            } else {
-                authForm.action = '/register';
-                formTitle.textContent = 'Create Account';
-                formSubtitle.textContent = 'Join Keyword Analyzer & Social';
-                submitBtn.innerHTML = btnRegisterHtml;
-                toggleMode.innerHTML = "Already have an account? <span class='text-indigo-600 font-bold hover:text-indigo-700'>Sign In</span>";
-            }
+        authForm.addEventListener('submit', () => {
+            submitBtn.disabled = true;
+            const original = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="ed-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;" aria-hidden="true"></span><span>Please wait…</span>';
+            setTimeout(() => {
+                // re-enable only if page hasn't navigated (error case)
+                if (document.visibilityState === 'visible') {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = original;
+                }
+            }, 4000);
         });
     </script>
 </body>

@@ -26,7 +26,7 @@ async function assertProjectAccess(db, projectId, ctx) {
         `SELECT p.id, p.client_id, c.agency_id
          FROM seo_projects p
          JOIN seo_clients c ON c.id = p.client_id
-         WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL)`,
+         WHERE p.id = $1 AND c.agency_id = $2`,
         [projectId, ctx.agencyId],
     );
     return rows[0] || null;

@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { createLogger } = require('../utils/logger');
+const { assertSafeHttpUrl } = require('../utils/urlSecurity');
 
 const log = createLogger('services:page-speed');
 const PAGESPEED_ENDPOINT = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed';
@@ -164,6 +165,7 @@ async function runPageSpeed(url, options = {}) {
     if (!targetUrl) {
         throw new Error('A valid URL is required');
     }
+    await assertSafeHttpUrl(targetUrl);
 
     const strategy = options.strategy === 'desktop' ? 'desktop' : 'mobile';
     const categories = Array.isArray(options.categories) && options.categories.length

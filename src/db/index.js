@@ -571,6 +571,24 @@ async function initializeDatabase() {
     `);
 
     await query(`
+        CREATE TABLE IF NOT EXISTS autopilot_runs (
+            id SERIAL PRIMARY KEY,
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL,
+            project_id UUID REFERENCES seo_projects(id) ON DELETE SET NULL,
+            keyword TEXT NOT NULL,
+            my_domain TEXT NOT NULL,
+            location TEXT DEFAULT 'India',
+            ai_verdict TEXT,
+            ai_score INTEGER,
+            steps JSONB DEFAULT '[]'::jsonb,
+            result JSONB NOT NULL,
+            tasks_created INTEGER DEFAULT 0,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    `);
+
+    await query(`
         CREATE TABLE IF NOT EXISTS page_speed_checks (
             id SERIAL PRIMARY KEY,
             user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -786,6 +804,8 @@ async function initializeDatabase() {
     await query(`CREATE INDEX IF NOT EXISTS idx_seo_projects_client_created ON seo_projects(client_id, created_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_seo_project_keywords_project ON seo_project_keywords(project_id, created_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_page_optimizations_user_created ON page_optimizations(user_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_autopilot_runs_user_created ON autopilot_runs(user_id, created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_autopilot_runs_project_created ON autopilot_runs(project_id, created_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_page_speed_checks_client_created ON page_speed_checks(client_id, created_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_page_speed_checks_url_created ON page_speed_checks(url, created_at DESC)`);
 
@@ -858,6 +878,7 @@ async function initializeDatabase() {
     // ─── Add agency_id to content_rewrite_history ───
     await query(`ALTER TABLE content_rewrite_history ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
     await query(`ALTER TABLE content_rewrite_history ADD COLUMN IF NOT EXISTS sample TEXT`);
+    await query(`ALTER TABLE content_rewrite_history ADD COLUMN IF NOT EXISTS target_length INTEGER`);
 
     // ─── Add agency_id to posts ───
     await query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
@@ -867,6 +888,9 @@ async function initializeDatabase() {
 
     // ─── Add agency_id to seo_reports ───
     await query(`ALTER TABLE seo_reports ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);
+    await query(`ALTER TABLE seo_reports ADD COLUMN IF NOT EXISTS share_token_hash TEXT`);
+    await query(`ALTER TABLE seo_reports ADD COLUMN IF NOT EXISTS share_expires_at TIMESTAMPTZ`);
+    await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_seo_reports_share_token_hash ON seo_reports(share_token_hash) WHERE share_token_hash IS NOT NULL`);
 
     // ─── Add agency_id to gsc tables ───
     await query(`ALTER TABLE gsc_search_analytics ADD COLUMN IF NOT EXISTS agency_id UUID REFERENCES agencies(id) ON DELETE SET NULL`);

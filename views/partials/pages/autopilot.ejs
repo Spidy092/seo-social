@@ -1,0 +1,128 @@
+<div class="page" id="page-autopilot">
+    <div class="ap-container">
+        <div class="card ap-header">
+            <div class="card-body">
+                <div class="ap-header-top">
+                    <div>
+                        <h2 style="margin-bottom:6px"><i class="fas fa-robot"></i> Autopilot</h2>
+                        <p class="ap-header-sub">Give it a domain and a keyword — it researches the SERP, finds your toughest competitor, analyzes both pages, gets an AI verdict, and hands you a prioritized action plan. One click, no manual steps.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ap-grid">
+            <div class="card ap-form-card">
+                <div class="card-header">
+                    <h3>Run autopilot</h3>
+                    <span class="header-hint">Runs SERP research, competitor discovery, page analysis, and AI comparison end-to-end.</span>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label for="apMyDomain">Your domain</label>
+                        <input type="text" id="apMyDomain" name="myDomain" autocomplete="off" spellcheck="false" inputmode="url" placeholder="yoursite.com…">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="apKeyword">Target keyword</label>
+                            <input type="text" id="apKeyword" name="keyword" autocomplete="off" spellcheck="false" inputmode="search" placeholder="e.g. web design company bangalore…">
+                        </div>
+                        <div class="form-group">
+                            <label for="apLocation">Search location</label>
+                            <select id="apLocation" name="location">
+                                <option value="India">India</option>
+                                <option value="United States">United States</option>
+                                <option value="United Kingdom">United Kingdom</option>
+                                <option value="Bangalore">Bangalore</option>
+                                <option value="Mumbai">Mumbai</option>
+                                <option value="Delhi">Delhi</option>
+                                <option value="Dubai">Dubai</option>
+                                <option value="Singapore">Singapore</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="apProject">Attach to project <span class="text-muted">(optional — required to auto-create tasks)</span></label>
+                        <select id="apProjectSelect">
+                            <option value="">No project</option>
+                        </select>
+                    </div>
+                    <div class="form-group ap-toggle-row">
+                        <label class="ap-toggle">
+                            <input type="checkbox" id="apAutoCreateTasks">
+                            <span>Auto-create tasks from the top action items</span>
+                        </label>
+                    </div>
+                    <button class="btn btn-primary" id="apRunBtn">
+                        <i class="fas fa-bolt"></i> Run Autopilot
+                    </button>
+                </div>
+            </div>
+
+            <div class="card ap-history-card">
+                <div class="card-header">
+                    <h3>Recent runs</h3>
+                    <button class="btn btn-sm btn-outline" id="apRefreshHistoryBtn"><i class="fas fa-rotate-right"></i></button>
+                </div>
+                <div class="card-body" id="apHistoryList">
+                    <p class="text-muted">No runs yet. Kick off your first autopilot run.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="apProgress" class="card ap-progress" style="display:none">
+            <div class="card-body">
+                <div class="ap-flow" id="apFlowSteps">
+                    <div class="ap-flow-step" data-step="research"><i class="fas fa-magnifying-glass"></i><span>Research</span></div>
+                    <div class="ap-flow-arrow"><i class="fas fa-chevron-right"></i></div>
+                    <div class="ap-flow-step" data-step="competitors"><i class="fas fa-users"></i><span>Competitors</span></div>
+                    <div class="ap-flow-arrow"><i class="fas fa-chevron-right"></i></div>
+                    <div class="ap-flow-step" data-step="page-analysis"><i class="fas fa-file-lines"></i><span>Page analysis</span></div>
+                    <div class="ap-flow-arrow"><i class="fas fa-chevron-right"></i></div>
+                    <div class="ap-flow-step" data-step="compare"><i class="fas fa-balance-scale"></i><span>AI compare</span></div>
+                    <div class="ap-flow-arrow"><i class="fas fa-chevron-right"></i></div>
+                    <div class="ap-flow-step" data-step="action-plan"><i class="fas fa-list-check"></i><span>Action plan</span></div>
+                </div>
+                <div class="ap-progress-detail" id="apProgressDetail">Starting…</div>
+            </div>
+        </div>
+
+        <div id="apErrorBanner" class="card ap-error" style="display:none">
+            <div class="card-body" id="apErrorBody"></div>
+        </div>
+
+        <div id="apResults" style="display:none">
+            <div class="card ap-verdict-card">
+                <div class="card-body">
+                    <div class="ap-verdict-top">
+                        <div>
+                            <div class="ap-report-eyebrow">AI Verdict</div>
+                            <h3 id="apVerdictTitle">—</h3>
+                            <p id="apVerdictSummary" class="ap-verdict-summary">—</p>
+                        </div>
+                        <div class="ap-score-ring" id="apScoreRing">
+                            <span id="apScoreValue">—</span>
+                        </div>
+                    </div>
+                    <div class="ap-verdict-observation" id="apVerdictObservation"></div>
+                    <div class="ap-verdict-meta" id="apVerdictMeta"></div>
+                </div>
+            </div>
+
+            <div class="card ap-plan-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-list-check"></i> Prioritized action plan</h3>
+                    <span class="header-hint" id="apPlanHint"></span>
+                </div>
+                <div class="card-body" id="apActionPlanList"></div>
+            </div>
+
+            <div class="card ap-opportunities-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-lightbulb"></i> Related keyword opportunities</h3>
+                </div>
+                <div class="card-body" id="apRelatedKeywords"></div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -28,14 +28,14 @@
                         <div class="card-body">
                             <div style="display:grid;grid-template-columns:minmax(220px,1fr) minmax(260px,1fr) auto;gap:12px;align-items:end;">
                                 <div>
-                                    <label>Client</label>
+                                    <label for="gscClientSelect">Client</label>
                                     <select id="gscClientSelect" class="form-control" style="width:100%;">
                                         <option value="">Select a client</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label>GSC Property URL</label>
-                                    <input id="gscSiteUrlInput" type="text" class="form-control" placeholder="https://example.com/ or sc-domain:example.com" style="width:100%;">
+                                    <label for="gscSiteUrlInput">GSC property URL</label>
+                                    <input id="gscSiteUrlInput" name="gscUrl" type="text" class="form-control" autocomplete="url" inputmode="url" spellcheck="false" placeholder="https://example.com/ or sc-domain:example.com…" style="width:100%;">
                                 </div>
                                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                                     <button class="btn btn-primary" onclick="gscConnect()"><i class="fas fa-link"></i> Connect</button>

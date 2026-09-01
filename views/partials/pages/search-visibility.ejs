@@ -24,8 +24,8 @@
                         <div class="card">
                             <div class="card-header"><h3><i class="fab fa-google"></i> Search Console</h3></div>
                             <div class="card-body">
-                                <label>GSC Property URL</label>
-                                <input id="svGscSiteUrl" type="text" class="form-control sv-input-field" placeholder="https://example.com/ or sc-domain:example.com">
+                                <label for="svGscSiteUrl">GSC property URL</label>
+                                <input id="svGscSiteUrl" name="gscUrl" type="text" class="form-control sv-input-field" autocomplete="url" inputmode="url" spellcheck="false" placeholder="https://example.com/ or sc-domain:example.com…">
                                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                                     <button class="btn btn-primary" id="svConnectGscBtn"><i class="fas fa-link"></i> Connect</button>
                                     <button class="btn btn-outline" id="svSyncGscBtn"><i class="fas fa-arrows-rotate"></i> Sync GSC</button>
@@ -35,8 +35,8 @@
                         <div class="card">
                             <div class="card-header"><h3><i class="fas fa-chart-simple"></i> GA4</h3></div>
                             <div class="card-body">
-                                <label>Numeric GA4 Property ID</label>
-                                <input id="svGa4PropertyId" type="text" class="form-control sv-input-field" placeholder="123456789">
+                                <label for="svGa4PropertyId">Numeric GA4 property ID</label>
+                                <input id="svGa4PropertyId" name="ga4Id" type="text" class="form-control sv-input-field" autocomplete="off" inputmode="numeric" spellcheck="false" placeholder="123456789…">>
                                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                                     <button class="btn btn-primary" id="svConnectGa4Btn"><i class="fas fa-link"></i> Connect</button>
                                     <button class="btn btn-outline" id="svSyncGa4Btn"><i class="fas fa-arrows-rotate"></i> Sync GA4</button>
@@ -46,10 +46,10 @@
                         <div class="card">
                             <div class="card-header"><h3><i class="fas fa-bolt"></i> IndexNow</h3></div>
                             <div class="card-body">
-                                <label>IndexNow Key</label>
-                                <input id="svIndexNowKey" type="password" class="form-control sv-input-field" placeholder="8-128 character key">
-                                <label>Key Location</label>
-                                <input id="svIndexNowLocation" type="text" class="form-control sv-input-field" placeholder="https://example.com/key.txt">
+                                <label for="svIndexNowKey">IndexNow key</label>
+                                <input id="svIndexNowKey" name="indexNowKey" type="password" class="form-control sv-input-field" autocomplete="off" spellcheck="false" placeholder="8-128 character key…">
+                                <label for="svIndexNowLocation">Key location</label>
+                                <input id="svIndexNowLocation" name="keyLocation" type="text" class="form-control sv-input-field" autocomplete="url" spellcheck="false" placeholder="https://example.com/key.txt…">
                                 <button class="btn btn-primary" id="svSaveIndexNowBtn"><i class="fas fa-save"></i> Save Key</button>
                             </div>
                         </div>
@@ -59,9 +59,9 @@
                         <div class="card" style="flex: 1; max-width: 100%; width: 100%;">
                             <div class="card-header"><h3><i class="fas fa-magnifying-glass"></i> URL Inspection</h3></div>
                             <div class="card-body">
-                                <label>Inspect URL</label>
+                                <label for="svInspectionUrl">Inspect URL</label>
                                 <div style="display:flex;gap:8px;margin-bottom:12px;">
-                                    <input id="svInspectionUrl" type="url" class="form-control sv-input-field" placeholder="https://example.com/blog/post">
+                                    <input id="svInspectionUrl" name="inspectUrl" type="url" class="form-control sv-input-field" autocomplete="url" inputmode="url" spellcheck="false" placeholder="https://example.com/blog/post…">
                                     <button class="btn btn-primary" id="svInspectBtn"><i class="fas fa-search"></i> Inspect</button>
                                 </div>
                                 <div id="svInspectionResult"><p class="text-muted">Inspect a URL to see canonical, robots, fetch, and index coverage signals.</p></div>
@@ -71,8 +71,8 @@
                         <div class="card" style="flex: 1; max-width: 100%; width: 100%;">
                             <div class="card-header"><h3><i class="fas fa-clipboard-check"></i> Create Task</h3></div>
                             <div class="card-body">
-                                <label>Project</label>
-                                <select id="svProjectSelect" class="form-control sv-input-field"></select>
+                                <label for="svProjectSelect">Project</label>
+                                <select id="svProjectSelect" name="project" class="form-control sv-input-field"></select>
                                 <button class="btn btn-primary" id="svCreateTaskBtn" disabled style="width:100%;justify-content:center;"><i class="fas fa-plus"></i> Create Task From Recommendation</button>
                                 <p class="text-muted" style="font-size:.82rem;margin-top:10px;">Tasks are created only after an inspection or discovery action returns recommendations.</p>
                             </div>
@@ -84,7 +84,7 @@
                             <div class="card-header"><h3><i class="fas fa-sitemap"></i> Sitemap Tools</h3></div>
                             <div class="card-body">
                                 <div style="display:flex;gap:8px;margin-bottom:12px;">
-                                    <input id="svSitemapUrl" type="url" class="form-control" placeholder="https://example.com/sitemap.xml" style="flex:1;min-width:0;">
+                                    <input id="svSitemapUrl" name="sitemapUrl" type="url" class="form-control" autocomplete="url" spellcheck="false" placeholder="https://example.com/sitemap.xml…" style="flex:1;min-width:0;">
                                     <button class="btn btn-primary" id="svSubmitSitemapBtn"><i class="fas fa-paper-plane"></i> Submit</button>
                                     <button class="btn btn-outline" id="svListSitemapsBtn"><i class="fas fa-list"></i> List</button>
                                 </div>
@@ -96,13 +96,13 @@
                         <div class="card" style="flex: 1; max-width: 100%; width: 100%;">
                             <div class="card-header"><h3><i class="fas fa-bullhorn"></i> Discovery Notifications</h3></div>
                             <div class="card-body">
-                                <label>IndexNow URLs</label>
-                                <textarea id="svIndexNowUrls" class="form-control sv-input-field" rows="4" placeholder="https://example.com/blog/post"></textarea>
+                                <label for="svIndexNowUrls">IndexNow URLs</label>
+                                <textarea id="svIndexNowUrls" name="indexNowUrls" class="form-control sv-input-field" rows="4" spellcheck="false" placeholder="https://example.com/blog/post…"></textarea>
                                 <button class="btn btn-primary" id="svSubmitIndexNowBtn" style="margin-bottom:16px;"><i class="fas fa-bolt"></i> Notify IndexNow</button>
 
                                 <div style="border-top:1px solid var(--border);padding-top:24px;margin-top:6px;display:flex;flex-direction:column;gap:16px;">
-                                    <label style="margin-bottom:0;">Google Indexing API Eligible URL</label>
-                                    <input id="svGoogleIndexingUrl" type="url" class="form-control sv-input-field" placeholder="JobPosting or livestream URL only" style="margin:0;">
+                                    <label for="svGoogleIndexingUrl" style="margin-bottom:0;">Google Indexing API eligible URL</label>
+                                    <input id="svGoogleIndexingUrl" name="indexingUrl" type="url" class="form-control sv-input-field" autocomplete="url" spellcheck="false" placeholder="JobPosting or livestream URL only…" style="margin:0;">
                                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0;">
                                         <select id="svGoogleIndexingType" class="form-control">
                                             <option value="URL_UPDATED">URL Updated</option>

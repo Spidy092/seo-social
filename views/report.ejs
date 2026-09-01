@@ -4,27 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><%= report.meta.title %></title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --brand: #4f46e5;
-            --brand-light: #eef2ff;
-            --green: #10b981;
-            --green-light: #d1fae5;
-            --red: #ef4444;
-            --red-light: #fee2e2;
-            --orange: #f59e0b;
-            --orange-light: #fef3c7;
-            --text: #111827;
-            --text-muted: #6b7280;
-            --border: #e5e7eb;
-            --bg: #f9fafb;
+            --brand: #b7552c;
+            --brand-light: #f4e6df;
+            --green: #28704d;
+            --green-light: #e8f1eb;
+            --red: #a43d35;
+            --red-light: #f6e5e3;
+            --orange: #966617;
+            --orange-light: #f6eedb;
+            --text: #1d2420;
+            --text-muted: #66706a;
+            --border: #d9ddd5;
+            --bg: #f6f5f0;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Plus Jakarta Sans', sans-serif;
             color: var(--text);
             background: white;
             font-size: 14px;
@@ -273,13 +273,29 @@
             font-size: 12px;
             color: var(--text-muted);
         }
+
+        .report-header { background: #1d2420; border-radius: 10px; }
+        .report-header::before, .report-header::after { display: none; }
+        .health-score-badge { border-radius: 6px; }
+        .source-register { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--border); margin-bottom: 32px; }
+        .source-item { padding: 14px; border-right: 1px solid var(--border); background: var(--bg); }
+        .source-item:last-child { border-right: 0; }
+        .source-item strong, .source-item span { display: block; }
+        .source-item strong { font-size: 11px; }
+        .source-item span { margin-top: 5px; color: var(--text-muted); font: 10px 'IBM Plex Mono', monospace; }
+        .shared-view-note { max-width: 900px; margin: 18px auto -18px; padding: 10px 14px; border: 1px solid var(--border); background: var(--bg); color: var(--text-muted); font: 11px 'IBM Plex Mono', monospace; }
+        @media (max-width: 700px) { .source-register { grid-template-columns: repeat(2, 1fr); } .source-item:nth-child(2) { border-right: 0; } .source-item:nth-child(-n + 2) { border-bottom: 1px solid var(--border); } }
     </style>
 </head>
 <body>
 
+<% if (shared) { %>
+<div class="shared-view-note no-print">Client review link · expires <%= new Date(shareExpiresAt).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) %></div>
+<% } %>
+
 <div class="no-print print-bar">
-    <button class="print-btn secondary" onclick="window.close()">✕ Close</button>
-    <button class="print-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
+    <button class="print-btn secondary" onclick="window.close()">Close</button>
+    <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
 </div>
 
 <div class="report-wrapper">
@@ -288,16 +304,24 @@
     <div class="report-header">
         <div class="health-score-badge">
             <div class="score-num"><%= report.aiNarrative.overallHealthScore %>%</div>
-            <div class="score-label">Health</div>
+            <div class="score-label">AI signal</div>
         </div>
-        <div class="header-badge">Monthly SEO Report</div>
+        <div class="header-badge">Evidence Desk report</div>
         <h1><%= report.meta.title %></h1>
         <p style="opacity:0.9; margin-top:8px; font-size:15px;"><%= report.aiNarrative.executiveSummary %></p>
         <div class="header-meta">
-            <span>📅 Period: <%= new Date(report.meta.periodStart).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) %> – <%= new Date(report.meta.periodEnd).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) %></span>
-            <% if (report.meta.domain) { %><span>🌐 <%= report.meta.domain %></span><% } %>
-            <span>🕐 Generated <%= new Date(report.meta.generatedAt).toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'}) %></span>
+            <span>Period: <%= new Date(report.meta.periodStart).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) %> – <%= new Date(report.meta.periodEnd).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) %></span>
+            <% if (report.meta.domain) { %><span>Domain: <%= report.meta.domain %></span><% } %>
+            <span>Generated <%= new Date(report.meta.generatedAt).toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'}) %></span>
         </div>
+    </div>
+
+    <!-- ─── Source Register ─── -->
+    <% const provenance = report.provenance || {}; %>
+    <div class="source-register" aria-label="Report source register">
+        <% [['rankings', 'Rank tracker'], ['technical', 'Technical crawl'], ['pageSpeed', 'PageSpeed'], ['gsc', 'Search Console']].forEach(([key, label]) => { const source = provenance[key]; const state = !source || source.status === 'not_collected' ? 'Not collected' : source.status === 'proxy' ? 'Proxy / labelled' : 'Collected'; %>
+        <div class="source-item"><strong><%= label %></strong><span><%= state %><% if (source && source.lastCollectedAt) { %> · <%= new Date(source.lastCollectedAt).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) %><% } %></span></div>
+        <% }) %>
     </div>
 
     <!-- ─── Key Stats ─── -->
@@ -342,12 +366,12 @@
 
     <!-- ─── Traffic Estimate ─── -->
     <div class="card" style="margin-bottom: 32px; border-left: 4px solid var(--brand);">
-        <div class="card-title">Estimated Monthly Organic Traffic</div>
+        <div class="card-title">Estimated Monthly Organic Traffic <span style="font-weight:400; text-transform:none; letter-spacing:0;">(ranking CTR proxy)</span></div>
         <div style="font-size: 2.5rem; font-weight: 800; color: var(--brand); line-height:1;">
-            <%= report.summary.estimatedMonthlyTraffic.toLocaleString() %>
+            <%= report.summary.trackedKeywords ? report.summary.estimatedMonthlyTraffic.toLocaleString() : 'Not collected' %>
             <span style="font-size: 1rem; color: var(--text-muted); font-weight: 400;">visits/month</span>
         </div>
-        <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">Based on current ranking positions and search volume CTR estimates</div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">Derived from current ranking positions and search volume. This is not analytics traffic.</div>
     </div>
 
     <!-- ─── Client Coverage ─── -->
@@ -389,7 +413,7 @@
         <% const ps = report.data.pageSpeed; %>
         <% if (ps) { %>
         <div class="card" style="margin-bottom: 16px; border-left: 4px solid var(--brand);">
-            <div class="card-title"><%= ps.source === 'google-pagespeed-insights' ? 'Google PageSpeed Insights - Mobile' : 'Technical Crawl Speed Fallback' %></div>
+            <div class="card-title"><%= ps.source === 'google-pagespeed-insights' ? 'Google PageSpeed Insights - Mobile' : 'Technical Crawl Speed Proxy' %></div>
             <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 18px;">
                 <div class="stat-card"><div class="stat-num"><%= ps.scores.performance || '—' %></div><div class="stat-label">Performance</div></div>
                 <div class="stat-card green"><div class="stat-num"><%= ps.scores.accessibility || '—' %></div><div class="stat-label">Accessibility</div></div>
@@ -425,7 +449,7 @@
 
     <!-- ─── Wins & Issues ─── -->
     <div class="section">
-        <div class="section-title">🏆 Performance Summary</div>
+    <div class="section-title">Performance Summary</div>
         <div class="two-col">
             <div class="card">
                 <div class="card-title" style="color: var(--green);">✓ Key Wins This Month</div>
@@ -448,7 +472,7 @@
 
     <!-- ─── Keyword Movement ─── -->
     <div class="section page-break">
-        <div class="section-title">📈 Keyword Movement</div>
+        <div class="section-title">Keyword Movement</div>
         <div class="two-col">
             <div class="card">
                 <div class="card-title" style="color: var(--green);">Biggest Gains</div>
@@ -487,7 +511,7 @@
                     </tbody>
                 </table>
                 <% } else { %>
-                <p style="color: var(--text-muted); font-size: 13px; padding: 12px 0;">No notable drops this period. 🎉</p>
+                <p style="color: var(--text-muted); font-size: 13px; padding: 12px 0;">No notable drops were recorded in this period.</p>
                 <% } %>
             </div>
         </div>
@@ -496,7 +520,7 @@
     <!-- ─── Current Rankings ─── -->
     <% if (report.data.rankings && report.data.rankings.length > 0) { %>
     <div class="section">
-        <div class="section-title">🏅 Current Rankings (Top 20)</div>
+        <div class="section-title">Current Rankings (Top 20)</div>
         <div class="card" style="padding: 0; overflow: hidden;">
             <table class="data-table">
                 <thead>
@@ -533,7 +557,7 @@
     <!-- ─── Competitor Landscape ─── -->
     <% if (report.data.competitors && report.data.competitors.length > 0) { %>
     <div class="section page-break">
-        <div class="section-title">⚔️ Competitor Landscape</div>
+        <div class="section-title">Competitor Landscape</div>
         <div class="card" style="margin-bottom: 16px; border-left: 4px solid var(--orange);">
             <div class="card-title">AI Competitive Intelligence</div>
             <p style="font-size: 14px; line-height: 1.7;"><%= report.aiNarrative.competitorInsights %></p>
@@ -623,7 +647,7 @@
 
     <!-- ─── Technical Fixes ─── -->
     <div class="section">
-        <div class="section-title">🔧 Technical Fixes Completed / Recommended</div>
+        <div class="section-title">Technical Fixes Completed / Recommended</div>
         <div class="card">
             <ul class="check-list fixes">
                 <% report.aiNarrative.technicalFixes.forEach(fix => { %>
@@ -635,10 +659,10 @@
 
     <!-- ─── Content Recommendations ─── -->
     <div class="section page-break">
-        <div class="section-title">✍️ Content Recommendations</div>
+        <div class="section-title">Content Recommendations</div>
         <% report.aiNarrative.contentRecommendations.forEach(rec => { 
-            const iconMap = { blog: '📝', 'service-page': '🛠️', 'landing-page': '🎯' };
-            const icon = iconMap[rec.type] || '📄';
+            const iconMap = { blog: 'B', 'service-page': 'S', 'landing-page': 'L' };
+            const icon = iconMap[rec.type] || 'R';
         %>
         <div class="content-rec">
             <div class="rec-icon <%= rec.type === 'blog' ? 'blog' : rec.type === 'service-page' ? 'service' : 'landing' %>">
@@ -676,7 +700,7 @@
 
     <!-- ─── Next Month Plan ─── -->
     <div class="section">
-        <div class="section-title">🗓️ Next Month Action Plan</div>
+        <div class="section-title">Next Month Action Plan</div>
         <div class="action-plan">
             <% report.aiNarrative.nextMonthPlan.forEach(item => { %>
             <div class="week-card">

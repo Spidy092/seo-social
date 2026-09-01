@@ -3,7 +3,7 @@
                     <!-- Info Banner -->
                     <div class="page-description card">
                         <div class="card-body page-desc-body">
-                            <div class="page-desc-icon"><i class="fas fa-balance-scale"></i></div>
+                            <div class="page-desc-icon"><i class="fas fa-balance-scale" aria-hidden="true"></i></div>
                             <div class="page-desc-text">
                                 <strong>How it works:</strong> This tool performs a real-time comparison between two pages. It analyzes 
                                 <strong>Domain Authority</strong>, <strong>Content Length</strong>, <strong>Keyword Density</strong>, and 
@@ -13,42 +13,42 @@
                     </div>
 
                     <div class="analysis-form card">
-                        <h3>⚖️ Compare & Analyze</h3>
+                        <h3>Compare &amp; Analyze</h3>
                         <div class="form-row">
                             <div class="form-group">
-                                <label>Your Domain</label>
-                                <input type="text" id="myDomainInput" placeholder="yourdomain.com">
+                                <label for="myDomainInput">Your domain</label>
+                                <input type="text" id="myDomainInput" name="myDomain" autocomplete="off" inputmode="url" spellcheck="false" placeholder="yourdomain.com…">
                                 <span class="field-hint">We'll auto-strip https:// and www.</span>
                             </div>
                             <div class="form-group">
-                                <label>Competitor Domain</label>
-                                <input type="text" id="competitorDomainInput" placeholder="competitor.com">
+                                <label for="competitorDomainInput">Competitor domain</label>
+                                <input type="text" id="competitorDomainInput" name="competitorDomain" autocomplete="off" inputmode="url" spellcheck="false" placeholder="competitor.com…">
                                 <span class="field-hint">A direct competitor for the same keyword.</span>
                             </div>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label>Your Page URL (Optional)</label>
-                                <input type="text" id="myUrlInput" placeholder="https://yourdomain.com/page">
+                                <label for="myUrlInput">Your page URL (optional)</label>
+                                <input type="url" id="myUrlInput" name="myUrl" autocomplete="url" inputmode="url" spellcheck="false" placeholder="https://yourdomain.com/page…">
                                 <span class="field-hint">Add a URL to compare content & on-page SEO in depth.</span>
                             </div>
                             <div class="form-group">
-                                <label>Competitor Page URL (Optional)</label>
-                                <input type="text" id="competitorUrlInput" placeholder="https://competitor.com/page">
+                                <label for="competitorUrlInput">Competitor page URL (optional)</label>
+                                <input type="url" id="competitorUrlInput" name="competitorUrl" autocomplete="url" inputmode="url" spellcheck="false" placeholder="https://competitor.com/page…">
                                 <span class="field-hint">Best results come from providing both URLs.</span>
                             </div>
                         </div>
                         <div class="form-group">
-                            <label>Target Keyword</label>
-                            <input type="text" id="analysisKeywordInput" placeholder="web design company">
+                            <label for="analysisKeywordInput">Target keyword</label>
+                            <input type="text" id="analysisKeywordInput" name="keyword" autocomplete="off" spellcheck="false" inputmode="search" placeholder="web design company…">
                         </div>
-                        <label class="checkbox-label" style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-                            <input type="checkbox" id="analysisIncludePageSpeed">
+                        <label class="checkbox-label" for="analysisIncludePageSpeed" style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+                            <input type="checkbox" id="analysisIncludePageSpeed" name="includePageSpeed">
                             <span>Include PageSpeed & Core Web Vitals comparison (slower)</span>
                         </label>
                         <div class="form-actions">
-                            <button class="btn btn-primary" id="analyzeBtn">
-                                <i class="fas fa-balance-scale"></i>
+                            <button type="button" class="btn btn-primary" id="analyzeBtn" style="min-height:44px;">
+                                <i class="fas fa-balance-scale" aria-hidden="true"></i>
                                 <span class="btn-label">Compare & Analyze</span>
                             </button>
                             <div class="analysis-progress" id="analysisProgress" hidden>
@@ -65,7 +65,7 @@
                         <!-- Side-by-side metrics grid -->
                         <div class="comparison-overview card">
                             <div class="card-header-row">
-                                <h3>📊 Side-by-Side Comparison</h3>
+                                <h3>Side-by-Side Comparison</h3>
                                 <div class="overall-score-pill" id="overallScorePill" hidden>
                                     <span class="label">Overall</span>
                                     <span class="value" id="overallScoreValue">–</span>
@@ -76,13 +76,13 @@
                         </div>
 
                         <div class="why-ranking card">
-                            <h3>⚖️ Key Comparative Differences</h3>
+                            <h3>Key Comparative Differences</h3>
                             <div class="reasons-list" id="reasonsList"></div>
                         </div>
 
                         <div class="suggestions card">
                             <div class="card-header-row">
-                                <h3>💡 Improvement Suggestions</h3>
+                                <h3>Improvement Suggestions</h3>
                                 <span class="suggestions-count" id="suggestionsCount"></span>
                             </div>
                             <div class="suggestions-list" id="suggestionsList"></div>

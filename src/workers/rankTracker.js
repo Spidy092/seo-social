@@ -70,7 +70,7 @@ async function getProjectsToTrack(db, { agencyId = null, projectId = null, domai
 
     if (agencyId) {
         params.push(agencyId);
-        filters.push(`(c.agency_id = $${params.length} OR c.agency_id IS NULL)`);
+        filters.push(`c.agency_id = $${params.length}`);
     }
     if (projectId) {
         params.push(projectId);

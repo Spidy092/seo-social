@@ -109,9 +109,9 @@ async function getClientForAgency(db, clientId, agencyId) {
                 ga4_last_synced_at, indexnow_key, indexnow_key_location,
                 indexnow_connected_at, updated_at
          FROM seo_clients
-         WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL OR $2 IS NULL)
+         WHERE id = $1 AND agency_id = $2
          LIMIT 1`,
-        [clientId, agencyId || null]
+        [clientId, agencyId]
     );
     return res.rows[0] || null;
 }

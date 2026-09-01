@@ -28,6 +28,11 @@ document.addEventListener('DOMContentLoaded', () => {
             runPageSpeedCheck();
         }
     });
+
+    // Technical SEO additions
+    document.getElementById('technical-load-btn')?.addEventListener('click', loadPastAudit);
+    document.getElementById('technical-export-csv-btn')?.addEventListener('click', exportTechnicalCSV);
+    loadTechnicalHistory();
 });
 
 
@@ -144,6 +149,120 @@ function renderTechnicalResults(result) {
     renderTechnicalCategories(result.categories || {});
     renderTechnicalIssues(result.issues || []);
     renderTechnicalPages(result.pages || []);
+}
+
+async function loadTechnicalHistory() {
+    const dropdown = document.getElementById('technical-history-dropdown');
+    if (!dropdown) return;
+
+    try {
+        const res = await fetch('/api/technical/audits');
+        const data = await res.json();
+        
+        if (data.success && data.audits && data.audits.length > 0) {
+            dropdown.innerHTML = '<option value="">-- Load Recent Audit --</option>' + 
+                data.audits.map(audit => `
+                    <option value="${audit.id}">
+                        ${technicalEscHtml(audit.site_url.replace(/^https?:\/\//, ''))} - Score: ${audit.overall_score} (${formatPageSpeedDate(audit.created_at)})
+                    </option>
+                `).join('');
+        } else {
+            dropdown.innerHTML = '<option value="">No past audits found</option>';
+        }
+    } catch (err) {
+        console.warn('Could not load technical audit history:', err.message);
+    }
+}
+
+async function loadPastAudit() {
+    const dropdown = document.getElementById('technical-history-dropdown');
+    const auditId = dropdown?.value;
+    if (!auditId) {
+        showToast('Please select an audit from the dropdown to load', 'error');
+        return;
+    }
+
+    setTechnicalLoading(true);
+    document.getElementById('technical-results').style.display = 'none';
+
+    try {
+        const res = await fetch(`/api/technical/audit/${auditId}`);
+        const data = await res.json();
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load past audit');
+        }
+
+        lastTechnicalResult = data.result;
+        renderTechnicalResults(data.result);
+        
+        // Update input field to show loaded URL
+        const urlInput = document.getElementById('technical-site-input');
+        if (urlInput) urlInput.value = data.result.siteUrl;
+
+        document.getElementById('technical-results').style.display = 'block';
+        document.getElementById('technical-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        showToast('Past audit loaded successfully', 'success');
+    } catch (err) {
+        showToast('Failed to load audit: ' + err.message, 'error');
+    } finally {
+        setTechnicalLoading(false);
+    }
+}
+
+function exportTechnicalCSV() {
+    if (!lastTechnicalResult || !lastTechnicalResult.pages || !lastTechnicalResult.pages.length) {
+        showToast('No crawled pages available to export.', 'error');
+        return;
+    }
+
+    const pages = lastTechnicalResult.pages;
+    
+    // Define CSV headers
+    const headers = [
+        'URL', 'Status', 'Depth', 'Title', 'Meta Description', 'Canonical', 
+        'Canonical Status', 'H1 Count', 'Word Count', 'Internal Links', 
+        'External Links', 'Images', 'Images Missing Alt', 'Issues'
+    ];
+
+    // Map pages to CSV rows
+    const rows = pages.map(page => [
+        page.url,
+        page.status || '0',
+        page.depth || '0',
+        page.title || '',
+        page.metaDescription || '',
+        page.canonical || '',
+        page.canonicalStatus || '',
+        page.h1Count || '0',
+        page.wordCount || '0',
+        page.internalLinks || '0',
+        page.externalLinks || '0',
+        page.imageCount || '0',
+        page.imagesMissingAlt || '0',
+        (page.issues || []).join(' | ')
+    ]);
+
+    // Build CSV string safely
+    const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    // Trigger download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    
+    // Format filename based on site URL
+    const siteDomain = lastTechnicalResult.siteUrl.replace(/^https?:\/\//, '').replace(/\/.*/, '');
+    const dateStr = new Date().toISOString().split('T')[0];
+    
+    a.href = url;
+    a.download = `technical_audit_${siteDomain}_${dateStr}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 function renderTechnicalScore(score, pagesCrawled, issuesFound) {

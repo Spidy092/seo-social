@@ -8,12 +8,17 @@ const { createLogger } = require('./src/utils/logger');
 const db = require('./src/db');
 const { registerAll } = require('./src/utils/loadModules');
 const { registerAuthHook, registerRateLimits, registerErrorHandlers } = require('./src/config/plugins');
+const { requireRole } = require('./src/utils/authHelper');
 const workerRegistry = require('./src/workers/registry');
 
 const log = createLogger('server');
 
 async function main() {
     log.info('🚀 Starting Keyword Analyzer...');
+
+    if (process.env.NODE_ENV === 'production' && String(process.env.SESSION_SECRET || '').length < 32) {
+        throw new Error('SESSION_SECRET must be set to at least 32 characters in production');
+    }
 
     // ─── 1. Database ───
     try {
@@ -65,12 +70,13 @@ async function main() {
     await fastify.register(formbody);
 
     await fastify.register(secureSession, {
-        secret: process.env.SESSION_SECRET || 'a-very-long-secret-key-that-is-at-least-32-bytes',
+        secret: process.env.SESSION_SECRET || 'development-only-session-secret-change-me-32',
         salt: 'mq9hDxBVDbspDR6n',
         cookie: {
             path: '/',
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
         },
     });
 
@@ -92,7 +98,7 @@ async function main() {
 
     // ─── 5. Dashboard + onboarding + health routes (live here, not in /routes) ───
     const frontendRoutes = [
-        '/', '/dashboard', '/clients', '/project-dashboard', '/research', '/competitors',
+        '/', '/dashboard', '/clients', '/project-dashboard', '/autopilot', '/research', '/competitors',
         '/analysis', '/tracking', '/gsc', '/seo-performance', '/search-visibility',
         '/alerts', '/onpage', '/page-optimization', '/page-speed', '/technical',
         '/humanizer', '/content-brief', '/reports', '/tasks', '/agency-settings',
@@ -134,8 +140,8 @@ async function main() {
         try {
             await db.query('SELECT 1');
             return { status: 'ok', database: 'connected', uptime: process.uptime() };
-        } catch (err) {
-            return { status: 'error', database: 'disconnected', error: err.message };
+        } catch {
+            return { status: 'error', database: 'disconnected' };
         }
     });
 
@@ -148,16 +154,14 @@ async function main() {
 
     // ─── 6. Worker endpoints (manual triggers for ops/debug) ───
     fastify.get('/api/admin/workers', async (request, reply) => {
-        if (!request.session.get('userId')) {
-            return reply.code(401).send({ error: 'Unauthorized' });
-        }
+        const ctx = await requireRole(request, db, ['owner']);
+        if (!ctx) return reply.code(403).send({ error: 'Owner role required' });
         return { workers: workerRegistry.listJobs() };
     });
 
     fastify.post('/api/admin/workers/:name/run', async (request, reply) => {
-        if (!request.session.get('userId')) {
-            return reply.code(401).send({ error: 'Unauthorized' });
-        }
+        const ctx = await requireRole(request, db, ['owner']);
+        if (!ctx) return reply.code(403).send({ error: 'Owner role required' });
         try {
             const result = await workerRegistry.runJob(request.params.name);
             return { ok: true, result };

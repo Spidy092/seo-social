@@ -37,7 +37,7 @@ async function competitorRoutes(fastify, options) {
                          FROM seo_project_keywords spk
                          JOIN seo_projects p ON p.id = spk.project_id
                          JOIN seo_clients c ON c.id = p.client_id
-                         WHERE spk.keyword_id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)
+                         WHERE spk.keyword_id = $1 AND c.agency_id = $2
                          LIMIT 1`,
                         [keywordId, ctx.agencyId]
                     );
@@ -115,7 +115,7 @@ async function competitorRoutes(fastify, options) {
                  FROM competitors c
                  LEFT JOIN ranking_pages rp ON c.domain = rp.domain AND c.keyword_id = rp.keyword_id
                  WHERE c.keyword_id = $1
-                   AND EXISTS (SELECT 1 FROM seo_project_keywords spk JOIN seo_projects p ON p.id = spk.project_id JOIN seo_clients sc ON sc.id = p.client_id WHERE spk.keyword_id = c.keyword_id AND (sc.agency_id = $2 OR sc.agency_id IS NULL OR $2 IS NULL))
+                   AND EXISTS (SELECT 1 FROM seo_project_keywords spk JOIN seo_projects p ON p.id = spk.project_id JOIN seo_clients sc ON sc.id = p.client_id WHERE spk.keyword_id = c.keyword_id AND sc.agency_id = $2)
                  ORDER BY c.rank_position`,
                 [keywordId, ctx.agencyId]
             );
@@ -144,7 +144,7 @@ async function competitorRoutes(fastify, options) {
                  FROM competitors c
                  JOIN keywords k ON c.keyword_id = k.id
                  WHERE c.domain = $1
-                   AND EXISTS (SELECT 1 FROM seo_project_keywords spk JOIN seo_projects p ON p.id = spk.project_id JOIN seo_clients sc ON sc.id = p.client_id WHERE spk.keyword_id = c.keyword_id AND (sc.agency_id = $2 OR sc.agency_id IS NULL OR $2 IS NULL))
+                   AND EXISTS (SELECT 1 FROM seo_project_keywords spk JOIN seo_projects p ON p.id = spk.project_id JOIN seo_clients sc ON sc.id = p.client_id WHERE spk.keyword_id = c.keyword_id AND sc.agency_id = $2)
                  ORDER BY k.search_volume DESC`,
                 [domain, ctx.agencyId]
             );
@@ -196,7 +196,7 @@ async function competitorRoutes(fastify, options) {
                     const rankingCount = await db.query(
                         `SELECT COUNT(*) as count FROM competitors c
                          WHERE c.domain = $1
-                           AND EXISTS (SELECT 1 FROM seo_project_keywords spk JOIN seo_projects p ON p.id = spk.project_id JOIN seo_clients sc ON sc.id = p.client_id WHERE spk.keyword_id = c.keyword_id AND (sc.agency_id = $2 OR sc.agency_id IS NULL OR $2 IS NULL))`,
+                           AND EXISTS (SELECT 1 FROM seo_project_keywords spk JOIN seo_projects p ON p.id = spk.project_id JOIN seo_clients sc ON sc.id = p.client_id WHERE spk.keyword_id = c.keyword_id AND sc.agency_id = $2)`,
                         [domain, ctx.agencyId]
                     );
 
@@ -238,7 +238,7 @@ async function competitorRoutes(fastify, options) {
             const countResult = await db.query(
                 `SELECT COUNT(DISTINCT c.domain) as total
                  FROM competitors c
-                 WHERE EXISTS (SELECT 1 FROM seo_project_keywords spk JOIN seo_projects p ON p.id = spk.project_id JOIN seo_clients sc ON sc.id = p.client_id WHERE spk.keyword_id = c.keyword_id AND (sc.agency_id = $1 OR sc.agency_id IS NULL OR $1 IS NULL))`,
+                 WHERE EXISTS (SELECT 1 FROM seo_project_keywords spk JOIN seo_projects p ON p.id = spk.project_id JOIN seo_clients sc ON sc.id = p.client_id WHERE spk.keyword_id = c.keyword_id AND sc.agency_id = $1)`,
                 [ctx.agencyId]
             );
             const total = parseInt(countResult.rows[0].total);
@@ -249,7 +249,7 @@ async function competitorRoutes(fastify, options) {
                         ROUND(AVG(rank_position)::numeric, 1) as avg_position,
                         MIN(rank_position) as best_position
                  FROM competitors c
-                 WHERE EXISTS (SELECT 1 FROM seo_project_keywords spk JOIN seo_projects p ON p.id = spk.project_id JOIN seo_clients sc ON sc.id = p.client_id WHERE spk.keyword_id = c.keyword_id AND (sc.agency_id = $1 OR sc.agency_id IS NULL OR $1 IS NULL))
+                 WHERE EXISTS (SELECT 1 FROM seo_project_keywords spk JOIN seo_projects p ON p.id = spk.project_id JOIN seo_clients sc ON sc.id = p.client_id WHERE spk.keyword_id = c.keyword_id AND sc.agency_id = $1)
                  GROUP BY domain
                  ORDER BY keyword_count DESC
                  LIMIT $2 OFFSET $3`,

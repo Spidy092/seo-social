@@ -95,8 +95,7 @@
 
 .po-form-card input:focus,
 .po-form-card select:focus {
-    outline: none;
-    border-color: var(--primary);
+    outline: 0; border-color: var(--ed-copper, var(--primary)); box-shadow: 0 0 0 3px rgba(183,85,44,0.12);
 }
 
 .po-history-card {

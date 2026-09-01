@@ -375,7 +375,7 @@ async function analysisRoutes(fastify, options) {
                 JOIN seo_project_keywords spk ON spk.keyword_id = k.id
                 JOIN seo_projects p ON p.id = spk.project_id
                 JOIN seo_clients c ON c.id = p.client_id
-                WHERE (c.agency_id = $1 OR c.agency_id IS NULL OR $1 IS NULL)
+                WHERE c.agency_id = $1
             `;
             const params = [ctx.agencyId];
 

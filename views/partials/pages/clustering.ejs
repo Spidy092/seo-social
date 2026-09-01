@@ -1,0 +1,404 @@
+<div class="page" id="page-clustering">
+    <div class="clustering-container">
+
+        <!-- Input Card -->
+        <div class="card clustering-input-card">
+            <h3><i class="fas fa-layer-group"></i> Keyword Clustering</h3>
+            <p style="color: var(--text-muted); margin-bottom: 16px; font-size: 14px;">
+                Paste your keyword list below. We'll automatically group them by topic, semantic similarity, and search intent.
+            </p>
+            <div class="form-group">
+                <label for="clusterKeywords">Keywords <span style="color:var(--text-muted); font-weight:400;">(one per line, max 200)</span></label>
+                <textarea id="clusterKeywordsInput" rows="10"
+                    placeholder="seo services bangalore&#10;best seo company india&#10;seo agency for startups&#10;technical seo audit&#10;on page seo optimization&#10;local seo services&#10;keyword research tool&#10;competitor analysis seo"></textarea>
+            </div>
+            <div class="form-row" style="gap: 16px; align-items: flex-end;">
+                <div class="form-group" style="flex:1;">
+                    <label for="clusterMethod">Clustering method</label>
+                    <select id="clusterMethod" name="method">
+                        <option value="semantic">Semantic (Topic-based)</option>
+                        <option value="intent">By Search Intent</option>
+                        <option value="ngram">N-gram Similarity</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label for="clusterMinSize">Min cluster size</label>
+                    <select id="clusterMinSize" name="minSize">
+                        <option value="2">2 keywords</option>
+                        <option value="3" selected>3 keywords</option>
+                        <option value="4">4 keywords</option>
+                        <option value="5">5 keywords</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" id="clusterBtn" style="height:42px; padding: 0 28px; white-space:nowrap;">
+                    <i class="fas fa-layer-group"></i> Cluster Keywords
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading -->
+        <div id="clusterLoading" style="display:none; text-align:center; padding: 40px;">
+            <div class="spinner" style="margin: 0 auto 16px;"></div>
+            <p style="color: var(--text-muted);">Analysing and clustering your keywords...</p>
+        </div>
+
+        <!-- Results -->
+        <div id="clusterResults" style="display:none;">
+            <!-- Summary Bar -->
+            <div class="cluster-summary-bar card" style="display:flex; gap:24px; flex-wrap:wrap; padding:16px 24px; margin-bottom:0;">
+                <div class="cluster-stat">
+                    <span class="cluster-stat-value" id="clusterTotalKeywords">0</span>
+                    <span class="cluster-stat-label">Total Keywords</span>
+                </div>
+                <div class="cluster-stat">
+                    <span class="cluster-stat-value" id="clusterTotalGroups">0</span>
+                    <span class="cluster-stat-label">Clusters</span>
+                </div>
+                <div class="cluster-stat">
+                    <span class="cluster-stat-value" id="clusterUngrouped">0</span>
+                    <span class="cluster-stat-label">Ungrouped</span>
+                </div>
+                <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
+                    <button class="btn btn-sm btn-outline" onclick="exportClustersCsv()"><i class="fas fa-file-csv"></i> Export CSV</button>
+                    <button class="btn btn-sm btn-outline" onclick="clusterExpandAll()"><i class="fas fa-expand-alt"></i> Expand All</button>
+                    <button class="btn btn-sm btn-outline" onclick="clusterCollapseAll()"><i class="fas fa-compress-alt"></i> Collapse All</button>
+                </div>
+            </div>
+
+            <!-- Intent Filter Tabs -->
+            <div class="cluster-intent-tabs" id="clusterIntentTabs"></div>
+
+            <!-- Cluster Cards -->
+            <div id="clusterGroupsContainer"></div>
+
+            <!-- Ungrouped -->
+            <div id="clusterUngroupedSection" style="display:none;">
+                <div class="card" style="margin-top:16px;">
+                    <div class="card-header" style="cursor:pointer;" onclick="toggleUngroupedSection()">
+                        <h4 style="margin:0; display:flex; align-items:center; gap:8px;">
+                            <i class="fas fa-circle-question" style="color:var(--text-muted);"></i>
+                            Ungrouped Keywords
+                            <span class="badge" id="ungroupedBadge">0</span>
+                        </h4>
+                        <i class="fas fa-chevron-down" id="ungroupedChevron"></i>
+                    </div>
+                    <div id="ungroupedBody" class="card-body">
+                        <div class="keyword-pill-list" id="ungroupedPills"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* ── Clustering Page ── */
+.clustering-container { display: flex; flex-direction: column; gap: 20px; }
+.clustering-input-card textarea {
+    width: 100%; min-height: 180px; resize: vertical;
+    font-family: 'Inter', monospace; font-size: 13px;
+    padding: 12px; border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-secondary); color: var(--text-primary);
+    line-height: 1.6;
+}
+.clustering-input-card textarea:focus { outline: none; border-color: var(--accent); }
+
+/* Summary bar */
+.cluster-stat { display: flex; flex-direction: column; gap: 2px; }
+.cluster-stat-value { font-size: 22px; font-weight: 700; color: var(--accent); }
+.cluster-stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+
+/* Intent tabs */
+.cluster-intent-tabs {
+    display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 4px;
+}
+.cluster-intent-tab {
+    padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    cursor: pointer; border: 1.5px solid var(--border);
+    background: var(--bg-secondary); color: var(--text-muted);
+    transition: all .2s;
+}
+.cluster-intent-tab.active, .cluster-intent-tab:hover {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+}
+
+/* Cluster card */
+.cluster-group-card {
+    background: var(--bg-secondary); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden; margin-bottom: 12px;
+    transition: box-shadow .2s;
+}
+.cluster-group-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.08); }
+.cluster-group-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 18px; cursor: pointer;
+    border-bottom: 1px solid transparent;
+    transition: background .15s;
+}
+.cluster-group-header:hover { background: var(--bg-hover, rgba(0,0,0,.03)); }
+.cluster-group-header.open { border-bottom-color: var(--border); }
+.cluster-group-icon {
+    width: 36px; height: 36px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+}
+.cluster-group-meta { flex: 1; min-width: 0; }
+.cluster-group-name { font-weight: 600; font-size: 14px; color: var(--text-primary); }
+.cluster-group-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.cluster-group-badges { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.cluster-group-body { padding: 0 18px 14px; }
+
+/* Intent badges */
+.intent-pill {
+    padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;
+    text-transform: capitalize;
+}
+.intent-pill.informational { background: #e0f2fe; color: #0369a1; }
+.intent-pill.transactional { background: #dcfce7; color: #15803d; }
+.intent-pill.commercial    { background: #fef3c7; color: #b45309; }
+.intent-pill.navigational  { background: #f3e8ff; color: #7e22ce; }
+.intent-pill.mixed         { background: #f1f5f9; color: #64748b; }
+
+/* Keyword rows inside cluster */
+.cluster-kw-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.cluster-kw-table th {
+    font-size: 11px; font-weight: 600; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: .4px;
+    padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left;
+}
+.cluster-kw-table td {
+    padding: 8px 8px; font-size: 13px; border-bottom: 1px solid var(--border);
+    color: var(--text-primary); vertical-align: middle;
+}
+.cluster-kw-table tr:last-child td { border-bottom: none; }
+.cluster-kw-table tr:hover td { background: var(--bg-hover, rgba(0,0,0,.02)); }
+
+/* Ungrouped pills */
+.keyword-pill-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0; }
+.keyword-pill {
+    padding: 5px 12px; border-radius: 16px; font-size: 12px;
+    background: var(--bg-primary); border: 1px solid var(--border);
+    color: var(--text-primary);
+}
+
+/* Colors per cluster index */
+.cluster-color-0  { background: #e0f2fe; color: #0369a1; }
+.cluster-color-1  { background: #dcfce7; color: #166534; }
+.cluster-color-2  { background: #fef3c7; color: #92400e; }
+.cluster-color-3  { background: #f3e8ff; color: #6b21a8; }
+.cluster-color-4  { background: #fce7f3; color: #9d174d; }
+.cluster-color-5  { background: #ffedd5; color: #9a3412; }
+.cluster-color-6  { background: #f0fdf4; color: #14532d; }
+.cluster-color-7  { background: #faf5ff; color: #581c87; }
+.cluster-color-8  { background: #fff7ed; color: #7c2d12; }
+.cluster-color-9  { background: #ecfdf5; color: #065f46; }
+</style>
+
+<script>
+(function () {
+    let _clusters = [];
+    let _ungrouped = [];
+    let _activeFilter = 'all';
+
+    document.getElementById('clusterBtn').addEventListener('click', runClustering);
+
+    async function runClustering() {
+        const raw = document.getElementById('clusterKeywordsInput').value.trim();
+        const method = document.getElementById('clusterMethod').value;
+        const minSize = parseInt(document.getElementById('clusterMinSize').value);
+
+        if (!raw) { showToast('Paste at least a few keywords to cluster.', 'warning'); return; }
+
+        const keywords = [...new Set(raw.split('\n').map(k => k.trim()).filter(Boolean))].slice(0, 200);
+        if (keywords.length < 2) { showToast('Add at least 2 keywords.', 'warning'); return; }
+
+        document.getElementById('clusterLoading').style.display = 'block';
+        document.getElementById('clusterResults').style.display = 'none';
+
+        try {
+            const res = await fetch('/api/keywords/cluster', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ keywords, method, minSize })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Clustering failed');
+            _clusters = data.clusters || [];
+            _ungrouped = data.ungrouped || [];
+            _activeFilter = 'all';
+            renderResults();
+        } catch (err) {
+            showToast('Clustering failed: ' + err.message, 'error');
+        } finally {
+            document.getElementById('clusterLoading').style.display = 'none';
+        }
+    }
+
+    function renderResults() {
+        const totalKw = _clusters.reduce((s, c) => s + c.keywords.length, 0) + _ungrouped.length;
+        document.getElementById('clusterTotalKeywords').textContent = totalKw;
+        document.getElementById('clusterTotalGroups').textContent = _clusters.length;
+        document.getElementById('clusterUngrouped').textContent = _ungrouped.length;
+
+        renderIntentTabs();
+        renderGroups();
+        renderUngrouped();
+
+        document.getElementById('clusterResults').style.display = 'block';
+    }
+
+    function renderIntentTabs() {
+        const intentCounts = { all: _clusters.length };
+        _clusters.forEach(c => {
+            const i = c.dominantIntent || 'mixed';
+            intentCounts[i] = (intentCounts[i] || 0) + 1;
+        });
+
+        const tabsEl = document.getElementById('clusterIntentTabs');
+        tabsEl.innerHTML = '';
+        const order = ['all', 'informational', 'commercial', 'transactional', 'navigational', 'mixed'];
+        order.filter(k => intentCounts[k]).forEach(key => {
+            const tab = document.createElement('div');
+            tab.className = 'cluster-intent-tab' + (key === _activeFilter ? ' active' : '');
+            const label = key === 'all' ? `All (${intentCounts.all})` : `${capitalize(key)} (${intentCounts[key]})`;
+            tab.textContent = label;
+            tab.onclick = () => { _activeFilter = key; renderIntentTabs(); renderGroups(); };
+            tabsEl.appendChild(tab);
+        });
+    }
+
+    function renderGroups() {
+        const container = document.getElementById('clusterGroupsContainer');
+        container.innerHTML = '';
+        const filtered = _activeFilter === 'all'
+            ? _clusters
+            : _clusters.filter(c => (c.dominantIntent || 'mixed') === _activeFilter);
+
+        filtered.forEach((cluster, idx) => {
+            const colorIdx = idx % 10;
+            const intent = cluster.dominantIntent || 'mixed';
+            const card = document.createElement('div');
+            card.className = 'cluster-group-card';
+            card.innerHTML = `
+                <div class="cluster-group-header" onclick="toggleCluster(this)" data-open="true">
+                    <div class="cluster-group-icon cluster-color-${colorIdx}">
+                        <i class="fas fa-tag"></i>
+                    </div>
+                    <div class="cluster-group-meta">
+                        <div class="cluster-group-name">${escHtml(cluster.label)}</div>
+                        <div class="cluster-group-sub">${cluster.keywords.length} keywords · Top: ${escHtml(cluster.keywords[0]?.keyword || '')}</div>
+                    </div>
+                    <div class="cluster-group-badges">
+                        <span class="intent-pill ${intent}">${capitalize(intent)}</span>
+                        <span class="badge">${cluster.keywords.length}</span>
+                        <i class="fas fa-chevron-up" style="color:var(--text-muted); margin-left:4px; transition:transform .2s;"></i>
+                    </div>
+                </div>
+                <div class="cluster-group-body">
+                    <table class="cluster-kw-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Keyword</th>
+                                <th scope="col">Intent</th>
+                                <th scope="col">Similarity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${cluster.keywords.map(kw => `
+                                <tr>
+                                    <td>${escHtml(kw.keyword)}</td>
+                                    <td><span class="intent-pill ${kw.intent || 'mixed'}">${capitalize(kw.intent || 'mixed')}</span></td>
+                                    <td>
+                                        <div style="display:flex; align-items:center; gap:8px;">
+                                            <div style="flex:1; height:6px; background:var(--border); border-radius:3px; max-width:80px;">
+                                                <div style="width:${Math.round((kw.similarity||0)*100)}%; height:100%; background:var(--accent); border-radius:3px;"></div>
+                                            </div>
+                                            <span style="font-size:11px; color:var(--text-muted);">${Math.round((kw.similarity||0)*100)}%</span>
+                                        </div>
+                                    </td>
+                                </tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>`;
+            container.appendChild(card);
+        });
+
+        if (!filtered.length) {
+            container.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:40px;">No clusters for this filter.</div>';
+        }
+    }
+
+    function renderUngrouped() {
+        const section = document.getElementById('clusterUngroupedSection');
+        if (!_ungrouped.length) { section.style.display = 'none'; return; }
+        section.style.display = 'block';
+        document.getElementById('ungroupedBadge').textContent = _ungrouped.length;
+        document.getElementById('ungroupedPills').innerHTML =
+            _ungrouped.map(k => `<span class="keyword-pill">${escHtml(k)}</span>`).join('');
+    }
+
+    window.toggleCluster = function(header) {
+        const isOpen = header.dataset.open === 'true';
+        const body = header.nextElementSibling;
+        const chevron = header.querySelector('.fa-chevron-up, .fa-chevron-down');
+        if (isOpen) {
+            body.style.display = 'none';
+            header.dataset.open = 'false';
+            header.classList.remove('open');
+            if (chevron) { chevron.classList.remove('fa-chevron-up'); chevron.classList.add('fa-chevron-down'); }
+        } else {
+            body.style.display = 'block';
+            header.dataset.open = 'true';
+            header.classList.add('open');
+            if (chevron) { chevron.classList.remove('fa-chevron-down'); chevron.classList.add('fa-chevron-up'); }
+        }
+    };
+
+    window.clusterExpandAll = function() {
+        document.querySelectorAll('.cluster-group-header').forEach(h => {
+            h.nextElementSibling.style.display = 'block';
+            h.dataset.open = 'true';
+            const ch = h.querySelector('i.fas');
+            if (ch) { ch.classList.remove('fa-chevron-down'); ch.classList.add('fa-chevron-up'); }
+        });
+    };
+
+    window.clusterCollapseAll = function() {
+        document.querySelectorAll('.cluster-group-header').forEach(h => {
+            h.nextElementSibling.style.display = 'none';
+            h.dataset.open = 'false';
+            const ch = h.querySelector('i.fas');
+            if (ch) { ch.classList.remove('fa-chevron-up'); ch.classList.add('fa-chevron-down'); }
+        });
+    };
+
+    window.toggleUngroupedSection = function() {
+        const body = document.getElementById('ungroupedBody');
+        const ch = document.getElementById('ungroupedChevron');
+        const hidden = body.style.display === 'none';
+        body.style.display = hidden ? 'block' : 'none';
+        if (ch) { ch.className = 'fas ' + (hidden ? 'fa-chevron-up' : 'fa-chevron-down'); }
+    };
+
+    window.exportClustersCsv = function() {
+        if (!_clusters.length) return;
+        const rows = [['Cluster', 'Label', 'Keyword', 'Intent', 'Similarity']];
+        _clusters.forEach((c, i) => {
+            c.keywords.forEach(kw => {
+                rows.push([i + 1, c.label, kw.keyword, kw.intent || '', Math.round((kw.similarity || 0) * 100) + '%']);
+            });
+        });
+        _ungrouped.forEach(k => rows.push(['—', 'Ungrouped', k, '', '']));
+        const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'keyword-clusters.csv';
+        a.click();
+    };
+
+    function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+    function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+})();
+</script>

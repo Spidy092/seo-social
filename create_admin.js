@@ -3,8 +3,13 @@ const bcrypt = require('bcryptjs');
 const db = require('./src/db');
 
 async function createAdmin() {
-    const email = 'admin@example.com';
-    const password = 'adminpassword123';
+    const email = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+    const password = String(process.env.ADMIN_PASSWORD || '');
+
+    if (!email || !password || password.length < 12) {
+        console.error('Set ADMIN_EMAIL and an ADMIN_PASSWORD of at least 12 characters before running this script.');
+        process.exit(1);
+    }
 
     try {
         await db.initializeDatabase();
@@ -25,7 +30,6 @@ async function createAdmin() {
         console.log('----------------------------------------');
         console.log('✅ Admin User Successfully Seeded!');
         console.log(`Email:    ${email}`);
-        console.log(`Password: ${password}`);
         console.log('----------------------------------------');
         process.exit(0);
     } catch (err) {

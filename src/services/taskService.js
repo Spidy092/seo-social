@@ -26,13 +26,16 @@ async function getUserAgencyId(userId) {
  * Gathers relevant SEO data for a project/client to serve as context for the AI.
  */
 async function gatherProjectContext(projectId, userId) {
+    const agencyId = await getUserAgencyId(userId);
+    if (!agencyId) return null;
+
     // 1. Get project and client info
     const projectRes = await db.query(
         `SELECT p.*, c.agency_id, c.name as client_name, c.website_url, c.industry, c.target_locations, c.competitors, c.services, c.goals
          FROM seo_projects p
          JOIN seo_clients c ON c.id = p.client_id
-         WHERE p.id = $1`,
-        [projectId]
+         WHERE p.id = $1 AND c.agency_id = $2`,
+        [projectId, agencyId]
     );
 
     const project = projectRes.rows[0];
@@ -56,20 +59,21 @@ async function gatherProjectContext(projectId, userId) {
          FROM rank_history rh
          JOIN keywords k ON rh.keyword_id = k.id
          WHERE rh.domain = $1
+           AND rh.agency_id = $2
            AND rh.checked_at > NOW() - INTERVAL '30 days'
            AND rh.rank_position > rh.previous_rank
          LIMIT 10`,
-        [domain]
+        [domain, project.agency_id]
     );
 
     // 4. Get latest technical audit failed rules
     const technicalRes = await db.query(
         `SELECT ta.overall_score, ta.pages_crawled, ta.summary, ta.issues
          FROM technical_audits ta
-         WHERE ta.agency_id = $1 OR ta.site_url ILIKE $2
+         WHERE ta.agency_id = $1
          ORDER BY ta.created_at DESC
          LIMIT 1`,
-        [project.agency_id, `%${domain}%`]
+        [project.agency_id]
     );
 
     // 5. Get recent alert triggers
@@ -77,9 +81,10 @@ async function gatherProjectContext(projectId, userId) {
         `SELECT a.alert_type, a.message, a.created_at
          FROM alerts a
          WHERE a.domain = $1
+           AND a.agency_id = $2
          ORDER BY a.created_at DESC
          LIMIT 10`,
-        [domain]
+        [domain, project.agency_id]
     );
 
     return {
@@ -330,7 +335,7 @@ async function getTaskContext(taskId, userId) {
          FROM seo_tasks t
          JOIN seo_projects p ON p.id = t.project_id
          JOIN seo_clients c ON c.id = p.client_id
-         WHERE t.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)
+         WHERE t.id = $1 AND c.agency_id = $2
          LIMIT 1`,
         [taskId, agencyId]
     );
@@ -350,14 +355,13 @@ async function getTaskContext(taskId, userId) {
 
     let technical = null;
     try {
-        const domain = task.website_url ? new URL(task.website_url).hostname.replace(/^www\./, '') : '';
         const technicalRes = await db.query(
             `SELECT site_url, overall_score, summary, issues, created_at
              FROM technical_audits
-             WHERE (agency_id = $1 OR agency_id IS NULL OR $1 IS NULL) OR site_url ILIKE $2
+             WHERE agency_id = $1
              ORDER BY created_at DESC
              LIMIT 1`,
-            [agencyId, domain ? `%${domain}%` : '']
+            [agencyId]
         );
         technical = technicalRes.rows[0] || null;
     } catch (err) {
@@ -481,7 +485,7 @@ async function getTasks(projectId, userId) {
          JOIN seo_clients c ON c.id = p.client_id
          LEFT JOIN users u ON u.id = t.assigned_to
          WHERE t.project_id = $1
-           AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)
+           AND c.agency_id = $2
          ORDER BY 
             CASE t.priority 
                 WHEN 'critical' THEN 1 
@@ -503,11 +507,27 @@ async function createTask(taskData, userId) {
     const { projectId, clientId, title, description, category, impact, effort, priority, status, assignedTo } = taskData;
     const agencyId = await getUserAgencyId(userId);
     
-    // Fallback client_id lookup if not provided
+    if (!agencyId) throw new Error('User is not assigned to an agency');
+
+    // Resolve and verify the project/client relationship inside the user's agency.
     let cid = clientId;
-    if (!cid && projectId) {
-        const proj = await db.query(`SELECT client_id FROM seo_projects WHERE id = $1`, [projectId]);
-        if (proj.rows[0]) cid = proj.rows[0].client_id;
+    if (projectId) {
+        const proj = await db.query(
+            `SELECT p.client_id
+             FROM seo_projects p
+             JOIN seo_clients c ON c.id = p.client_id
+             WHERE p.id = $1 AND c.agency_id = $2`,
+            [projectId, agencyId]
+        );
+        if (!proj.rows[0]) throw new Error('Project not found or access denied');
+        if (cid && cid !== proj.rows[0].client_id) throw new Error('Client does not belong to project');
+        cid = proj.rows[0].client_id;
+    } else if (cid) {
+        const client = await db.query(
+            'SELECT id FROM seo_clients WHERE id = $1 AND agency_id = $2',
+            [cid, agencyId]
+        );
+        if (!client.rows[0]) throw new Error('Client not found or access denied');
     }
 
     const res = await db.query(
@@ -560,11 +580,7 @@ async function updateTask(taskId, taskData, userId) {
         UPDATE seo_tasks 
         SET ${fields.join(', ')}, updated_at = NOW()
         WHERE id = $${idx}
-          AND (
-              agency_id = $${idx + 1}
-              OR agency_id IS NULL
-              OR $${idx + 1} IS NULL
-          )
+          AND agency_id = $${idx + 1}
         RETURNING *`;
 
     const res = await db.query(query, values);
@@ -581,7 +597,7 @@ async function deleteTask(taskId, userId) {
          USING seo_projects p, seo_clients c
          WHERE t.project_id = p.id AND p.client_id = c.id
            AND t.id = $1
-           AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)
+           AND c.agency_id = $2
          RETURNING t.*`,
         [taskId, agencyId]
     );

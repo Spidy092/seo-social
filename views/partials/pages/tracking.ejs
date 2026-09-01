@@ -2,20 +2,20 @@
                 <div class="tracking-container">
                     <div class="card">
                         <div class="card-header">
-                            <h3>📈 Project Rank Tracking</h3>
+                            <h3>Project Rank Tracking</h3>
                         </div>
                         <div class="card-body">
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Project</label>
-                                    <select id="rankProjectSelect" onchange="handleRankProjectChange()">
+                                    <label for="rankProjectSelect">Project</label>
+                                    <select id="rankProjectSelect" name="project" onchange="handleRankProjectChange()">
                                         <option value="">All projects</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label>Legacy domain tracking</label>
+                                    <label for="trackDomainInput">Legacy domain tracking</label>
                                     <div class="form-inline">
-                                        <input type="text" id="trackDomainInput" placeholder="yourdomain.com">
+                                        <input type="text" id="trackDomainInput" name="domain" autocomplete="off" inputmode="url" spellcheck="false" placeholder="yourdomain.com…">
                                         <button class="btn btn-primary" id="trackDomainBtn">
                                             <i class="fas fa-plus"></i> Add Domain
                                         </button>
@@ -31,17 +31,17 @@
 
                     <div class="card">
                         <div class="card-header">
-                            <h3>📊 Tracked Domains</h3>
+                            <h3>Tracked domains</h3>
                         </div>
                         <div class="card-body">
-                            <table class="data-table" id="trackedDomainsTable">
+                            <table class="data-table" id="trackedDomainsTable"><caption class="sr-only">Tracked domains overview</caption>
                                 <thead>
                                     <tr>
-                                        <th>Domain</th>
-                                        <th>Keywords</th>
-                                        <th>Improved</th>
-                                        <th>Dropped</th>
-                                        <th>Actions</th>
+                                        <th scope="col">Domain</th>
+                                        <th scope="col">Keywords</th>
+                                        <th scope="col">Improved</th>
+                                        <th scope="col">Dropped</th>
+                                        <th scope="col">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -51,7 +51,7 @@
 
                     <div class="card">
                         <div class="card-header">
-                            <h3>📉 Current Rankings</h3>
+                            <h3>Current rankings</h3>
                             <div class="card-header-actions">
                                 <select id="rankDomainFilter" class="filter-select" onchange="loadCurrentRankings(1)" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text);font-size:0.875rem;">
                                     <option value="">All Domains</option>
@@ -59,14 +59,14 @@
                             </div>
                         </div>
                         <div class="card-body">
-                            <table class="data-table" id="rankHistoryTable">
+                            <table class="data-table" id="rankHistoryTable"><caption class="sr-only">Current ranking positions</caption>
                                 <thead>
                                     <tr>
-                                        <th>Keyword</th>
-                                        <th>Domain</th>
-                                        <th>Project</th>
-                                        <th>Position</th>
-                                        <th>Last Checked</th>
+                                        <th scope="col">Keyword</th>
+                                        <th scope="col">Domain</th>
+                                        <th scope="col">Project</th>
+                                        <th scope="col">Position</th>
+                                        <th scope="col">Last checked</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>

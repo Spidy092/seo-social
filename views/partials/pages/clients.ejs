@@ -30,59 +30,59 @@
                                 <div class="wizard-panel active" data-panel="1">
                                     <div class="form-row">
                                         <div class="form-group">
-                                            <label>Client Name <span class="required">*</span></label>
-                                            <input type="text" id="clientNameInput" placeholder="e.g. Acme Dental Clinic" required>
+                                            <label for="clientNameInput">Client name <span class="required" aria-hidden="true">*</span></label>
+                                            <input type="text" id="clientNameInput" name="clientName" autocomplete="organization" spellcheck="false" placeholder="e.g. Acme Dental Clinic…" required>
                                             <div class="field-error"><i class="fas fa-exclamation-circle"></i> <span></span></div>
                                         </div>
                                         <div class="form-group">
-                                            <label>Website URL <span class="required">*</span></label>
-                                            <input type="text" id="clientWebsiteInput" placeholder="https://example.com" required>
+                                            <label for="clientWebsiteInput">Website URL <span class="required" aria-hidden="true">*</span></label>
+                                            <input type="text" id="clientWebsiteInput" name="website" autocomplete="url" inputmode="url" spellcheck="false" placeholder="https://example.com…" required>
                                             <div class="field-error"><i class="fas fa-exclamation-circle"></i> <span></span></div>
                                         </div>
                                     </div>
                                     <div class="form-group">
-                                        <label>Industry/Niche</label>
-                                        <input type="text" id="clientIndustryInput" placeholder="e.g. Local dental clinic">
+                                        <label for="clientIndustryInput">Industry / niche</label>
+                                        <input type="text" id="clientIndustryInput" name="industry" autocomplete="off" spellcheck="false" placeholder="e.g. Local dental clinic…">
                                     </div>
                                     <div class="wizard-nav">
                                         <span></span>
-                                        <button class="btn btn-primary wizard-next" data-next="2">Next <i class="fas fa-arrow-right"></i></button>
+                                        <button type="button" class="btn btn-primary wizard-next" data-next="2">Next <i class="fas fa-arrow-right" aria-hidden="true"></i></button>
                                     </div>
                                 </div>
 
                                 <!-- Step 2: Market -->
                                 <div class="wizard-panel" data-panel="2">
                                     <div class="form-group">
-                                        <label>Target Locations</label>
-                                        <input type="text" id="clientLocationsInput" placeholder="Bangalore, Whitefield, India">
+                                        <label for="clientLocationsInput">Target locations</label>
+                                        <input type="text" id="clientLocationsInput" name="locations" autocomplete="address-level2" spellcheck="false" placeholder="Bangalore, Whitefield, India…">
                                     </div>
                                     <div class="form-group">
-                                        <label>Competitors</label>
-                                        <input type="text" id="clientCompetitorsInput" placeholder="competitor1.com, competitor2.com">
+                                        <label for="clientCompetitorsInput">Competitors</label>
+                                        <input type="text" id="clientCompetitorsInput" name="competitors" autocomplete="off" spellcheck="false" inputmode="url" placeholder="competitor1.com, competitor2.com…">
                                     </div>
                                     <div class="form-group">
-                                        <label>Services/Products</label>
-                                        <input type="text" id="clientServicesInput" placeholder="SEO, web design, PPC">
+                                        <label for="clientServicesInput">Services / products</label>
+                                        <input type="text" id="clientServicesInput" name="services" autocomplete="off" spellcheck="false" placeholder="SEO, web design, PPC…">
                                     </div>
                                     <div class="wizard-nav">
-                                        <button class="btn btn-outline wizard-prev" data-prev="1"><i class="fas fa-arrow-left"></i> Back</button>
-                                        <button class="btn btn-primary wizard-next" data-next="3">Next <i class="fas fa-arrow-right"></i></button>
+                                        <button type="button" class="btn btn-outline wizard-prev" data-prev="1"><i class="fas fa-arrow-left" aria-hidden="true"></i> Back</button>
+                                        <button type="button" class="btn btn-primary wizard-next" data-next="3">Next <i class="fas fa-arrow-right" aria-hidden="true"></i></button>
                                     </div>
                                 </div>
 
                                 <!-- Step 3: Goals -->
                                 <div class="wizard-panel" data-panel="3">
                                     <div class="form-group">
-                                        <label>Audience</label>
-                                        <input type="text" id="clientAudienceInput" placeholder="e.g. homeowners, startup founders, local patients">
+                                        <label for="clientAudienceInput">Audience</label>
+                                        <input type="text" id="clientAudienceInput" name="audience" autocomplete="off" spellcheck="false" placeholder="e.g. homeowners, startup founders…">
                                     </div>
                                     <div class="form-group">
-                                        <label>SEO Goals</label>
-                                        <textarea id="clientGoalsInput" placeholder="Rank service pages, grow local leads, build blog topical authority"></textarea>
+                                        <label for="clientGoalsInput">SEO goals</label>
+                                        <textarea id="clientGoalsInput" name="goals" autocomplete="off" spellcheck="true" placeholder="Rank service pages, grow local leads, build topical authority…"></textarea>
                                     </div>
                                     <div class="wizard-nav">
-                                        <button class="btn btn-outline wizard-prev" data-prev="2"><i class="fas fa-arrow-left"></i> Back</button>
-                                        <button class="btn btn-primary" id="saveClientBtn"><i class="fas fa-save"></i> Save Client</button>
+                                        <button type="button" class="btn btn-outline wizard-prev" data-prev="2"><i class="fas fa-arrow-left" aria-hidden="true"></i> Back</button>
+                                        <button type="button" class="btn btn-primary" id="saveClientBtn"><i class="fas fa-save" aria-hidden="true"></i> Save client</button>
                                     </div>
                                 </div>
                             </div>
@@ -95,17 +95,17 @@
                             </div>
                             <div class="card-body">
                                 <div class="form-group">
-                                    <label>Selected Client</label>
-                                    <select id="projectClientSelect"><option value="">Choose a client</option></select>
+                                    <label for="projectClientSelect">Selected client</label>
+                                    <select id="projectClientSelect" name="projectClient"><option value="">Choose a client…</option></select>
                                 </div>
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label>Project Name</label>
-                                        <input type="text" id="projectNameInput" placeholder="Local SEO campaign">
+                                        <label for="projectNameInput">Project name</label>
+                                        <input type="text" id="projectNameInput" name="projectName" autocomplete="off" spellcheck="false" placeholder="Local SEO campaign…">
                                     </div>
                                     <div class="form-group">
-                                        <label>Project Type</label>
-                                        <select id="projectTypeInput">
+                                        <label for="projectTypeInput">Project type</label>
+                                        <select id="projectTypeInput" name="projectType">
                                             <option value="keyword-research">Keyword Research</option>
                                             <option value="local-seo">Local SEO</option>
                                             <option value="content-plan">Content Plan</option>
@@ -115,14 +115,14 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label>Target Location</label>
-                                    <input type="text" id="projectLocationInput" placeholder="e.g. Bangalore">
+                                    <label for="projectLocationInput">Target location</label>
+                                    <input type="text" id="projectLocationInput" name="projectLocation" autocomplete="address-level2" spellcheck="false" placeholder="e.g. Bangalore…">
                                 </div>
                                 <div class="form-group">
-                                    <label>Project Goal</label>
-                                    <textarea id="projectGoalsInput" placeholder="What should this project achieve?"></textarea>
+                                    <label for="projectGoalsInput">Project goal</label>
+                                    <textarea id="projectGoalsInput" name="projectGoal" autocomplete="off" spellcheck="true" placeholder="What should this project achieve?…"></textarea>
                                 </div>
-                                <button class="btn btn-primary" id="saveProjectBtn"><i class="fas fa-folder-plus"></i> Add Project</button>
+                                <button type="button" class="btn btn-primary" id="saveProjectBtn"><i class="fas fa-folder-plus" aria-hidden="true"></i> Add project</button>
                             </div>
                         </div>
                     </div>
@@ -130,7 +130,7 @@
                     <div class="card">
                         <div class="card-header">
                             <h3>Saved Clients</h3>
-                            <button class="btn btn-sm btn-outline" id="refreshClientsBtn"><i class="fas fa-rotate-right"></i> Refresh</button>
+                            <button type="button" class="btn btn-sm btn-outline" id="refreshClientsBtn" aria-label="Refresh clients"><i class="fas fa-rotate-right" aria-hidden="true"></i> Refresh</button>
                         </div>
                         <div class="card-body" id="clientsList"></div>
                     </div>

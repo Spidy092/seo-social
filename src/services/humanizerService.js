@@ -29,12 +29,8 @@ const ROBOTIC_PHRASES = [
     'facilitates',
     'in conclusion',
     'additionally',
-    'crucial',
-    'vital',
     'stands as',
     'serves as',
-    'boasts',
-    'features',
     'offers a',
     'breathtaking',
     'cutting-edge',
@@ -71,6 +67,16 @@ const ROBOTIC_PHRASES = [
     'must-visit',
     'must-see',
     'stunning'
+];
+
+// Words that are common AI-writing tells in excess, but are often the correct,
+// technically precise word choice. Nudge away from these instead of banning
+// them outright, so the rewrite doesn't force awkward substitutions.
+const SOFT_AVOID_PHRASES = [
+    { phrase: 'crucial', alternative: 'important' },
+    { phrase: 'vital', alternative: 'necessary' },
+    { phrase: 'boasts', alternative: 'has' },
+    { phrase: 'features', alternative: 'includes' },
 ];
 
 const NATURAL_TRANSITIONS = [
@@ -144,6 +150,43 @@ function getModeConfig(mode) {
     return MODE_GUIDANCE[mode] || MODE_GUIDANCE.standard;
 }
 
+const MAX_CHANGE_GUIDANCE = {
+    light: `Light change level: make the smallest edits that remove AI tells and stiffness.
+- Keep the original sentence order, paragraph order, and sentence count as close to the source as possible.
+- Prefer word- and phrase-level fixes (swap a stiff word, break a copula-avoidance verb) over restructuring sentences.
+- Do not merge or split sentences unless a sentence is a clear AI-detection risk on its own.
+- The rewrite should read like a light copyedit of the original, not a new draft.`,
+    balanced: `Balanced change level: rewrite at the sentence level while keeping the same overall structure and idea order.
+- You may reorder clauses within a sentence, merge short choppy sentences, or split long ones for rhythm.
+- Keep the same paragraph-to-paragraph flow as the source; do not add or remove whole ideas.
+- Aim for a natural middle ground: noticeably rewritten, but still clearly the same piece of writing.`,
+    strong: `Strong change level: fully rewrite for maximum naturalness and detector evasion.
+- Freely restructure paragraphs, reorder supporting points, and vary sentence architecture as long as the facts, keywords, and meaning survive.
+- Prioritize burstiness and natural voice over staying close to the original phrasing.
+- It is fine for very little of the original wording to survive, as long as nothing factual is lost.`,
+};
+
+function getMaxChangeGuidance(maxChange) {
+    const key = String(maxChange || 'balanced').toLowerCase();
+    return MAX_CHANGE_GUIDANCE[key] || MAX_CHANGE_GUIDANCE.balanced;
+}
+
+function getSoftAvoidGuidance() {
+    return SOFT_AVOID_PHRASES.map(item => `"${item.phrase}" -> "${item.alternative}"`).join(', ');
+}
+
+function getTargetLengthGuidance(targetLength, currentWordCount) {
+    const target = Number(targetLength) || 0;
+    if (!target || target < 20) {
+        return 'No explicit target length was given. Keep the rewrite close to the original length unless naturalness requires otherwise.';
+    }
+
+    return `Target length: aim for approximately ${target} words (current draft is about ${currentWordCount} words).
+- Stay within roughly 15% of the target word count.
+- Never pad with filler or repeat points just to hit the number, and never cut content that would drop a fact or keyword.
+- If natural phrasing and the target length conflict, prioritize natural phrasing but stay as close to the target as reasonably possible.`;
+}
+
 function normalizeKeywords(input) {
     if (!input) return [];
 
@@ -158,20 +201,24 @@ function normalizeSingleKeyword(input) {
     return String(input || '').trim();
 }
 
-function getSeoKeywordGuidance(primaryKeyword, relatedKeywords) {
-    const cleanPrimaryKeyword = normalizeSingleKeyword(primaryKeyword);
+function getSeoKeywordGuidance(primaryKeywordVariants, relatedKeywords) {
+    const cleanVariants = normalizeKeywords(primaryKeywordVariants);
+    const mainKeyword = cleanVariants[0] || '';
+    const otherVariants = cleanVariants.slice(1);
     const cleanRelatedKeywords = normalizeKeywords(relatedKeywords);
 
-    if (!cleanPrimaryKeyword && cleanRelatedKeywords.length === 0) {
+    if (!mainKeyword && cleanRelatedKeywords.length === 0) {
         return 'No explicit SEO keyword inputs were provided, so infer them carefully from the source text only when appropriate.';
     }
 
     return `SEO keyword inputs:
-- Primary keyword: ${cleanPrimaryKeyword || 'none provided'}
+- Primary keyword: ${mainKeyword || 'none provided'}
+${otherVariants.length > 0 ? `- Acceptable natural variants of the primary keyword (use interchangeably): ${otherVariants.join(', ')}` : ''}
 - Related keywords: ${cleanRelatedKeywords.length > 0 ? cleanRelatedKeywords.join(', ') : 'none provided'}
 
 Use these only in SEO Blog mode.
-- Keep the primary keyword natural and present where it fits, especially early, mid-article, and near the close.
+- Keep the primary keyword (or one of its listed variants) natural and present where it fits, especially early, mid-article, and near the close.
+- If variants are provided, rotate between the primary keyword and its variants across sections instead of repeating the exact same phrase every time. This broadens semantic coverage without sounding mechanical.
 - Use related keywords as semantic support, not as a checklist.
 - Pair keywords with real context, such as use case, benefit, implementation angle, or outcome.
 - Do not force keywords into every paragraph.`;
@@ -236,10 +283,14 @@ function countSyllables(word) {
     if (!clean) return 0;
     if (clean.length <= 3) return 1;
 
+    // Count each run of consecutive vowels as one syllable nucleus, rather than
+    // capping at 2 characters. This correctly treats triphthongs like "eau" in
+    // "beautiful" or "ueue" in "queue" as a single syllable instead of splitting
+    // them into extra, inflated groups.
     const groups = clean
         .replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '')
         .replace(/^y/, '')
-        .match(/[aeiouy]{1,2}/g);
+        .match(/[aeiouy]+/g);
 
     return groups ? groups.length : 1;
 }
@@ -400,6 +451,38 @@ function extractNumbers(text) {
     return String(text).match(/\b\d+(?:[.,]\d+)?%?\b/g) || [];
 }
 
+// Common words that get capitalized mid-sentence (after a colon, in a quote,
+// at the start of a clause) but are not proper nouns/entities. Excluding these
+// keeps the dropped-entity check focused on real names, brands, and places.
+const CAPITALIZED_STOPWORDS = new Set([
+    'i', 'the', 'a', 'an', 'this', 'that', 'these', 'those', 'it', 'its',
+    'he', 'she', 'they', 'we', 'you', 'his', 'her', 'their', 'our', 'your',
+    'here', 'there', 'then', 'now', 'so', 'but', 'and', 'or', 'if', 'when',
+    'while', 'because', 'as', 'what', 'which', 'who', 'why', 'how', 'yes',
+    'no', 'ok', 'okay', 'well', 'also', 'still', 'just', 'even', 'in', 'on',
+    'for', 'with', 'without', 'once', 'first', 'second', 'third', 'next',
+    'finally', 'today', 'monday', 'tuesday', 'wednesday', 'thursday',
+    'friday', 'saturday', 'sunday',
+]);
+
+function extractProperNouns(text) {
+    const sentences = splitSentences(text);
+    const nouns = new Set();
+
+    sentences.forEach(sentence => {
+        const words = sentence.match(/[A-Za-z][A-Za-z0-9.'-]*/g) || [];
+        words.forEach((word, index) => {
+            if (index === 0) return;
+            if (word.length < 2) return;
+            if (!/^[A-Z]/.test(word)) return;
+            if (CAPITALIZED_STOPWORDS.has(word.toLowerCase())) return;
+            nouns.add(word);
+        });
+    });
+
+    return [...nouns];
+}
+
 function looksLikeHtml(text) {
     return /<\/?[a-z][\s\S]*>/i.test(String(text || ''));
 }
@@ -468,7 +551,7 @@ function rebuildHtmlFromSegments(template, segmentMap) {
     });
 }
 
-function verifyRefinement(originalText, refinedText, preserveKeywords) {
+function verifyRefinement(originalText, refinedText, preserveKeywords, targetLength = 0) {
     const warnings = [];
     const originalNumbers = extractNumbers(originalText);
     const refinedNumbers = extractNumbers(refinedText);
@@ -488,12 +571,29 @@ function verifyRefinement(originalText, refinedText, preserveKeywords) {
         warnings.push('Numbers changed during rewrite. Review facts before publishing.');
     }
 
+    const originalProperNouns = extractProperNouns(originalText);
+    const missingProperNouns = originalProperNouns.filter(noun => !refinedText.includes(noun));
+
+    if (missingProperNouns.length > 0 && missingProperNouns.length <= 8) {
+        warnings.push(`Possible dropped names or entities: ${missingProperNouns.join(', ')}. Confirm these were meant to be removed or reworded.`);
+    } else if (missingProperNouns.length > 8) {
+        warnings.push('Many capitalized names or entities from the source no longer appear verbatim. Review the rewrite for dropped facts.');
+    }
+
     const originalLength = originalText.trim().length || 1;
     const refinedLength = refinedText.trim().length;
     const deltaRatio = Math.abs(refinedLength - originalLength) / originalLength;
 
     if (deltaRatio > 0.45) {
         warnings.push('Rewrite changed length significantly. Check that meaning still matches the source.');
+    }
+
+    const targetWordCount = Number(targetLength) || 0;
+    if (targetWordCount >= 20) {
+        const wordDeltaRatio = Math.abs(refinedAnalysis.wordCount - targetWordCount) / targetWordCount;
+        if (wordDeltaRatio > 0.2) {
+            warnings.push(`Rewrite is ${refinedAnalysis.wordCount} words, target was ${targetWordCount}. Adjust length to stay closer to the target.`);
+        }
     }
 
     if (remainingRoboticPhrases.length > 0) {
@@ -512,7 +612,7 @@ function verifyRefinement(originalText, refinedText, preserveKeywords) {
         warnings.push('The rewrite contains em dashes (—) or en dashes (–). Replace them with commas, periods, or parentheses.');
     }
 
-    if (refinedAnalysis.sentenceVariance < 5) {
+    if (refinedAnalysis.sentenceCount >= 6 && refinedAnalysis.sentenceVariance < 4) {
         warnings.push('Sentence rhythm is still fairly uniform. A little more variation may help it read more naturally.');
     }
 
@@ -527,6 +627,7 @@ function verifyRefinement(originalText, refinedText, preserveKeywords) {
     return {
         warnings,
         missingKeywords,
+        missingProperNouns,
         remainingRoboticPhrases,
         toneMix,
         numbersChanged: originalNumbers.join('|') !== refinedNumbers.join('|'),
@@ -534,14 +635,15 @@ function verifyRefinement(originalText, refinedText, preserveKeywords) {
     };
 }
 
-function verifySeoRefinement(refinedText, primaryKeyword, relatedKeywords, intentType) {
+function verifySeoRefinement(refinedText, primaryKeywordVariants, relatedKeywords, intentType) {
     const warnings = [];
     const normalizedText = String(refinedText || '').toLowerCase();
-    const cleanPrimaryKeyword = normalizeSingleKeyword(primaryKeyword).toLowerCase();
+    const cleanVariants = normalizeKeywords(primaryKeywordVariants).map(keyword => keyword.toLowerCase());
+    const mainKeyword = cleanVariants[0] || '';
     const cleanRelatedKeywords = normalizeKeywords(relatedKeywords);
 
-    if (cleanPrimaryKeyword && !normalizedText.includes(cleanPrimaryKeyword)) {
-        warnings.push(`Primary keyword is missing from the rewrite: ${cleanPrimaryKeyword}`);
+    if (mainKeyword && !cleanVariants.some(variant => normalizedText.includes(variant))) {
+        warnings.push(`Primary keyword (or an accepted variant) is missing from the rewrite: ${mainKeyword}`);
     }
 
     const relatedKeywordHits = cleanRelatedKeywords.filter(keyword => normalizedText.includes(keyword.toLowerCase()));
@@ -560,7 +662,7 @@ function verifySeoRefinement(refinedText, primaryKeyword, relatedKeywords, inten
 }
 
 async function auditRewriteWithLlm(originalText, refinedText) {
-    const prompt = `You are a strict editor auditing a rewritten text draft for lingering AI-writing tells and stylistic predictability.
+    const prompt = `You are a strict editor auditing a rewritten text draft for lingering AI-writing tells, stylistic predictability, and grammar/coherence problems introduced by the rewrite.
 
 Here is the original text:
 """
@@ -579,13 +681,19 @@ Instructions:
    - Vague attributions, sycophantic/servile phrasing.
    - Em dashes, en dashes, curly quotation marks, or excessive bolding/emojis.
    - Copula avoidance (using complex verbs like "boasts" or "serves as" instead of simple is/are/has).
-2. Determine if the draft is obviously AI-generated or still contains stiff, unnatural phrasing.
-3. List the specific tells/phrases that need correction.
+2. Separately, check the rewrite for grammar and coherence problems that were not present in the original, such as:
+   - Broken subject-verb agreement, dangling modifiers, or run-on/fragmented sentences.
+   - Pronouns or references that no longer clearly point back to something in the text (left dangling by restructuring).
+   - Punctuation errors introduced by the rewrite.
+   - Only report grammar issues caused by the rewrite itself, not stylistic choices.
+3. Determine if the draft is obviously AI-generated or still contains stiff, unnatural phrasing.
+4. List the specific tells/phrases that need correction, and separately list any grammar/coherence issues found.
 
 Return ONLY a valid JSON object with the following shape:
 {
   "isObviouslyAi": true,
-  "lingeringTells": ["found tell/phrase 1", "found tell/phrase 2"]
+  "lingeringTells": ["found tell/phrase 1", "found tell/phrase 2"],
+  "grammarIssues": ["short description of grammar/coherence issue 1"]
 }
 `;
     try {
@@ -597,11 +705,36 @@ Return ONLY a valid JSON object with the following shape:
         const parsed = parseModelResponse(response);
         return {
             isObviouslyAi: !!parsed?.isObviouslyAi,
-            lingeringTells: Array.isArray(parsed?.lingeringTells) ? parsed.lingeringTells : []
+            lingeringTells: Array.isArray(parsed?.lingeringTells) ? parsed.lingeringTells : [],
+            grammarIssues: Array.isArray(parsed?.grammarIssues) ? parsed.grammarIssues : []
         };
     } catch (err) {
         log.warn({ err: err.message }, 'LLM audit pass failed, skipping');
-        return { isObviouslyAi: false, lingeringTells: [] };
+        return { isObviouslyAi: false, lingeringTells: [], grammarIssues: [] };
+    }
+}
+
+async function crossCheckAiDetector(text) {
+    const { key, url } = config.apis.aiDetector || {};
+    if (!key || !url) {
+        return null;
+    }
+
+    try {
+        const response = await axios.post(
+            url,
+            { text },
+            {
+                headers: { Authorization: `Bearer ${key}` },
+                timeout: 10000,
+            }
+        );
+
+        const score = Number(response.data?.score);
+        return Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : null;
+    } catch (err) {
+        log.warn({ err: err.message }, 'external AI-detector cross-check failed, skipping');
+        return null;
     }
 }
 
@@ -673,16 +806,20 @@ ${sample.trim()}
 """`;
 }
 
-function buildPrompt({ text, tone, audience, brandVoice, preserveKeywords, maxChange, mode, primaryKeyword, relatedKeywords, sample = '' }) {
+function buildPrompt({ text, tone, audience, brandVoice, preserveKeywords, maxChange, mode, primaryKeyword, relatedKeywords, sample = '', targetLength = 0 }) {
     const keywordsText = preserveKeywords.length > 0 ? preserveKeywords.join(', ') : 'none';
     const bannedWordsText = ROBOTIC_PHRASES.join(', ');
+    const softAvoidText = getSoftAvoidGuidance();
     const preferredTransitionsText = NATURAL_TRANSITIONS.join(', ');
     const modeConfig = getModeConfig(mode);
-    const searchIntent = detectSearchIntent(primaryKeyword || preserveKeywords[0] || text.slice(0, 120));
+    const primaryKeywordVariants = normalizeKeywords(primaryKeyword);
+    const searchIntent = detectSearchIntent(primaryKeywordVariants[0] || preserveKeywords[0] || text.slice(0, 120));
     const seoKeywordGuidance = mode === 'seo-blog'
-        ? getSeoKeywordGuidance(primaryKeyword, relatedKeywords)
+        ? getSeoKeywordGuidance(primaryKeywordVariants, relatedKeywords)
         : 'Ignore any SEO keyword placement strategy unless the mode is SEO Blog.';
     const calibrationPrompt = getCalibrationInstructions(sample);
+    const changeLevelGuidance = getMaxChangeGuidance(maxChange);
+    const lengthGuidance = getTargetLengthGuidance(targetLength, extractWords(text).length);
 
     const systemPrompt = `You are an expert editor improving draft content so it reads naturally, with believable human rhythm and voice, while staying technically accurate.
 
@@ -698,6 +835,7 @@ Transformation rules you must follow:
 - Do not write category paragraphs that follow "System software handles...", "Application software is...", or "Programming software is..." patterns. Merge, vary, or recast those details so they do not read like a generated study note.
 - Avoid long example pile-ups. Use one or two examples only when they add context, and do not stack brand/tool names in the same sentence.
 - NEVER use these AI-vocabulary words: ${bannedWordsText}.
+- Prefer simpler alternatives over these words when a plainer synonym fits just as well: ${softAvoidText}. It is fine to keep the original word when the plainer synonym would be technically imprecise or would change the meaning.
 - Avoid copula avoidance. Use simple "is/are/has" instead of "serves as/stands as/boasts/features".
 - Do not use negative parallelisms like "It's not just about X, it's about Y".
 - Do not force the Rule of Three (listing exactly three items to sound comprehensive).
@@ -738,6 +876,12 @@ Rewrite settings:
 - Allowed change level: ${maxChange}
 - Keywords to preserve: ${keywordsText}
 
+Change-level guidance:
+${changeLevelGuidance}
+
+Length guidance:
+${lengthGuidance}
+
 Mode-specific guidance:
 ${modeConfig.prompt}
 
@@ -774,14 +918,17 @@ ${text}
 function buildHtmlPrompt({ template, segments, tone, audience, brandVoice, preserveKeywords, maxChange, mode, primaryKeyword, relatedKeywords, sample = '' }) {
     const keywordsText = preserveKeywords.length > 0 ? preserveKeywords.join(', ') : 'none';
     const bannedWordsText = ROBOTIC_PHRASES.join(', ');
+    const softAvoidText = getSoftAvoidGuidance();
     const preferredTransitionsText = NATURAL_TRANSITIONS.join(', ');
     const serializedSegments = JSON.stringify(segments, null, 2);
     const modeConfig = getModeConfig(mode);
-    const searchIntent = detectSearchIntent(primaryKeyword || preserveKeywords[0] || '');
+    const primaryKeywordVariants = normalizeKeywords(primaryKeyword);
+    const searchIntent = detectSearchIntent(primaryKeywordVariants[0] || preserveKeywords[0] || '');
     const seoKeywordGuidance = mode === 'seo-blog'
-        ? getSeoKeywordGuidance(primaryKeyword, relatedKeywords)
+        ? getSeoKeywordGuidance(primaryKeywordVariants, relatedKeywords)
         : 'Ignore any SEO keyword placement strategy unless the mode is SEO Blog.';
     const calibrationPrompt = getCalibrationInstructions(sample);
+    const changeLevelGuidance = getMaxChangeGuidance(maxChange);
 
     const systemPrompt = `You are rewriting HTML content while preserving its formatting exactly.
 
@@ -808,6 +955,7 @@ Rules:
     - Drop hyphens in compound words when they follow the noun.
     - Do not use conversational rhetorical openers or manufactured punchlines.
     - NEVER use these AI-vocabulary words: ${bannedWordsText}.
+    - Prefer simpler alternatives over these words when a plainer synonym fits just as well: ${softAvoidText}. Keep the original word if the plainer synonym would be technically imprecise.
     - Prefer natural transitions such as: ${preferredTransitionsText}.
 
 Naturalness + detector-risk reduction target (aim for an estimated AI-detection score below 10%):
@@ -827,6 +975,11 @@ Settings:
 - Brand voice: ${brandVoice || 'clear, trustworthy, practical'}
 - Allowed change level: ${maxChange}
 - Keywords to preserve: ${keywordsText}
+
+Change-level guidance:
+${changeLevelGuidance}
+
+Note: this rewrite covers isolated HTML text segments, not the whole document, so no overall word-count target applies here. Keep each segment close to its original length unless the change level calls for more rewriting.
 
 Mode-specific guidance:
 ${modeConfig.prompt}
@@ -861,14 +1014,17 @@ ${serializedSegments}`;
     return { systemPrompt, prompt: userPrompt };
 }
 
-function buildRetryPrompt({ originalText, currentDraft, tone, audience, brandVoice, preserveKeywords, maxChange, warnings, mode, primaryKeyword, relatedKeywords, sample = '' }) {
+function buildRetryPrompt({ originalText, currentDraft, tone, audience, brandVoice, preserveKeywords, maxChange, warnings, mode, primaryKeyword, relatedKeywords, sample = '', targetLength = 0 }) {
     const keywordsText = preserveKeywords.length > 0 ? preserveKeywords.join(', ') : 'none';
     const modeConfig = getModeConfig(mode);
-    const searchIntent = detectSearchIntent(primaryKeyword || preserveKeywords[0] || originalText.slice(0, 120));
+    const primaryKeywordVariants = normalizeKeywords(primaryKeyword);
+    const searchIntent = detectSearchIntent(primaryKeywordVariants[0] || preserveKeywords[0] || originalText.slice(0, 120));
     const seoKeywordGuidance = mode === 'seo-blog'
-        ? getSeoKeywordGuidance(primaryKeyword, relatedKeywords)
+        ? getSeoKeywordGuidance(primaryKeywordVariants, relatedKeywords)
         : 'Ignore any SEO keyword placement strategy unless the mode is SEO Blog.';
     const calibrationPrompt = getCalibrationInstructions(sample);
+    const changeLevelGuidance = getMaxChangeGuidance(maxChange);
+    const lengthGuidance = getTargetLengthGuidance(targetLength, extractWords(currentDraft).length);
 
     const systemPrompt = `Revise this rewritten draft so it feels completely human, passes AI detectors, and feels less over-produced.
 
@@ -900,6 +1056,12 @@ Settings:
 - Brand voice: ${brandVoice || 'clear, trustworthy, practical'}
 - Allowed change level: ${maxChange}
 - Keywords to preserve: ${keywordsText}
+
+Change-level guidance:
+${changeLevelGuidance}
+
+Length guidance:
+${lengthGuidance}
 
 Mode-specific guidance:
 ${modeConfig.prompt}
@@ -941,11 +1103,13 @@ function buildHtmlRetryPrompt({ template, originalText, currentDraft, tone, audi
     const keywordsText = preserveKeywords.length > 0 ? preserveKeywords.join(', ') : 'none';
     const segmentPayload = JSON.stringify(currentDraft, null, 2);
     const modeConfig = getModeConfig(mode);
-    const searchIntent = detectSearchIntent(primaryKeyword || preserveKeywords[0] || originalText.slice(0, 120));
+    const primaryKeywordVariants = normalizeKeywords(primaryKeyword);
+    const searchIntent = detectSearchIntent(primaryKeywordVariants[0] || preserveKeywords[0] || originalText.slice(0, 120));
     const seoKeywordGuidance = mode === 'seo-blog'
-        ? getSeoKeywordGuidance(primaryKeyword, relatedKeywords)
+        ? getSeoKeywordGuidance(primaryKeywordVariants, relatedKeywords)
         : 'Ignore any SEO keyword placement strategy unless the mode is SEO Blog.';
     const calibrationPrompt = getCalibrationInstructions(sample);
+    const changeLevelGuidance = getMaxChangeGuidance(maxChange);
 
     const systemPrompt = `Revise these rewritten HTML text segments so they feel completely human, pass AI detectors, and feel less over-produced.
 
@@ -978,6 +1142,11 @@ Settings:
 - Brand voice: ${brandVoice || 'clear, trustworthy, practical'}
 - Allowed change level: ${maxChange}
 - Keywords to preserve: ${keywordsText}
+
+Change-level guidance:
+${changeLevelGuidance}
+
+Note: this rewrite covers isolated HTML text segments, not the whole document, so no overall word-count target applies here.
 
 Mode-specific guidance:
 ${modeConfig.prompt}
@@ -1026,6 +1195,7 @@ function shouldRetryRefinement(verification) {
 
         if (verification.missingKeywords?.length > 0) return true;
         if (verification.numbersChanged) return true;
+        if (verification.missingProperNouns?.length > 0 && verification.missingProperNouns.length <= 8) return true;
 
         return verification.warnings.some(warning =>
                 warning.includes('Sentence rhythm is still fairly uniform')
@@ -1034,6 +1204,9 @@ function shouldRetryRefinement(verification) {
                 || warning.includes('Still contains stiff phrasing')
                 || warning.includes('Estimated AI detection')
                 || warning.includes('Detector-risk patterns remain')
+                || warning.includes('Primary keyword (or an accepted variant) is missing')
+                || warning.includes('Adjust length to stay closer to the target')
+                || warning.includes('Grammar/coherence issues introduced by the rewrite')
         );
 }
 
@@ -1151,7 +1324,7 @@ function normalizeSegmentRewriteResponse(response, expectedIds) {
     };
 }
 
-async function humanizeHtmlContent({ text, tone, audience, brandVoice, preserveKeywords, maxChange, mode, primaryKeyword, relatedKeywords, sample = '' }) {
+async function humanizeHtmlContent({ text, tone, audience, brandVoice, preserveKeywords, maxChange, mode, primaryKeyword, relatedKeywords, sample = '', targetLength = 0 }) {
     const htmlTemplate = createHtmlSegmentTemplate(text);
 
     if (!htmlTemplate.segments.length) {
@@ -1161,6 +1334,7 @@ async function humanizeHtmlContent({ text, tone, audience, brandVoice, preserveK
     const originalPlainText = extractPlainTextFromHtml(text);
     const originalAnalysis = analyzeText(originalPlainText);
     const expectedIds = htmlTemplate.segments.map(segment => segment.id);
+    const primaryKeywordVariants = mode === 'seo-blog' ? normalizeKeywords(primaryKeyword) : [];
 
     let rewrite = normalizeSegmentRewriteResponse(
         await requestRewrite(buildHtmlPrompt({
@@ -1187,9 +1361,9 @@ async function humanizeHtmlContent({ text, tone, audience, brandVoice, preserveK
     }
 
     let refinedAnalysis = analyzeText(refinedPlainText);
-    let verification = verifyRefinement(originalPlainText, refinedPlainText, preserveKeywords);
+    let verification = verifyRefinement(originalPlainText, refinedPlainText, preserveKeywords, targetLength);
     let seoVerification = mode === 'seo-blog'
-        ? verifySeoRefinement(refinedPlainText, primaryKeyword, relatedKeywords, detectSearchIntent(primaryKeyword || preserveKeywords[0] || '').type)
+        ? verifySeoRefinement(refinedPlainText, primaryKeywordVariants, relatedKeywords, detectSearchIntent(primaryKeywordVariants[0] || preserveKeywords[0] || '').type)
         : { warnings: [], relatedKeywordHits: [] };
 
     verification.warnings.push(...seoVerification.warnings);
@@ -1198,6 +1372,9 @@ async function humanizeHtmlContent({ text, tone, audience, brandVoice, preserveK
     const auditResult = await auditRewriteWithLlm(originalPlainText, refinedPlainText);
     if (auditResult.isObviouslyAi && auditResult.lingeringTells.length > 0) {
         verification.warnings.push(`AI Tells detected by Editor: ${auditResult.lingeringTells.join(', ')}`);
+    }
+    if (auditResult.grammarIssues.length > 0) {
+        verification.warnings.push(`Grammar/coherence issues introduced by the rewrite: ${auditResult.grammarIssues.join('; ')}`);
     }
 
     for (let refinementPass = 0; refinementPass < getMaxRefinementPasses(maxChange) && shouldRetryRefinement(verification); refinementPass += 1) {
@@ -1230,13 +1407,21 @@ async function humanizeHtmlContent({ text, tone, audience, brandVoice, preserveK
         }
 
         refinedAnalysis = analyzeText(refinedPlainText);
-        verification = verifyRefinement(originalPlainText, refinedPlainText, preserveKeywords);
+        verification = verifyRefinement(originalPlainText, refinedPlainText, preserveKeywords, targetLength);
         seoVerification = mode === 'seo-blog'
-            ? verifySeoRefinement(refinedPlainText, primaryKeyword, relatedKeywords, detectSearchIntent(primaryKeyword || preserveKeywords[0] || '').type)
+            ? verifySeoRefinement(refinedPlainText, primaryKeywordVariants, relatedKeywords, detectSearchIntent(primaryKeywordVariants[0] || preserveKeywords[0] || '').type)
             : { warnings: [], relatedKeywordHits: [] };
 
         verification.warnings.push(...seoVerification.warnings);
         verification.relatedKeywordHits = seoVerification.relatedKeywordHits;
+    }
+
+    const externalAiScore = await crossCheckAiDetector(refinedPlainText);
+    if (externalAiScore !== null) {
+        verification.externalAiDetectionPercent = externalAiScore;
+        if (externalAiScore > TARGET_AI_DETECTION_PERCENT) {
+            verification.warnings.push(`External AI-detector cross-check scored ${externalAiScore}%, above the ${TARGET_AI_DETECTION_PERCENT}% target.`);
+        }
     }
 
     return {
@@ -1253,9 +1438,10 @@ async function humanizeHtmlContent({ text, tone, audience, brandVoice, preserveK
     };
 }
 
-async function humanizeContent({ text, tone = 'natural', audience = '', brandVoice = '', preserveKeywords = [], maxChange = 'balanced', preserveHtml = false, mode = 'standard', primaryKeyword = '', relatedKeywords = [], sample = '' }) {
+async function humanizeContent({ text, tone = 'natural', audience = '', brandVoice = '', preserveKeywords = [], maxChange = 'balanced', preserveHtml = false, mode = 'standard', primaryKeyword = '', relatedKeywords = [], sample = '', targetLength = 0 }) {
     const normalizedKeywords = normalizeKeywords(preserveKeywords);
     const normalizedPrimaryKeyword = mode === 'seo-blog' ? normalizeSingleKeyword(primaryKeyword) : '';
+    const primaryKeywordVariants = mode === 'seo-blog' ? normalizeKeywords(primaryKeyword) : [];
     const normalizedRelatedKeywords = mode === 'seo-blog' ? normalizeKeywords(relatedKeywords) : [];
 
     if (preserveHtml && looksLikeHtml(text)) {
@@ -1270,6 +1456,7 @@ async function humanizeContent({ text, tone = 'natural', audience = '', brandVoi
             primaryKeyword: normalizedPrimaryKeyword,
             relatedKeywords: normalizedRelatedKeywords,
             sample,
+            targetLength,
         });
     }
 
@@ -1285,9 +1472,10 @@ async function humanizeContent({ text, tone = 'natural', audience = '', brandVoi
         primaryKeyword: normalizedPrimaryKeyword,
         relatedKeywords: normalizedRelatedKeywords,
         sample,
+        targetLength,
     });
 
-    log.info({ tone, audience, maxChange, keywords: normalizedKeywords.length }, 'humanizing content');
+    log.info({ tone, audience, maxChange, keywords: normalizedKeywords.length, targetLength }, 'humanizing content');
 
     let rewrite;
     try {
@@ -1309,9 +1497,9 @@ async function humanizeContent({ text, tone = 'natural', audience = '', brandVoi
     }
 
     let refinedAnalysis = analyzeText(refinedText);
-    let verification = verifyRefinement(text, refinedText, normalizedKeywords);
+    let verification = verifyRefinement(text, refinedText, normalizedKeywords, targetLength);
     let seoVerification = mode === 'seo-blog'
-        ? verifySeoRefinement(refinedText, normalizedPrimaryKeyword, normalizedRelatedKeywords, detectSearchIntent(normalizedPrimaryKeyword || normalizedKeywords[0] || '').type)
+        ? verifySeoRefinement(refinedText, primaryKeywordVariants, normalizedRelatedKeywords, detectSearchIntent(primaryKeywordVariants[0] || normalizedKeywords[0] || '').type)
         : { warnings: [], relatedKeywordHits: [] };
 
     verification.warnings.push(...seoVerification.warnings);
@@ -1320,6 +1508,9 @@ async function humanizeContent({ text, tone = 'natural', audience = '', brandVoi
     const auditResult = await auditRewriteWithLlm(text, refinedText);
     if (auditResult.isObviouslyAi && auditResult.lingeringTells.length > 0) {
         verification.warnings.push(`AI Tells detected by Editor: ${auditResult.lingeringTells.join(', ')}`);
+    }
+    if (auditResult.grammarIssues.length > 0) {
+        verification.warnings.push(`Grammar/coherence issues introduced by the rewrite: ${auditResult.grammarIssues.join('; ')}`);
     }
 
     for (let refinementPass = 0; refinementPass < getMaxRefinementPasses(maxChange) && shouldRetryRefinement(verification); refinementPass += 1) {
@@ -1339,6 +1530,7 @@ async function humanizeContent({ text, tone = 'natural', audience = '', brandVoi
                 primaryKeyword: normalizedPrimaryKeyword,
                 relatedKeywords: normalizedRelatedKeywords,
                 sample,
+                targetLength,
             }));
         } catch (err) {
             log.warn({ err: err.message }, 'keeping existing humanizer result after retry failure');
@@ -1352,13 +1544,21 @@ async function humanizeContent({ text, tone = 'natural', audience = '', brandVoi
         }
 
         refinedAnalysis = analyzeText(refinedText);
-        verification = verifyRefinement(text, refinedText, normalizedKeywords);
+        verification = verifyRefinement(text, refinedText, normalizedKeywords, targetLength);
         seoVerification = mode === 'seo-blog'
-            ? verifySeoRefinement(refinedText, normalizedPrimaryKeyword, normalizedRelatedKeywords, detectSearchIntent(normalizedPrimaryKeyword || normalizedKeywords[0] || '').type)
+            ? verifySeoRefinement(refinedText, primaryKeywordVariants, normalizedRelatedKeywords, detectSearchIntent(primaryKeywordVariants[0] || normalizedKeywords[0] || '').type)
             : { warnings: [], relatedKeywordHits: [] };
 
         verification.warnings.push(...seoVerification.warnings);
         verification.relatedKeywordHits = seoVerification.relatedKeywordHits;
+    }
+
+    const externalAiScore = await crossCheckAiDetector(refinedText);
+    if (externalAiScore !== null) {
+        verification.externalAiDetectionPercent = externalAiScore;
+        if (externalAiScore > TARGET_AI_DETECTION_PERCENT) {
+            verification.warnings.push(`External AI-detector cross-check scored ${externalAiScore}%, above the ${TARGET_AI_DETECTION_PERCENT}% target.`);
+        }
     }
 
     return {

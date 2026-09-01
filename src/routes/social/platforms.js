@@ -15,7 +15,7 @@ module.exports = async function (fastify, options) {
     if (!ctx) return;
     try {
       const { rows: connections } = await db.query(
-        'SELECT * FROM platform_connections WHERE user_id = $1 AND (agency_id = $2 OR agency_id IS NULL OR $2 IS NULL)',
+        'SELECT id, user_id, agency_id, platform, token_expires_at, platform_user_id, platform_username, created_at FROM platform_connections WHERE user_id = $1 AND agency_id = $2',
         [ctx.userId, ctx.agencyId]
       );
 
@@ -108,14 +108,14 @@ module.exports = async function (fastify, options) {
 
     try {
       await db.query(
-        'DELETE FROM platform_connections WHERE user_id = $1 AND platform = $2 AND (agency_id = $3 OR agency_id IS NULL OR $3 IS NULL)',
+        'DELETE FROM platform_connections WHERE user_id = $1 AND platform = $2 AND agency_id = $3',
         [ctx.userId, platform, ctx.agencyId]
       );
 
       if (platform === 'instagram' || platform === 'facebook') {
         const otherPlatform = platform === 'instagram' ? 'facebook' : 'instagram';
         await db.query(
-          'DELETE FROM platform_connections WHERE user_id = $1 AND platform = $2 AND (agency_id = $3 OR agency_id IS NULL OR $3 IS NULL)',
+          'DELETE FROM platform_connections WHERE user_id = $1 AND platform = $2 AND agency_id = $3',
           [ctx.userId, otherPlatform, ctx.agencyId]
         );
         request.session.set('success', `Instagram & Facebook disconnected`);

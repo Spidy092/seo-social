@@ -1,4 +1,4 @@
-const { getAgencyContext } = require('../utils/authHelper');
+const { requireAgencyContext, assertClientAccess } = require('../utils/authHelper');
 const { verifyConnection } = require('../services/emailService');
 const { computeNextRunAt } = require('../workers/scheduledReports');
 const { createLogger } = require('../utils/logger');
@@ -9,18 +9,18 @@ async function scheduledReportRoutes(fastify, options) {
     const { db } = options;
 
     // ─── List scheduled reports ───
-    fastify.get('/api/scheduled-reports', async (request) => {
-        const ctx = await getAgencyContext(request, db);
-        const agencyId = ctx?.agencyId || null;
+    fastify.get('/api/scheduled-reports', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
 
         const { rows } = await db.query(
             `SELECT sr.*, sc.name AS client_name
              FROM scheduled_reports sr
              LEFT JOIN seo_clients sc ON sc.id = sr.client_id
-             WHERE (sr.agency_id = $1 OR sr.agency_id IS NULL OR $1 IS NULL)
+             WHERE sr.agency_id = $1
                AND sr.user_id = $2
-             ORDER BY sr.created_at DESC`,
-            [agencyId, ctx?.userId]
+            ORDER BY sr.created_at DESC`,
+            [ctx.agencyId, ctx.userId]
         );
 
         return { success: true, schedules: rows };
@@ -33,20 +33,21 @@ async function scheduledReportRoutes(fastify, options) {
                 type: 'object',
                 required: ['domain', 'recipients'],
                 properties: {
-                    clientId: { type: 'string' },
-                    domain: { type: 'string' },
-                    title: { type: 'string', default: 'Monthly SEO Report' },
-                    recipients: { type: 'array', items: { type: 'string' }, minItems: 1 },
+                    clientId: { type: 'string', maxLength: 128 },
+                    domain: { type: 'string', maxLength: 2048 },
+                    title: { type: 'string', maxLength: 200, default: 'Monthly SEO Report' },
+                    recipients: { type: 'array', items: { type: 'string', maxLength: 320 }, minItems: 1, maxItems: 20 },
                     frequency: { type: 'string', enum: ['weekly', 'biweekly', 'monthly'], default: 'monthly' },
                     dayOfWeek: { type: 'integer', minimum: 0, maximum: 6, default: 1 },
                     dayOfMonth: { type: 'integer', minimum: 1, maximum: 28, default: 1 },
                     hour: { type: 'integer', minimum: 0, maximum: 23, default: 8 },
-                    reportOptions: { type: 'object' },
+                    reportOptions: { type: 'object', maxProperties: 30 },
                 },
             },
         },
         handler: async (request, reply) => {
-            const ctx = await getAgencyContext(request, db);
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
             const {
                 clientId = null, domain, title = 'Monthly SEO Report',
                 recipients, frequency = 'monthly', dayOfWeek = 1,
@@ -60,6 +61,10 @@ async function scheduledReportRoutes(fastify, options) {
                 return reply.code(400).send({ error: `Invalid email(s): ${invalidEmails.join(', ')}` });
             }
 
+            if (clientId && !await assertClientAccess(db, clientId, ctx.agencyId)) {
+                return reply.code(403).send({ error: 'Client not found or access denied' });
+            }
+
             const schedule = {
                 frequency, day_of_week: dayOfWeek, day_of_month: dayOfMonth, hour,
             };
@@ -71,7 +76,7 @@ async function scheduledReportRoutes(fastify, options) {
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                  RETURNING *`,
                 [
-                    ctx?.userId, ctx?.agencyId || null, clientId, domain, title,
+                    ctx.userId, ctx.agencyId, clientId, domain, title,
                     JSON.stringify(recipients), frequency, dayOfWeek, dayOfMonth, hour,
                     JSON.stringify(reportOptions), nextRun,
                 ]
@@ -88,26 +93,27 @@ async function scheduledReportRoutes(fastify, options) {
             body: {
                 type: 'object',
                 properties: {
-                    title: { type: 'string' },
-                    recipients: { type: 'array', items: { type: 'string' } },
+                    title: { type: 'string', maxLength: 200 },
+                    recipients: { type: 'array', items: { type: 'string', maxLength: 320 }, maxItems: 20 },
                     frequency: { type: 'string', enum: ['weekly', 'biweekly', 'monthly'] },
                     dayOfWeek: { type: 'integer', minimum: 0, maximum: 6 },
                     dayOfMonth: { type: 'integer', minimum: 1, maximum: 28 },
                     hour: { type: 'integer', minimum: 0, maximum: 23 },
                     isActive: { type: 'boolean' },
-                    reportOptions: { type: 'object' },
+                    reportOptions: { type: 'object', maxProperties: 30 },
                 },
             },
         },
         handler: async (request, reply) => {
-            const ctx = await getAgencyContext(request, db);
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
             const { id } = request.params;
             const body = request.body;
 
             // Verify ownership
             const existing = await db.query(
-                `SELECT * FROM scheduled_reports WHERE id = $1 AND user_id = $2`,
-                [id, ctx?.userId]
+                `SELECT * FROM scheduled_reports WHERE id = $1 AND user_id = $2 AND agency_id = $3`,
+                [id, ctx.userId, ctx.agencyId]
             );
             if (!existing.rows.length) {
                 return reply.code(404).send({ error: 'Schedule not found' });
@@ -150,12 +156,13 @@ async function scheduledReportRoutes(fastify, options) {
 
     // ─── Delete scheduled report ───
     fastify.delete('/api/scheduled-reports/:id', async (request, reply) => {
-        const ctx = await getAgencyContext(request, db);
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         const { id } = request.params;
 
         const { rowCount } = await db.query(
-            `DELETE FROM scheduled_reports WHERE id = $1 AND user_id = $2`,
-            [id, ctx?.userId]
+            `DELETE FROM scheduled_reports WHERE id = $1 AND user_id = $2 AND agency_id = $3`,
+            [id, ctx.userId, ctx.agencyId]
         );
 
         if (!rowCount) {
@@ -172,11 +179,13 @@ async function scheduledReportRoutes(fastify, options) {
                 type: 'object',
                 required: ['email'],
                 properties: {
-                    email: { type: 'string' },
+                    email: { type: 'string', maxLength: 320 },
                 },
             },
         },
         handler: async (request, reply) => {
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
             const { email } = request.body;
             const { sendEmail } = require('../services/emailService');
 
@@ -196,7 +205,9 @@ async function scheduledReportRoutes(fastify, options) {
     });
 
     // ─── Check SMTP status ───
-    fastify.get('/api/scheduled-reports/smtp-status', async () => {
+    fastify.get('/api/scheduled-reports/smtp-status', async (request, reply) => {
+        const ctx = await requireAgencyContext(request, reply, db);
+        if (!ctx) return;
         const status = await verifyConnection();
         return { success: true, ...status };
     });

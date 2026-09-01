@@ -2,26 +2,39 @@
                 <div class="technical-container">
                     <div class="card onpage-form-card">
                         <div class="card-header">
-                            <h3>🕸️ Technical SEO Audit</h3>
+                            <h3>Technical SEO Audit</h3>
                             <span class="header-hint">Crawl your site · Find crawl/index issues · Flag sitemap and architecture gaps</span>
                         </div>
                         <div class="card-body">
                             <div class="technical-input-row">
-                                <input type="text" id="technical-site-input" placeholder="https://example.com">
-                                <select id="technical-max-pages">
+                                <label for="technical-site-input" class="sr-only">Site URL</label>
+                                <input type="text" id="technical-site-input" name="site" autocomplete="url" inputmode="url" spellcheck="false" placeholder="https://example.com…">
+                                <label for="technical-max-pages" class="sr-only">Max pages to crawl</label>
+                                <select id="technical-max-pages" name="maxPages">
                                     <option value="10">Crawl 10 pages</option>
                                     <option value="20" selected>Crawl 20 pages</option>
                                     <option value="30">Crawl 30 pages</option>
                                     <option value="50">Crawl 50 pages</option>
                                 </select>
-                                <label class="checkbox-inline" style="white-space:nowrap;">
-                                    <input type="checkbox" id="technical-check-security-headers">
+                                <label class="checkbox-inline" for="technical-check-security-headers" style="white-space:nowrap;">
+                                    <input type="checkbox" id="technical-check-security-headers" name="securityHeaders">
                                     Include security headers
                                 </label>
                             </div>
-                            <button class="btn btn-primary" id="technical-audit-btn">
-                                <i class="fas fa-spider"></i> Run Technical Audit
-                            </button>
+                            <div class="technical-actions-row" style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
+                                <button type="button" class="btn btn-primary" id="technical-audit-btn" style="min-height:44px;">
+                                    <i class="fas fa-spider" aria-hidden="true"></i> Run technical audit
+                                </button>
+                                <div class="technical-history-wrapper" style="display: flex; align-items: center; gap: 10px;">
+                                    <label for="technical-history-dropdown" class="sr-only">Recent audit</label>
+                                    <select id="technical-history-dropdown" name="history" style="padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-lighter); color: var(--text-color); min-width: 250px;">
+                                        <option value="">-- Load Recent Audit --</option>
+                                    </select>
+                                    <button type="button" class="btn btn-secondary" id="technical-load-btn" style="min-height:44px;">
+                                        <i class="fas fa-history"></i> Load
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -85,24 +98,29 @@
                         </div>
 
                         <div class="card">
-                            <div class="card-header">
-                                <h3>Crawled Pages</h3>
-                                <span class="header-hint">Status, depth, canonical health, and per-page findings</span>
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <h3>Crawled Pages</h3>
+                                    <span class="header-hint">Status, depth, canonical health, and per-page findings</span>
+                                </div>
+                                <button class="btn btn-secondary" id="technical-export-csv-btn">
+                                    <i class="fas fa-file-csv"></i> Export CSV
+                                </button>
                             </div>
                             <div class="card-body" style="padding:0;overflow:auto">
                                 <table class="technical-pages-table">
-                                    <thead>
+                                    <caption class="sr-only">Crawled pages with status and issues per URL</caption><thead>
                                         <tr>
-                                            <th>Status</th>
-                                            <th>URL</th>
-                                            <th>Title</th>
-                                            <th>Depth</th>
-                                            <th>Canonical</th>
-                                            <th>Headings</th>
-                                            <th>Images</th>
-                                            <th>Words</th>
-                                            <th>Security</th>
-                                            <th>Issues</th>
+                                            <th scope="col">Status</th>
+                                            <th scope="col">URL</th>
+                                            <th scope="col">Title</th>
+                                            <th scope="col">Depth</th>
+                                            <th scope="col">Canonical</th>
+                                            <th scope="col">Headings</th>
+                                            <th scope="col">Images</th>
+                                            <th scope="col">Words</th>
+                                            <th scope="col">Security</th>
+                                            <th scope="col">Issues</th>
                                         </tr>
                                     </thead>
                                     <tbody id="technical-pages-body">

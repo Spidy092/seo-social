@@ -14,8 +14,8 @@
 
 /* Tabs */
 .sitemap-tabs { display: flex; gap: 8px; margin-bottom: 24px; background: var(--bg-body,#f8fafc); border: 1px solid var(--border-color,#e2e8f0); border-radius: 14px; padding: 6px; width: fit-content; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
-.sitemap-tab { border: none; background: transparent; color: var(--text-secondary,#64748b); padding: 10px 24px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all .2s cubic-bezier(0.4, 0, 0.2, 1); }
-.sitemap-tab.active { background: var(--primary, #4f46e5); color: #fff; box-shadow: 0 4px 12px rgba(79,70,229,.3); }
+.sitemap-tab { border: none; background: transparent; color: var(--text-secondary,#64748b); padding: 10px 24px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background-color 0.2s ease, color 0.2s ease; }
+.sitemap-tab.active { background: var(--ed-copper, var(--primary, #B7552C)); color: #fff; box-shadow: 0 4px 12px rgba(183,85,44,0.18); }
 .sitemap-tab:not(.active):hover { background: rgba(226, 232, 240, 0.5); color: var(--text-primary,#0f172a); }
 
 /* Grid */
@@ -31,15 +31,15 @@
 .sitemap-checks { display: flex; flex-direction: column; gap: 8px; margin: 16px 0 24px; background: rgba(248, 250, 252, 0.5); padding: 16px; border-radius: 12px; border: 1px solid var(--border-color, #e2e8f0); }
 .sitemap-check { display: flex; align-items: center; gap: 10px; font-size: 13.5px; cursor: pointer; padding: 6px; border-radius: 8px; transition: background .15s; font-weight: 500; color: var(--text-secondary, #475569); }
 .sitemap-check:hover { background: rgba(0,0,0,0.03); color: var(--text-primary, #0f172a); }
-.sitemap-check input[type=checkbox] { accent-color: #4f46e5; width: 16px; height: 16px; flex-shrink: 0; cursor: pointer; }
-.sitemap-generate-btn { width: 100%; justify-content: center; height: 48px; font-size: 1rem; font-weight: 600; border-radius: 12px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2); transition: all 0.2s ease; }
+.sitemap-check input[type=checkbox] { accent-color: var(--ed-copper, #B7552C); width: 16px; height: 16px; flex-shrink: 0; cursor: pointer; }
+.sitemap-generate-btn { width: 100%; justify-content: center; height: 48px; font-size: 1rem; font-weight: 600; border-radius: 12px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2); transition: background-color 0.2s ease, border-color 0.2s ease; }
 .sitemap-generate-btn:hover { box-shadow: 0 6px 16px rgba(79, 70, 229, 0.3); transform: translateY(-1px); }
 
 /* Results */
 .sitemap-results-wrap { display: flex; flex-direction: column; gap: 20px; }
-.sitemap-idle { text-align: center; padding: 80px 24px; background: rgba(248, 250, 252, 0.4); border: 2px dashed rgba(203, 213, 225, 0.8); border-radius: 20px; color: var(--text-secondary,#64748b); transition: all 0.2s ease; }
+.sitemap-idle { text-align: center; padding: 80px 24px; background: rgba(248, 250, 252, 0.4); border: 2px dashed rgba(203, 213, 225, 0.8); border-radius: 20px; color: var(--text-secondary,#64748b); transition: background-color 0.2s ease, border-color 0.2s ease; }
 .sitemap-idle:hover { border-color: rgba(79, 70, 229, 0.4); background: rgba(248, 250, 252, 0.8); }
-.sitemap-idle-icon { font-size: 3.5rem; color: #cbd5e1; margin-bottom: 20px; display: block; transition: all 0.2s ease; }
+.sitemap-idle-icon { font-size: 3.5rem; color: #cbd5e1; margin-bottom: 20px; display: block; transition: background-color 0.2s ease, border-color 0.2s ease; }
 .sitemap-idle:hover .sitemap-idle-icon { color: rgba(79, 70, 229, 0.4); transform: scale(1.05); }
 .sitemap-idle h4 { margin: 0 0 10px; font-size: 1.15rem; color: var(--text-primary, #0f172a); font-weight: 600; }
 .sitemap-idle p  { margin: 0; font-size: 14px; max-width: 320px; margin-inline: auto; line-height: 1.5; }
@@ -47,10 +47,10 @@
 /* Progress */
 .sitemap-progress-wrap { border: 1px solid var(--border,#e2e8f0); border-radius: 14px; padding: 24px; background: var(--surface,#fff); }
 .sitemap-progress-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; font-size: 14px; font-weight: 600; }
-.sitemap-pulse { width: 10px; height: 10px; border-radius: 50%; background: #4f46e5; animation: sitePulse 1.2s infinite; flex-shrink: 0; }
+.sitemap-pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--ed-copper, #B7552C); animation: sitePulse 1.2s infinite; flex-shrink: 0; }
 @keyframes sitePulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.4; transform:scale(.7); } }
 .sitemap-progress-bar-track { height: 8px; background: var(--bg,#f1f5f9); border-radius: 99px; overflow: hidden; margin-bottom: 10px; }
-.sitemap-progress-bar { height: 100%; background: linear-gradient(90deg,#4f46e5,#7c3aed); border-radius: 99px; width: 0%; transition: width .4s ease; }
+.sitemap-progress-bar { height: 100%; background: linear-gradient(90deg, var(--ed-copper, #B7552C), var(--ed-copper-dark, #8F3D20)); border-radius: 99px; width: 0%; transition: width .4s ease; }
 .sitemap-progress-stats { font-size: 12px; color: var(--text-muted,#64748b); }
 
 /* Error */
@@ -66,7 +66,7 @@
 /* URL table */
 .sitemap-url-table-wrap { padding: 0 18px 10px; }
 .sitemap-url-table-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 0 8px; font-size: 13px; font-weight: 600; color: var(--text-muted,#64748b); }
-.sitemap-search-input { border: 1px solid var(--border,#e2e8f0); border-radius: 8px; padding: 5px 10px; font-size: 12px; background: var(--bg,#f8fafc); color: var(--text,#1e293b); outline: none; width: 200px; }
+.sitemap-search-input { border: 1px solid var(--border,#e2e8f0); border-radius: 8px; padding: 5px 10px; font-size: 12px; background: var(--bg,#f8fafc); color: var(--text,#1e293b); outline: 0; width: 200px; }
 .sitemap-url-table { font-size: 12px; }
 .sitemap-url-table td:first-child { color: var(--text-muted); width: 40px; }
 .sitemap-url-table td:nth-child(2) { word-break: break-all; max-width: 380px; font-size: 11px; }
@@ -98,16 +98,16 @@
 .sitemap-result-summary strong { color: var(--text, #1f2937); }
 
 .sitemap-result-tabs { display: flex; gap: 4px; padding: 6px 18px 0; border-bottom: 1px solid var(--border, #e2e8f0); background: var(--surface, #fff); }
-.sitemap-result-tab { background: none; border: none; padding: 8px 14px; cursor: pointer; color: var(--text-muted, #64748b); font-size: 13px; font-weight: 600; border-bottom: 2px solid transparent; transition: all .15s; }
+.sitemap-result-tab { background: none; border: none; padding: 8px 14px; cursor: pointer; color: var(--text-muted, #64748b); font-size: 13px; font-weight: 600; border-bottom: 2px solid transparent; transition: background-color 0.15s ease, color 0.15s ease; }
 .sitemap-result-tab:hover { color: var(--text, #1f2937); }
-.sitemap-result-tab.active { color: #4f46e5; border-bottom-color: #4f46e5; }
+.sitemap-result-tab.active { color: var(--ed-copper, #B7552C); border-bottom-color: var(--ed-copper, #B7552C); }
 
 .sitemap-result-panels { padding: 14px 18px; min-height: 80px; }
 .sitemap-result-panel { display: none; }
 .sitemap-result-panel.active { display: block; }
 
 .sitemap-empty { padding: 32px 12px; text-align: center; color: var(--text-muted, #64748b); font-size: 13px; }
-.sitemap-empty a { color: #4f46e5; cursor: pointer; }
+.sitemap-empty a { color: var(--ed-copper, #B7552C); cursor: pointer; }
 
 .sitemap-image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
 .sitemap-image-card { border: 1px solid var(--border, #e2e8f0); border-radius: 6px; overflow: hidden; background: var(--surface, #fff); }
@@ -128,7 +128,7 @@
 .sitemap-report-card table { width: 100%; font-size: 12.5px; border-collapse: collapse; }
 .sitemap-report-card th, .sitemap-report-card td { padding: 5px 8px; text-align: left; border-bottom: 1px solid var(--border, #e2e8f0); }
 .sitemap-report-card th { background: var(--bg, #f8fafc); font-weight: 600; position: sticky; top: 0; }
-.sitemap-report-card a { color: #4f46e5; text-decoration: none; word-break: break-all; }
+.sitemap-report-card a { color: var(--ed-copper, #B7552C); text-decoration: none; word-break: break-all; }
 .sitemap-report-card a:hover { text-decoration: underline; }
 .sitemap-report-card .status-4xx, .sitemap-report-card .status-5xx { color: #b91c1c; font-weight: 600; }
 .sitemap-report-card .empty { color: var(--text-muted, #64748b); font-style: italic; padding: 8px; }

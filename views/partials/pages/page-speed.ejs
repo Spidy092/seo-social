@@ -7,17 +7,20 @@
                         </div>
                         <div class="card-body">
                             <div class="technical-input-row">
-                                <select id="pagespeed-client-select">
+                                <label for="pagespeed-client-select" class="sr-only">Client</label>
+                                <select id="pagespeed-client-select" name="client">
                                     <option value="">No client selected</option>
                                 </select>
-                                <input type="text" id="pagespeed-url-input" placeholder="https://example.com">
-                                <select id="pagespeed-strategy-input">
+                                <label for="pagespeed-url-input" class="sr-only">URL</label>
+                                <input type="url" id="pagespeed-url-input" name="url" autocomplete="url" inputmode="url" spellcheck="false" placeholder="https://example.com…">
+                                <label for="pagespeed-strategy-input" class="sr-only">Strategy</label>
+                                <select id="pagespeed-strategy-input" name="strategy">
                                     <option value="mobile" selected>Mobile</option>
                                     <option value="desktop">Desktop</option>
                                 </select>
                             </div>
-                            <button class="btn btn-primary" id="pagespeed-check-btn">
-                                <i class="fas fa-bolt"></i> Run PageSpeed
+                            <button type="button" class="btn btn-primary" id="pagespeed-check-btn" style="min-height:44px;">
+                                <i class="fas fa-bolt" aria-hidden="true"></i> Run PageSpeed
                             </button>
                         </div>
                     </div>
@@ -25,7 +28,7 @@
                     <div class="card pagespeed-history-card" style="margin-bottom:20px;">
                         <div class="card-header">
                             <h3><i class="fas fa-clock-rotate-left"></i> Recent PageSpeed Checks</h3>
-                            <button class="btn btn-sm btn-outline" id="pagespeed-refresh-history-btn"><i class="fas fa-rotate-right"></i> Refresh</button>
+                            <button type="button" class="btn btn-sm btn-outline" id="pagespeed-refresh-history-btn" aria-label="Refresh history"><i class="fas fa-rotate-right" aria-hidden="true"></i> Refresh</button>
                         </div>
                         <div class="card-body" id="pagespeed-history-list">
                             <p class="text-muted">Select a client or run a check to see recent PageSpeed history.</p>

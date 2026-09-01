@@ -4,10 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Advanced SEO Keyword Research, Competitor Analysis, and Rank Tracking Tool">
+    <meta name="theme-color" content="#F6F5F0">
+    <meta name="color-scheme" content="light dark">
     <title><%= title %></title>
     <link rel="icon" type="image/x-icon" href="/public/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="stylesheet" href="/public/css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/public/css/onpage.css">
     <link rel="stylesheet" href="/public/css/technical.css">
@@ -15,198 +20,102 @@
     <link rel="stylesheet" href="/public/css/page-optimization.css">
     <link rel="stylesheet" href="/public/css/tasks.css">
     <link rel="stylesheet" href="/public/css/sitemap.css">
+    <link rel="stylesheet" href="/public/css/autopilot.css">
+    <link rel="stylesheet" href="/public/css/evidence-desk.css">
 
 </head>
 <body>
+    <a href="#main-content" class="skip-link">Skip to content</a>
     <!-- Sidebar -->
-    <nav class="sidebar">
+    <nav class="sidebar" aria-label="Primary">
         <div class="sidebar-header">
             <div class="logo">
-                <i class="fas fa-search-dollar"></i>
-                <span class="logo-text">Keyword Analyzer</span>
+                <span class="ed-logo-mark" aria-hidden="true">ED</span>
+                <span class="logo-text">Evidence Desk</span>
             </div>
-            <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Collapse sidebar">
-                <i class="fas fa-angles-left"></i>
+            <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Collapse sidebar" aria-label="Collapse sidebar" aria-expanded="true" aria-controls="sidebarNav">
+                <i class="fas fa-angles-left" aria-hidden="true"></i>
             </button>
         </div>
-        <ul class="nav-menu">
-            
-            <!-- Overview -->
+        <button type="button" class="ed-workspace-switcher" aria-label="Current workspace — Agency workspace">
+            <span class="ed-workspace-mark" aria-hidden="true">ED</span>
+            <span><strong>Agency workspace</strong><small>All clients</small></span>
+            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+        </button>
+        <ul class="nav-menu" id="sidebarNav">
             <li class="nav-group">
-                <div class="nav-group-header" data-group="overview">
-                    <span class="nav-group-label">Overview</span>
-                    <i class="fas fa-chevron-down nav-group-arrow"></i>
-                </div>
-                <ul class="nav-group-items">
-                    <li class="nav-item active" data-page="dashboard">
-                        <i class="fas fa-chart-line"></i>
-                        <span>Dashboard</span>
-                    </li>
-                    <li class="nav-item" data-page="clients" >
-                        <i class="fas fa-briefcase"></i>
-                        <span>Clients</span>
-                    </li>
-                    <li class="nav-item" data-page="project-dashboard" >
-                        <i class="fas fa-tachometer-alt"></i>
-                        <span>Project Dashboard</span>
-                    </li>
+                <button type="button" class="nav-group-header" data-group="overview" aria-expanded="true" aria-controls="nav-group-overview"><span class="nav-group-label">Overview</span><i class="fas fa-chevron-down nav-group-arrow" aria-hidden="true"></i></button>
+                <ul class="nav-group-items" id="nav-group-overview">
+                    <li><button type="button" class="nav-item active" data-page="dashboard"><i class="fas fa-chart-line" aria-hidden="true"></i><span>Workspace overview</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="alerts"><i class="fas fa-bell" aria-hidden="true"></i><span>Alerts</span><span class="badge" id="alertBadge" aria-label="Unread alerts">0</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="autopilot"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>Autopilot</span><span class="badge" aria-label="AI feature">AI</span></button></li>
                 </ul>
             </li>
-            <!-- Research & Analysis -->
-            <li class="nav-group">
-                <div class="nav-group-header" data-group="research">
-                    <span class="nav-group-label">Research & Analysis</span>
-                    <i class="fas fa-chevron-down nav-group-arrow"></i>
-                </div>
-                <ul class="nav-group-items">
-                    <li class="nav-item" data-page="research">
-                        <i class="fas fa-search"></i>
-                        <span>Keyword Research</span>
-                    </li>
-                    <li class="nav-item" data-page="competitors">
-                        <i class="fas fa-users"></i>
-                        <span>Competitors</span>
-                    </li>
-                    <li class="nav-item" data-page="analysis">
-                        <i class="fas fa-balance-scale"></i>
-                        <span>Compare & Analyze</span>
-                    </li>
-                    <li class="nav-item" data-page="tracking">
-                        <i class="fas fa-chart-bar"></i>
-                        <span>Rank Tracking</span>
-                    </li>
-                    <li class="nav-item" data-page="gsc">
-                        <i class="fas fa-chart-column"></i>
-                        <span>Search Console</span>
-                    </li>
-                    <li class="nav-item" data-page="seo-performance">
-                        <i class="fas fa-chart-line"></i>
-                        <span>SEO Performance</span>
-                    </li>
-                    <li class="nav-item" data-page="search-visibility">
-                        <i class="fas fa-magnifying-glass-chart"></i>
-                        <span>Search Visibility</span>
-                    </li>
-                    <li class="nav-item" data-page="alerts">
-                        <i class="fas fa-bell"></i>
-                        <span>Alerts</span>
-                        <span class="badge" id="alertBadge">0</span>
-                    </li>
+            <li class="nav-group collapsed" data-default="collapsed">
+                <button type="button" class="nav-group-header" data-group="projects" aria-expanded="false" aria-controls="nav-group-projects"><span class="nav-group-label">Projects</span><i class="fas fa-chevron-down nav-group-arrow" aria-hidden="true"></i></button>
+                <ul class="nav-group-items" id="nav-group-projects">
+                    <li><button type="button" class="nav-item" data-page="clients"><i class="fas fa-briefcase" aria-hidden="true"></i><span>Clients</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="project-dashboard"><i class="fas fa-layer-group" aria-hidden="true"></i><span>Project dashboard</span></button></li>
                 </ul>
             </li>
-            <!-- Audit -->
-            <li class="nav-group">
-                <div class="nav-group-header" data-group="audit">
-                    <span class="nav-group-label">Audit</span>
-                    <i class="fas fa-chevron-down nav-group-arrow"></i>
-                </div>
-                <ul class="nav-group-items">
-                    <li class="nav-item" data-page="onpage">
-                        <i class="fas fa-file-invoice"></i>
-                        <span>On-Page SEO</span>
-                    </li>
-                    <li class="nav-item" data-page="page-optimization" >
-                        <i class="fas fa-bullseye"></i>
-                        <span>Page Optimization</span>
-                    </li>
-                    <li class="nav-item" data-page="page-speed">
-                        <i class="fas fa-bolt"></i>
-                        <span>PageSpeed</span>
-                    </li>
-                    <li class="nav-item" data-page="technical">
-                        <i class="fas fa-spider"></i>
-                        <span>Technical SEO</span>
-                    </li>
-                    <li class="nav-item" data-page="sitemap">
-                        <i class="fas fa-sitemap"></i>
-                        <span>Sitemap Generator</span>
-                    </li>
+            <li class="nav-group collapsed" data-default="collapsed">
+                <button type="button" class="nav-group-header" data-group="work" aria-expanded="false" aria-controls="nav-group-work"><span class="nav-group-label">Core work</span><i class="fas fa-chevron-down nav-group-arrow" aria-hidden="true"></i></button>
+                <ul class="nav-group-items" id="nav-group-work">
+                    <li><button type="button" class="nav-item" data-page="research"><i class="fas fa-search" aria-hidden="true"></i><span>Keyword research</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="tracking"><i class="fas fa-chart-bar" aria-hidden="true"></i><span>Rank tracking</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="onpage"><i class="fas fa-file-lines" aria-hidden="true"></i><span>On-page SEO</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="technical"><i class="fas fa-spider" aria-hidden="true"></i><span>Technical SEO</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="page-optimization"><i class="fas fa-bullseye" aria-hidden="true"></i><span>Page optimization</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="page-speed"><i class="fas fa-gauge-high" aria-hidden="true"></i><span>PageSpeed</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="content-brief"><i class="fas fa-file-pen" aria-hidden="true"></i><span>Content briefs</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="humanizer"><i class="fas fa-pen-nib" aria-hidden="true"></i><span>Content humanizer</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="tasks"><i class="fas fa-list-check" aria-hidden="true"></i><span>SEO tasks</span></button></li>
                 </ul>
             </li>
-            <!-- Content -->
-            <li class="nav-group">
-                <div class="nav-group-header" data-group="content">
-                    <span class="nav-group-label">Content</span>
-                    <i class="fas fa-chevron-down nav-group-arrow"></i>
-                </div>
-                <ul class="nav-group-items">
-                    <li class="nav-item" data-page="humanizer">
-                        <i class="fas fa-pen-nib"></i>
-                        <span>Content Humanizer</span>
-                    </li>
-                    <li class="nav-item" data-page="content-brief">
-                        <i class="fas fa-file-lines"></i>
-                        <span>Content Brief</span>
-                    </li>
-                    <li class="nav-item" data-page="reports">
-                        <i class="fas fa-file-pdf"></i>
-                        <span>Agency Reports</span>
-                    </li>
-                    <li class="nav-item" data-page="tasks">
-                        <i class="fas fa-tasks"></i>
-                        <span>SEO Tasks</span>
-                    </li>
+            <li class="nav-group collapsed" data-default="collapsed">
+                <button type="button" class="nav-group-header" data-group="delivery" aria-expanded="false" aria-controls="nav-group-delivery"><span class="nav-group-label">Delivery</span><i class="fas fa-chevron-down nav-group-arrow" aria-hidden="true"></i></button>
+                <ul class="nav-group-items" id="nav-group-delivery">
+                    <li><button type="button" class="nav-item" data-page="reports"><i class="fas fa-file-export" aria-hidden="true"></i><span>Report workspace</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="gsc"><i class="fas fa-chart-column" aria-hidden="true"></i><span>Search Console</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="seo-performance"><i class="fas fa-chart-line" aria-hidden="true"></i><span>SEO performance</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="search-visibility"><i class="fas fa-magnifying-glass-chart" aria-hidden="true"></i><span>Search visibility</span></button></li>
                 </ul>
             </li>
-            <!-- Agency Settings -->
-            <li class="nav-group">
-                <div class="nav-group-header" data-group="agency">
-                    <span class="nav-group-label">Agency</span>
-                    <i class="fas fa-chevron-down nav-group-arrow"></i>
-                </div>
-                <ul class="nav-group-items">
-                    <li class="nav-item" data-page="agency-settings">
-                        <i class="fas fa-building"></i>
-                        <span>Agency Settings</span>
-                    </li>
-                    <li class="nav-item" data-page="agency-members">
-                        <i class="fas fa-user-group"></i>
-                        <span>Team Members</span>
-                    </li>
+            <li class="nav-group collapsed" data-default="collapsed">
+                <button type="button" class="nav-group-header" data-group="tools" aria-expanded="false" aria-controls="nav-group-tools"><span class="nav-group-label">Research tools</span><i class="fas fa-chevron-down nav-group-arrow" aria-hidden="true"></i></button>
+                <ul class="nav-group-items" id="nav-group-tools">
+                    <li><button type="button" class="nav-item" data-page="clustering"><i class="fas fa-layer-group" aria-hidden="true"></i><span>Keyword clustering</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="competitors"><i class="fas fa-users" aria-hidden="true"></i><span>Competitors</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="analysis"><i class="fas fa-scale-balanced" aria-hidden="true"></i><span>Compare &amp; analyze</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="sitemap"><i class="fas fa-sitemap" aria-hidden="true"></i><span>Sitemap generator</span></button></li>
                 </ul>
             </li>
-            <!-- Social Poster -->
-            <li class="nav-group" style="display: none;">
-                <div class="nav-group-header" data-group="social">
-                    <span class="nav-group-label">Social Poster</span>
-                    <i class="fas fa-chevron-down nav-group-arrow"></i>
-                </div>
-                <ul class="nav-group-items">
-                    <li class="nav-item" data-page="social-upload">
-                        <i class="fas fa-upload"></i>
-                        <span>Upload</span>
-                    </li>
-                    <li class="nav-item" data-page="social-schedule">
-                        <i class="fas fa-calendar-alt"></i>
-                        <span>Schedule</span>
-                    </li>
-                    <li class="nav-item" data-page="social-platforms">
-                        <i class="fas fa-hashtag"></i>
-                        <span>Platforms</span>
-                    </li>
-                    <li class="nav-item" data-page="social-analytics">
-                        <i class="fas fa-chart-pie"></i>
-                        <span>Analytics</span>
-                    </li>
+            <li class="nav-group collapsed" data-default="collapsed">
+                <button type="button" class="nav-group-header" data-group="agency" aria-expanded="false" aria-controls="nav-group-agency"><span class="nav-group-label">Agency</span><i class="fas fa-chevron-down nav-group-arrow" aria-hidden="true"></i></button>
+                <ul class="nav-group-items" id="nav-group-agency">
+                    <li><button type="button" class="nav-item" data-page="agency-settings"><i class="fas fa-building" aria-hidden="true"></i><span>Settings</span></button></li>
+                    <li><button type="button" class="nav-item" data-page="agency-members"><i class="fas fa-user-group" aria-hidden="true"></i><span>Team members</span></button></li>
                 </ul>
             </li>
+            <li class="nav-group" style="display:none;"><button type="button" class="nav-group-header" data-group="social" aria-expanded="false"><span class="nav-group-label">Social Poster</span><i class="fas fa-chevron-down nav-group-arrow" aria-hidden="true"></i></button><ul class="nav-group-items"><li><button type="button" class="nav-item" data-page="social-upload"><i class="fas fa-upload" aria-hidden="true"></i><span>Upload</span></button></li><li><button type="button" class="nav-item" data-page="social-schedule"><i class="fas fa-calendar-alt" aria-hidden="true"></i><span>Schedule</span></button></li><li><button type="button" class="nav-item" data-page="social-platforms"><i class="fas fa-hashtag" aria-hidden="true"></i><span>Platforms</span></button></li><li><button type="button" class="nav-item" data-page="social-analytics"><i class="fas fa-chart-pie" aria-hidden="true"></i><span>Analytics</span></button></li></ul></li>
         </ul>
         <div class="sidebar-footer">
-            <div class="version">v<%= version %></div>
-            <div class="nav-item logout-button">
-                <i class="fas fa-sign-out-alt"></i>
+            <div class="version" aria-label="App version">v<%= version %></div>
+            <button type="button" class="nav-item logout-button" aria-label="Log out">
+                <i class="fas fa-sign-out-alt" aria-hidden="true"></i>
                 <span class="logo-text">Logout</span>
-            </div>
+            </button>
         </div>
     </nav>
 
     <!-- Command Palette Modal -->
-    <div class="command-palette-overlay" id="commandPalette">
+    <div class="command-palette-overlay" id="commandPalette" role="dialog" aria-modal="true" aria-labelledby="commandPaletteTitle">
         <div class="command-palette">
             <div class="command-palette-input-wrap">
-                <i class="fas fa-search"></i>
-                <input type="text" id="commandPaletteInput" placeholder="Search pages, keywords, commands..." autocomplete="off">
-                <kbd>ESC</kbd>
+                <i class="fas fa-search" aria-hidden="true"></i>
+                <label for="commandPaletteInput" id="commandPaletteTitle" class="sr-only">Search pages and keywords</label>
+                <input type="search" id="commandPaletteInput" placeholder="Search pages, keywords, commands…" autocomplete="off" spellcheck="false" aria-label="Search pages and keywords">
+                <kbd aria-hidden="true">ESC</kbd>
             </div>
             <div class="command-palette-results" id="commandPaletteResults"></div>
             <div class="command-palette-footer">
@@ -218,20 +127,20 @@
     </div>
 
     <!-- Sidebar Overlay for Mobile -->
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
     <!-- Back to Top Button -->
-    <button class="back-to-top" id="backToTop" title="Back to top">
-        <i class="fas fa-arrow-up"></i>
+    <button class="back-to-top" id="backToTop" title="Back to top" aria-label="Back to top">
+        <i class="fas fa-arrow-up" aria-hidden="true"></i>
     </button>
 
     <!-- Main Content -->
-    <main class="main-content">
+    <main class="main-content" id="main-content">
         <!-- Header -->
         <header class="header">
             <div class="header-left">
-                <button class="menu-toggle" id="menuToggle">
-                    <i class="fas fa-bars"></i>
+                <button class="menu-toggle" id="menuToggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="sidebarNav">
+                    <i class="fas fa-bars" aria-hidden="true"></i>
                 </button>
                 <div class="header-title-area">
                     <nav class="breadcrumbs" id="breadcrumbs">
@@ -242,24 +151,27 @@
             </div>
             
             <div class="header-center">
-                <div class="search-bar-container command-palette-trigger" id="commandPaletteTrigger" title="Search (Ctrl+K)">
-                    <i class="fas fa-search search-icon"></i>
-                    <span class="search-hint" style="flex:1; text-align:left;">Search everything...</span>
-                    <kbd>Ctrl+K</kbd>
-                </div>
+                <button type="button" class="search-bar-container command-palette-trigger" id="commandPaletteTrigger" title="Search (Ctrl+K)" aria-label="Search pages and keywords (Ctrl+K)">
+                    <i class="fas fa-search search-icon" aria-hidden="true"></i>
+                    <span class="search-hint" style="flex:1; text-align:left;">Search everything…</span>
+                    <kbd aria-hidden="true">Ctrl+K</kbd>
+                </button>
             </div>
 
             <div class="header-right">
-                <button class="header-action-btn icon-btn" id="themeToggle" title="Toggle dark mode">
-                    <i class="fas fa-moon"></i>
-                </button>
+                <div class="ed-header-context"><span class="ed-status-dot ed-status-dot-green" aria-hidden="true"></span><span>Workspace live</span></div>
+                <button type="button" class="header-action-btn icon-btn" id="headerSearchBtn" title="Search" aria-label="Search" style="display:none;"><i class="fas fa-search" aria-hidden="true"></i></button>
+                <button type="button" class="header-action-btn icon-btn" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode" aria-pressed="false"><i class="fas fa-moon" aria-hidden="true"></i></button>
             </div>
         </header>
 
         <!-- Pages -->
-        <div class="content">
+        <div class="content" aria-live="polite" aria-busy="false" id="pageContentLive">
             <!-- Dashboard Page -->
             <%- include('partials/pages/dashboard') %>
+
+            <!-- Autopilot Page -->
+            <%- include('partials/pages/autopilot') %>
 
             <!-- Clients Page -->
             <%- include('partials/pages/clients') %>
@@ -269,6 +181,9 @@
 
             <!-- Keyword Research Page -->
             <%- include('partials/pages/research') %>
+
+            <!-- Keyword Clustering Page -->
+            <%- include('partials/pages/clustering') %>
 
             <!-- Competitors Page -->
             <%- include('partials/pages/competitors') %>
@@ -328,17 +243,17 @@
                         <form id="taskForm" onsubmit="saveTask(event)">
                             <input type="hidden" id="taskFormId">
                             <div class="form-group">
-                                <label style="font-size: 12px; font-weight: 600;">Task Title</label>
-                                <input type="text" id="taskFormTitle" placeholder="e.g. Add FAQ schema to homepage" style="width: 100%;" required>
+                                <label for="taskFormTitle" style="font-size: 12px; font-weight: 600;">Task title</label>
+                                <input type="text" id="taskFormTitle" name="taskTitle" autocomplete="off" spellcheck="true" placeholder="e.g. Add FAQ schema to homepage…" style="width: 100%;" required>
                             </div>
                             <div class="form-group">
-                                <label style="font-size: 12px; font-weight: 600;">Description</label>
-                                <textarea id="taskFormDesc" placeholder="Explain what to do, target URLs, LSI keywords to add..." style="width: 100%; min-height: 80px;"></textarea>
+                                <label for="taskFormDesc" style="font-size: 12px; font-weight: 600;">Description</label>
+                                <textarea id="taskFormDesc" name="taskDesc" spellcheck="true" placeholder="Explain what to do, target URLs, LSI keywords to add…" style="width: 100%; min-height: 80px;"></textarea>
                             </div>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                                 <div class="form-group">
-                                    <label style="font-size: 12px; font-weight: 600;">Category</label>
-                                    <select id="taskFormCategory" style="width: 100%;">
+                                    <label for="taskFormCategory" style="font-size: 12px; font-weight: 600;">Category</label>
+                                    <select id="taskFormCategory" name="category" style="width: 100%;">
                                         <option value="on-page">On-Page SEO</option>
                                         <option value="technical">Technical SEO</option>
                                         <option value="content">Content Strategy</option>
@@ -348,8 +263,8 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label style="font-size: 12px; font-weight: 600;">Priority</label>
-                                    <select id="taskFormPriority" style="width: 100%;">
+                                    <label for="taskFormPriority" style="font-size: 12px; font-weight: 600;">Priority</label>
+                                    <select id="taskFormPriority" name="priority" style="width: 100%;">
                                         <option value="critical">🚨 Critical</option>
                                         <option value="high">🟠 High</option>
                                         <option value="medium" selected>🟡 Medium</option>
@@ -359,16 +274,16 @@
                             </div>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                                 <div class="form-group">
-                                    <label style="font-size: 12px; font-weight: 600;">Impact</label>
-                                    <select id="taskFormImpact" style="width: 100%;">
+                                    <label for="taskFormImpact" style="font-size: 12px; font-weight: 600;">Impact</label>
+                                    <select id="taskFormImpact" name="impact" style="width: 100%;">
                                         <option value="high">High</option>
                                         <option value="medium" selected>Medium</option>
                                         <option value="low">Low</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label style="font-size: 12px; font-weight: 600;">Effort</label>
-                                    <select id="taskFormEffort" style="width: 100%;">
+                                    <label for="taskFormEffort" style="font-size: 12px; font-weight: 600;">Effort</label>
+                                    <select id="taskFormEffort" name="effort" style="width: 100%;">
                                         <option value="high">High</option>
                                         <option value="medium" selected>Medium</option>
                                         <option value="low">Low</option>
@@ -376,8 +291,8 @@
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label style="font-size: 12px; font-weight: 600;">Status</label>
-                                <select id="taskFormStatus" style="width: 100%;">
+                                <label for="taskFormStatus" style="font-size: 12px; font-weight: 600;">Status</label>
+                                <select id="taskFormStatus" name="status" style="width: 100%;">
                                     <option value="todo" selected>To Do</option>
                                     <option value="in_progress">In Progress</option>
                                     <option value="completed">Completed</option>
@@ -418,24 +333,30 @@
     </main>
 
     <!-- Competitor Analysis Modal -->
-    <div class="modal" id="competitorAnalysisModal">
+    <div class="modal" id="competitorAnalysisModal" role="dialog" aria-modal="true" aria-labelledby="competitorModalTitle">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>📊 Page Analysis</h3>
-                <button class="modal-close">&times;</button>
+                <h3 id="competitorModalTitle">Page Analysis</h3>
+                <button type="button" class="modal-close" aria-label="Close dialog">&times;</button>
             </div>
             <div class="modal-body" id="competitorAnalysisContent"></div>
         </div>
     </div>
 
     <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="spinner"></div>
-        <p id="loadingText">Analyzing...</p>
+    <div class="loading-overlay" id="loadingOverlay" aria-live="polite" aria-busy="true">
+        <div class="spinner" aria-hidden="true"></div>
+        <p id="loadingText">Analyzing…</p>
     </div>
 
+    <aside class="ed-evidence-drawer" id="evidenceDrawer" aria-hidden="true" aria-labelledby="evidenceDrawerTitle" inert>
+        <div class="ed-drawer-header"><div><p class="ed-eyebrow">Evidence desk</p><h2 id="evidenceDrawerTitle">How this workspace reports truth</h2></div><button class="ed-icon-button" id="closeEvidenceDrawer" type="button" aria-label="Close evidence panel"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>
+        <div class="ed-drawer-body" id="evidenceDrawerBody"><p>Every result should carry its context, source, freshness, and next action. Missing or stale data stays visible so an analyst can decide what to do next.</p><div class="ed-drawer-rule"><span class="ed-status-dot ed-status-dot-green" aria-hidden="true"></span><div><strong>Measured</strong><small>Directly returned from a connected or stored source.</small></div></div><div class="ed-drawer-rule"><span class="ed-status-dot ed-status-dot-amber" aria-hidden="true"></span><div><strong>Proxy</strong><small>Derived from another source and labelled before it reaches a report.</small></div></div><div class="ed-drawer-rule"><span class="ed-status-dot ed-status-dot-neutral" aria-hidden="true"></span><div><strong>Not collected</strong><small>Not enough evidence yet. The interface will not fill the gap with a guess.</small></div></div></div>
+    </aside>
+    <div class="ed-drawer-overlay" id="evidenceDrawerOverlay" aria-hidden="true"></div>
+
     <!-- Toast Notifications -->
-    <div class="toast-container" id="toastContainer"></div>
+    <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js"></script>
     <script src="/public/js/app.js"></script>
@@ -451,6 +372,8 @@
     <script src="/public/js/agency.js"></script>
     <script src="/public/js/sitemap.js"></script>
     <script src="/public/js/sitemap-reports.js"></script>
+    <script src="/public/js/autopilot.js"></script>
+    <script src="/public/js/evidence-desk.js"></script>
 
 </body>
 </html>

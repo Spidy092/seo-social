@@ -290,8 +290,8 @@ async function keywordRoutes(fastify, options) {
                     `SELECT p.id, p.client_id, p.name AS project_name, c.website_url, c.agency_id
                      FROM seo_projects p
                      JOIN seo_clients c ON c.id = p.client_id
-                     WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`,
-                    [projectId, ctx?.agencyId || null]
+                     WHERE p.id = $1 AND c.agency_id = $2`,
+                    [projectId, ctx.agencyId]
                 );
 
                 const project = projectAccess.rows[0];
@@ -532,7 +532,7 @@ async function keywordRoutes(fastify, options) {
                  JOIN seo_project_keywords spk ON spk.keyword_id = k.id
                  JOIN seo_projects p ON p.id = spk.project_id
                  JOIN seo_clients c ON c.id = p.client_id
-                 WHERE k.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`,
+                 WHERE k.id = $1 AND c.agency_id = $2`,
                 [id, ctx.agencyId]
             );
 
@@ -563,7 +563,7 @@ async function keywordRoutes(fastify, options) {
 
         try {
             const params = [ctx.agencyId];
-            let where = '(c.agency_id = $1 OR c.agency_id IS NULL OR $1 IS NULL)';
+            let where = 'c.agency_id = $1';
             if (search) {
                 params.push(`%${search}%`);
                 where += ` AND k.keyword ILIKE ${params.length}`;
@@ -669,14 +669,167 @@ async function keywordRoutes(fastify, options) {
         }
     });
 
+    // ─── Keyword Clustering ───
+    fastify.post('/api/keywords/cluster', {
+        schema: {
+            body: {
+                type: 'object',
+                required: ['keywords'],
+                properties: {
+                    keywords: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 200 },
+                    method: { type: 'string', enum: ['semantic', 'intent', 'ngram'], default: 'semantic' },
+                    minSize: { type: 'integer', default: 3, minimum: 2, maximum: 10 },
+                },
+            },
+        },
+        handler: async (request, reply) => {
+            const { keywords, method = 'semantic', minSize = 3 } = request.body;
+
+            try {
+                const clean = [...new Set(keywords.map(k => k.trim()).filter(Boolean))];
+                if (clean.length < 2) return reply.code(400).send({ error: 'Need at least 2 keywords' });
+
+                // ─── Helpers ─────────────────────────────────────────────
+                const stopWords = new Set(['a','an','the','and','or','but','in','on','at','to','for','of','with','by','from','is','are','was','were','be','been','being','have','has','had','do','does','did','will','would','could','should','may','might','can','how','what','when','where','why','which','who','that','this','these','those','i','we','you','he','she','they','it','its','my','our','your','his','her','their','best','top','good','great','new']);
+
+                function tokenize(kw) {
+                    return kw.toLowerCase().split(/\W+/).filter(w => w.length > 1 && !stopWords.has(w));
+                }
+
+                function ngramSimilarity(a, b) {
+                    const tokA = new Set(tokenize(a));
+                    const tokB = new Set(tokenize(b));
+                    if (!tokA.size && !tokB.size) return 1;
+                    if (!tokA.size || !tokB.size) return 0;
+                    const intersection = [...tokA].filter(t => tokB.has(t)).length;
+                    return intersection / Math.max(tokA.size, tokB.size);
+                }
+
+                function ngramOverlap(a, b, n = 2) {
+                    function ngrams(str) {
+                        const words = tokenize(str);
+                        const out = new Set();
+                        words.forEach(w => { for (let i = 0; i <= w.length - n; i++) out.add(w.slice(i, i + n)); });
+                        return out;
+                    }
+                    const gA = ngrams(a); const gB = ngrams(b);
+                    if (!gA.size && !gB.size) return 1;
+                    if (!gA.size || !gB.size) return 0;
+                    const inter = [...gA].filter(g => gB.has(g)).length;
+                    return inter / Math.max(gA.size, gB.size);
+                }
+
+                function simScore(a, b, method) {
+                    if (method === 'ngram') return ngramOverlap(a, b);
+                    if (method === 'intent') {
+                        const iA = keywordService.analyzeKeywordIntent(a).primary;
+                        const iB = keywordService.analyzeKeywordIntent(b).primary;
+                        if (iA !== iB) return 0;
+                        return ngramSimilarity(a, b);
+                    }
+                    // semantic: token overlap weighted by shared prefix
+                    const tok = ngramSimilarity(a, b);
+                    const ng  = ngramOverlap(a, b);
+                    return tok * 0.6 + ng * 0.4;
+                }
+
+                // ─── Greedy clustering ────────────────────────────────────
+                const THRESHOLD = method === 'ngram' ? 0.25 : 0.20;
+                const assigned = new Array(clean.length).fill(-1);
+                const groups = []; // [{members: [idx,...]}]
+
+                for (let i = 0; i < clean.length; i++) {
+                    if (assigned[i] !== -1) continue;
+                    let bestGroup = -1; let bestScore = THRESHOLD;
+                    for (let g = 0; g < groups.length; g++) {
+                        const centroid = groups[g].centroid;
+                        const score = simScore(clean[i], centroid, method);
+                        if (score > bestScore) { bestScore = score; bestGroup = g; }
+                    }
+                    if (bestGroup === -1) {
+                        groups.push({ centroid: clean[i], members: [i], scores: { [i]: 1.0 } });
+                        assigned[i] = groups.length - 1;
+                    } else {
+                        groups[bestGroup].members.push(i);
+                        groups[bestGroup].scores[i] = bestScore;
+                        assigned[i] = bestGroup;
+                    }
+                }
+
+                // ─── Build result clusters ────────────────────────────────
+                const clusters = [];
+                const ungrouped = [];
+
+                groups.forEach(g => {
+                    if (g.members.length < minSize) {
+                        g.members.forEach(idx => ungrouped.push(clean[idx]));
+                        return;
+                    }
+                    const kwObjs = g.members.map(idx => {
+                        const kw = clean[idx];
+                        const intent = keywordService.analyzeKeywordIntent(kw).primary;
+                        return { keyword: kw, intent, similarity: g.scores[idx] || 0 };
+                    }).sort((a, b) => b.similarity - a.similarity);
+
+                    // Dominant intent
+                    const intentMap = {};
+                    kwObjs.forEach(k => { intentMap[k.intent] = (intentMap[k.intent] || 0) + 1; });
+                    const dominantIntent = Object.entries(intentMap).sort((a, b) => b[1] - a[1])[0]?.[0] || 'mixed';
+                    const isMultiIntent = Object.keys(intentMap).length > 1 && Math.max(...Object.values(intentMap)) / kwObjs.length < 0.7;
+
+                    // Cluster label: top shared tokens or centroid
+                    const centroidToks = tokenize(g.centroid);
+                    const label = centroidToks.length
+                        ? centroidToks.slice(0, 3).map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(' ')
+                        : g.centroid;
+
+                    clusters.push({
+                        label,
+                        dominantIntent: isMultiIntent ? 'mixed' : dominantIntent,
+                        keywords: kwObjs,
+                    });
+                });
+
+                // Sort clusters by size desc
+                clusters.sort((a, b) => b.keywords.length - a.keywords.length);
+
+                log.info({ total: clean.length, clusters: clusters.length, ungrouped: ungrouped.length, method }, 'keyword clustering done');
+
+                return { success: true, clusters, ungrouped, total: clean.length };
+            } catch (err) {
+                log.error({ err: err.message }, 'keyword clustering failed');
+                return reply.code(500).send({ error: err.message });
+            }
+        },
+    });
+
     // ─── Get Dashboard Stats ───
     fastify.get('/api/stats', async (request, reply) => {
+        const ctx = await getAgencyContext(request, db);
+        if (!ctx) return reply.code(401).send({ error: 'Unauthorized' });
+
         try {
             const [keywords, competitors, alerts, rankings] = await Promise.all([
-                db.query('SELECT COUNT(*) as total FROM keywords'),
-                db.query('SELECT COUNT(DISTINCT domain) as total FROM competitors'),
-                db.query('SELECT COUNT(*) as total FROM alerts WHERE is_read = FALSE'),
-                db.query('SELECT COUNT(*) as total FROM domain_rankings WHERE rank_position <= 10'),
+                db.query(
+                    `SELECT COUNT(DISTINCT k.id) AS total
+                     FROM keywords k
+                     JOIN seo_project_keywords spk ON spk.keyword_id = k.id
+                     JOIN seo_projects p ON p.id = spk.project_id
+                     JOIN seo_clients c ON c.id = p.client_id
+                     WHERE c.agency_id = $1`,
+                    [ctx.agencyId]
+                ),
+                db.query(
+                    `SELECT COUNT(DISTINCT comp.domain) AS total
+                     FROM competitors comp
+                     JOIN seo_project_keywords spk ON spk.keyword_id = comp.keyword_id
+                     JOIN seo_projects p ON p.id = spk.project_id
+                     JOIN seo_clients c ON c.id = p.client_id
+                     WHERE c.agency_id = $1`,
+                    [ctx.agencyId]
+                ),
+                db.query('SELECT COUNT(*) AS total FROM alerts WHERE agency_id = $1 AND is_read = FALSE', [ctx.agencyId]),
+                db.query('SELECT COUNT(*) AS total FROM domain_rankings WHERE agency_id = $1 AND rank_position <= 10', [ctx.agencyId]),
             ]);
 
             return {
@@ -687,7 +840,7 @@ async function keywordRoutes(fastify, options) {
             };
         } catch (err) {
             log.error({ err: err.message }, 'failed to get stats');
-            return reply.code(500).send({ error: err.message });
+            return reply.code(500).send({ error: 'Unable to load workspace stats right now' });
         }
     });
 }

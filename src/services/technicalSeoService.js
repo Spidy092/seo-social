@@ -1,7 +1,7 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
-const https = require('https');
 const { createLogger } = require('../utils/logger');
+const { assertSafeHttpUrl } = require('../utils/urlSecurity');
 
 const log = createLogger('services:technical-seo');
 const MAX_SITEMAP_URLS = 250;
@@ -13,6 +13,7 @@ const USER_AGENTS = [
 
 async function auditSite(siteUrl, options = {}) {
     const normalizedUrl = normalizeSiteUrl(siteUrl);
+    await assertSafeHttpUrl(normalizedUrl);
     const maxPages = clampNumber(options.maxPages, 5, 50, DEFAULT_MAX_PAGES);
     const baseUrl = new URL(normalizedUrl);
     const siteOrigin = baseUrl.origin;
@@ -965,15 +966,18 @@ async function discoverSitemaps(baseUrl, robotsTxt) {
 }
 
 async function fetchUrl(url, options = {}) {
-    return axios.get(url, {
+    const safeUrl = await assertSafeHttpUrl(url);
+    return axios.get(safeUrl.href, {
         headers: {
             'User-Agent': USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)],
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         },
         timeout: options.timeout || 20000,
-        maxRedirects: typeof options.maxRedirects === 'number' ? options.maxRedirects : 5,
+        // Redirects are deliberately disabled so every outbound URL is validated.
+        maxRedirects: 0,
+        maxContentLength: 5 * 1024 * 1024,
+        maxBodyLength: 5 * 1024 * 1024,
         validateStatus: (status) => status < 600,
-        httpsAgent: new https.Agent({ rejectUnauthorized: false }),
         responseType: 'text',
     });
 }

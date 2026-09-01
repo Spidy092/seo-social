@@ -1,10 +1,10 @@
 /* ─── Social Pages - Consistent with Main App ─── */
 :root {
-    --primary: #6366f1;
-    --primary-dark: #4f46e5;
-    --secondary: #10b981;
-    --warning: #f59e0b;
-    --danger: #ef4444;
+    --primary: var(--ed-copper, #B7552C);
+    --primary-dark: var(--ed-copper-dark, #8F3D20);
+    --secondary: var(--ed-green, #28704D);
+    --warning: var(--ed-amber, #966617);
+    --danger: var(--ed-red, #A43D35);
     --dark: #1e293b;
     --gray: #64748b;
     --gray-light: #e2e8f0;
@@ -30,7 +30,7 @@ body {
     padding: 10px 20px;
     border-radius: 8px;
     font-weight: 500;
-    transition: all 0.2s;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .btn-primary:hover {

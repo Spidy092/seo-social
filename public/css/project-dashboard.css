@@ -59,8 +59,7 @@
 }
 
 .pdh-controls select:focus {
-    outline: none;
-    border-color: var(--primary);
+    outline: 0; border-color: var(--ed-copper, var(--primary)); box-shadow: 0 0 0 3px rgba(183,85,44,0.12);
 }
 
 .pdh-meta {
@@ -681,7 +680,7 @@
 
 /* ─── Full Project Audit widget ─── */
 .pd-btn-accent {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    background: var(--ed-copper, #B7552C);
     color: #fff;
     border: 0;
     padding: 8px 16px;
@@ -731,7 +730,7 @@
 }
 .pd-audit-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    background: var(--ed-copper, #B7552C);
     transition: width 0.3s ease;
 }
 .pd-audit-progress-meta {
@@ -820,8 +819,8 @@
     border-radius: 8px;
     border-left: 3px solid var(--gray-light, #e5e7eb);
 }
-.pd-audit-action.priority-high   { border-left-color: #ef4444; }
-.pd-audit-action.priority-medium { border-left-color: #f59e0b; }
+.pd-audit-action.priority-high   { border-left-color: var(--ed-red, #A43D35); }
+.pd-audit-action.priority-medium { border-left-color: var(--ed-amber, #966617); }
 .pd-audit-action.priority-low    { border-left-color: #3b82f6; }
 .pd-audit-priority {
     font-size: 0.7rem;
@@ -858,8 +857,8 @@
 /* ─── Audit settings panel + buttons ─── */
 .pd-btn-secondary {
     background: transparent;
-    color: var(--primary, #6366f1);
-    border: 1px solid var(--primary, #6366f1);
+    color: var(--ed-copper, var(--primary, #B7552C));
+    border: 1px solid var(--ed-copper, var(--primary, #B7552C));
     padding: 7px 14px;
     border-radius: 8px;
     font-weight: 600;
@@ -869,11 +868,11 @@
     gap: 6px;
     font-size: 0.85rem;
     margin-left: 8px;
-    transition: all 0.15s;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
-.pd-btn-secondary:hover { background: var(--primary, #6366f1); color: #fff; }
+.pd-btn-secondary:hover { background: var(--ed-copper, var(--primary, #B7552C)); color: #fff; }
 .pd-btn-primary {
-    background: var(--primary, #6366f1);
+    background: var(--ed-copper, var(--primary, #B7552C));
     color: #fff;
     border: 0;
     padding: 7px 14px;
@@ -1035,8 +1034,8 @@
 	color: #000;
 }
 .pd-ranked-kw-bar input:focus {
-    outline: none;
-    border-color: var(--primary, #6366f1);
+    outline: 0;
+    border-color: var(--ed-copper, var(--primary, #B7552C));
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
 }
 .pd-ranked-kw-summary {
@@ -1073,7 +1072,7 @@
 .pd-source-badge.gsc        { background: #dbeafe; color: #1d4ed8; }
 .pd-source-badge.serper     { background: #fef3c7; color: #92400e; }
 .pd-source-badge.rank_tracker,
-.pd-source-badge.rank-tracker { background: #e0e7ff; color: #4338ca; }
+.pd-source-badge.rank-tracker { background: #F1E4DD; color: var(--ed-copper-dark, #8F3D20); }
 .pd-source-badge.cache      { background: #e5e7eb; color: #4b5563; }
 .pd-source-badge.none       { background: #fee2e2; color: #991b1b; }
 .pd-ranked-kw-list {
@@ -1145,7 +1144,7 @@
 .pd-ranked-kw-add-btn {
     background: transparent;
     border: 1px solid var(--gray-light, #e5e7eb);
-    color: var(--primary, #6366f1);
+    color: var(--ed-copper, var(--primary, #B7552C));
     width: 28px;
     height: 28px;
     border-radius: 6px;
@@ -1154,16 +1153,16 @@
     justify-content: center;
     cursor: pointer;
     flex-shrink: 0;
-    transition: all 0.15s ease;
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
 .pd-ranked-kw-add-btn:hover {
-    background: var(--primary, #6366f1);
+    background: var(--ed-copper, var(--primary, #B7552C));
     color: #fff;
-    border-color: var(--primary, #6366f1);
+    border-color: var(--ed-copper, var(--primary, #B7552C));
 }
 .pd-ranked-kw-add-btn:disabled { opacity: 0.5; cursor: wait; }
 .pd-ranked-kw-tracked {
-    color: var(--secondary, #10b981);
+    color: var(--ed-green, #28704D);
     width: 28px;
     height: 28px;
     display: inline-flex;

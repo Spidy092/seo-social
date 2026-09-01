@@ -4,28 +4,32 @@
                     <!-- Input Card -->
                     <div class="card onpage-form-card">
                         <div class="card-header">
-                            <h3>🔍 On-Page SEO Analyzer</h3>
+                            <h3>On-Page SEO Analyzer</h3>
                             <span class="header-hint">Paste a URL or raw HTML · Get 47 checks · AI writes the fixes</span>
                         </div>
                         <div class="card-body">
                             <div class="onpage-input-row" style="margin-bottom: 12px;">
-                                <select id="onpage-project-select" style="flex:1">
-                                    <option value="">(Optional) Link to Project & Auto-Suggest URLs...</option>
+                                <label for="onpage-project-select" class="sr-only">Link to project</label>
+                                <select id="onpage-project-select" name="project" style="flex:1">
+                                    <option value="">(Optional) Link to project &amp; auto-suggest URLs…</option>
                                 </select>
                             </div>
 
                             <div class="onpage-input-row">
-                                <select id="onpage-input-mode" onchange="toggleInputMode()">
+                                <label for="onpage-input-mode" class="sr-only">Input mode</label>
+                                <select id="onpage-input-mode" name="inputMode" onchange="toggleInputMode()">
                                     <option value="url">Analyze by URL</option>
                                     <option value="html">Paste HTML code</option>
                                 </select>
-                                <input type="text" id="onpage-keyword-input"
-                                       placeholder="Target keyword (e.g. web design bangalore)" style="flex:2">
+                                <label for="onpage-keyword-input" class="sr-only">Target keyword</label>
+                                <input type="text" id="onpage-keyword-input" name="keyword" autocomplete="off" spellcheck="false" inputmode="search"
+                                       placeholder="Target keyword, e.g. web design bangalore…" style="flex:2">
                             </div>
 
                             <div id="onpage-url-row" class="onpage-input-row">
-                                <input type="url" id="onpage-url-input"
-                                       placeholder="https://yoursite.com/page-to-analyze"
+                                <label for="onpage-url-input" class="sr-only">URL to analyze</label>
+                                <input type="url" id="onpage-url-input" name="url" autocomplete="url" inputmode="url" spellcheck="false"
+                                       placeholder="https://yoursite.com/page-to-analyze…"
                                        list="onpage-suggested-urls"
                                        style="flex:1">
                                 <datalist id="onpage-suggested-urls"></datalist>
@@ -33,11 +37,11 @@
 
                             <div id="onpage-html-row" style="display:none;margin-bottom:12px">
                                 <textarea id="onpage-html-input"
-                                          placeholder="Paste your full page HTML here..."></textarea>
+                                          placeholder="Paste your full page HTML here…"></textarea>
                             </div>
 
-                            <button class="btn btn-primary" id="onpage-analyze-btn">
-                                <i class="fas fa-search"></i> Analyze Page
+                            <button type="button" class="btn btn-primary" id="onpage-analyze-btn" style="min-height:44px;">
+                                <i class="fas fa-search" aria-hidden="true"></i> Analyze page
                             </button>
                         </div>
                     </div>

@@ -1,4 +1,6 @@
 // Mock heavy deps so the service loads in isolation
+/* global afterEach */
+
 vi.mock('axios');
 vi.mock('../../src/utils/logger', () => ({
     createLogger: () => ({
@@ -203,6 +205,43 @@ describe('getRankedKeywords — full integration with mocked deps', () => {
         expect(r.count).toBe(1);
         expect(r.keywords[0].keyword).toBe('free vpn');
         expect(r.keywords[0].position).toBe(7);
+    });
+
+    it('falls back to Serper when GSC returns an error', async () => {
+        mockDb.query.mockImplementation(async sql => {
+            if (sql.includes('c.gsc_site_url')) {
+                return { rows: [{
+                    id: 'p1', name: 'Test', client_id: 'c1', tracking_domain: 'example.com',
+                    target_location: 'India', client_name: 'C', website_url: 'https://example.com',
+                    gsc_site_url: 'sc-domain:example.com', ga4_property_id: null, agency_id: 'a1', target_locations: [],
+                }] };
+            }
+            if (sql.includes('SELECT k.location')) return { rows: [] };
+            if (sql.includes('expires_at > NOW()')) return { rows: [] };
+            if (sql.includes('FROM gsc_search_analytics')) throw new Error('GSC timeout');
+            if (sql.includes('SELECT k.keyword') && sql.includes('priority_score')) {
+                return { rows: [{ keyword: 'seo audit' }] };
+            }
+            if (sql.includes('audit_settings_global')) return { rows: [{ ranked_kw_cache_hours: 6 }] };
+            if (sql.includes('INSERT INTO ranked_keyword_snapshots')) {
+                return { rows: [{ checked_at: new Date() }] };
+            }
+            if (sql.includes('checked_at < $4')) return { rows: [] };
+            if (sql.includes('SELECT LOWER(k.keyword) AS k')) return { rows: [] };
+            throw new Error(`Unexpected query: ${sql.slice(0, 80)}`);
+        });
+
+        const postSerperSearch = vi.fn().mockResolvedValue({
+            organic: [{ link: 'https://example.com/', position: 3, title: 'SEO audit' }],
+        });
+        require('../../src/services/keywordService').postSerperSearch = postSerperSearch;
+
+        const r = await rankedSvc.getRankedKeywords(mockDb, { projectId: 'p1', forceRefresh: true });
+
+        expect(r.source).toBe('serper');
+        expect(r.count).toBe(1);
+        expect(r.keywords[0].keyword).toBe('seo audit');
+        expect(postSerperSearch).toHaveBeenCalledTimes(1);
     });
 
     it('returns empty (no source) when there is no URL to query', async () => {

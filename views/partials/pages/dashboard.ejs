@@ -1,126 +1,45 @@
-<div class="page active" id="page-dashboard">
-                <!-- Quick Actions -->
-                <div class="quick-actions">
-                    <button class="quick-action-btn" data-page="research">
-                        <i class="fas fa-search blue"></i>
-                        <span>New Research</span>
-                    </button>
-                    <button class="quick-action-btn" data-page="onpage">
-                        <i class="fas fa-spider green"></i>
-                        <span>Run Audit</span>
-                    </button>
-                    <button class="quick-action-btn" data-page="reports">
-                        <i class="fas fa-file-pdf purple"></i>
-                        <span>Generate Report</span>
-                    </button>
-                    <button class="quick-action-btn" data-page="tasks">
-                        <i class="fas fa-tasks blue"></i>
-                        <span>View Tasks</span>
-                    </button>
-                </div>
+<div class="page active ed-page" id="page-dashboard">
+    <section class="ed-page-header">
+        <div>
+            <p class="ed-eyebrow">Agency workspace / overview</p>
+            <h2 class="ed-display" data-pretext>See what needs a decision.</h2>
+            <p class="ed-page-description" data-pretext>One working view for client context, trustworthy source data, and the next action your team should take.</p>
+        </div>
+        <div class="ed-page-actions">
+            <button class="ed-button ed-button-secondary" data-page="clients"><i class="fas fa-briefcase"></i> Choose client</button>
+            <button class="ed-button ed-button-primary" data-page="reports"><i class="fas fa-file-lines"></i> Start report</button>
+        </div>
+    </section>
 
-                <!-- Onboarding Checklist (shown until dismissed) -->
-                <div id="onboardingChecklist" class="card" style="display:none; margin-bottom: 20px; border-left: 4px solid #6366f1;">
-                    <div class="card-body" style="padding: 20px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-                            <div style="display:flex; align-items:center; gap:10px;">
-                                <span style="font-size:1.3rem;">🚀</span>
-                                <h3 style="margin:0; font-size:1rem; font-weight:700;">Welcome! Here's how to get started</h3>
-                            </div>
-                            <button id="dismissOnboarding" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1.2rem;padding:4px;" title="Dismiss">&times;</button>
-                        </div>
-                        <div id="checklistItems" style="display:flex;flex-direction:column;gap:10px;"></div>
-                    </div>
-                </div>
+    <section class="ed-context-strip" aria-label="Current workspace context">
+        <div class="ed-context-item"><span class="ed-label">Workspace</span><strong>All clients</strong></div>
+        <div class="ed-context-item"><span class="ed-label">Data window</span><strong>Live workspace</strong></div>
+        <div class="ed-context-item"><span class="ed-label">Last check</span><strong id="overviewLastCheck">Awaiting data</strong></div>
+        <div class="ed-context-item ed-context-status"><span class="ed-label">Source health</span><strong id="workspaceSourceHealth"><span class="ed-status-dot ed-status-dot-neutral"></span> Waiting for data</strong></div>
+    </section>
 
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon blue">
-                            <i class="fas fa-key"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3 id="totalKeywords">0</h3>
-                            <p>Keywords Tracked</p>
-                            <div class="stat-trend neutral" id="keywordsTrend"></div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon green">
-                            <i class="fas fa-trophy"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3 id="topRankings">0</h3>
-                            <p>Top 10 Rankings</p>
-                            <div class="stat-trend neutral" id="rankingsTrend"></div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon orange">
-                            <i class="fas fa-users"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3 id="totalCompetitors">0</h3>
-                            <p>Competitors Found</p>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon purple">
-                            <i class="fas fa-briefcase"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3 id="totalClients">0</h3>
-                            <p>SEO Clients</p>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon teal">
-                            <i class="fas fa-folder-open"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3 id="totalProjects">0</h3>
-                            <p>SEO Projects</p>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon red">
-                            <i class="fas fa-exclamation-triangle"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3 id="activeAlerts">0</h3>
-                            <p>Active Alerts</p>
-                        </div>
-                    </div>
-                </div>
+    <section class="ed-section" aria-labelledby="overviewSignalsTitle">
+        <div class="ed-section-heading">
+            <div><p class="ed-eyebrow">What changed</p><h2 id="overviewSignalsTitle">Signals from your workspace</h2></div>
+            <button class="ed-text-button" type="button" data-evidence-trigger="workspace"><i class="fas fa-circle-info"></i> How we know</button>
+        </div>
 
-                <div class="dashboard-grid">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Recent Keywords</h3>
-                            <a href="#" class="view-all" data-page="research">View All</a>
-                        </div>
-                        <div class="card-body">
-                            <table class="data-table" id="recentKeywordsTable">
-                                <thead>
-                                    <tr>
-                                        <th>Keyword</th>
-                                        <th>Volume</th>
-                                        <th>Competition</th>
-                                        <th>Difficulty</th>
-                                    </tr>
-                                </thead>
-                                <tbody></tbody>
-                            </table>
-                        </div>
-                    </div>
+        <div class="ed-signal-grid">
+            <article class="ed-signal-card ed-signal-card-strong"><div class="ed-signal-card-top"><span class="ed-signal-icon"><i class="fas fa-key"></i></span><span class="ed-source-tag">Keyword set</span></div><div class="ed-signal-value" id="totalKeywords">0</div><h3>Tracked keywords</h3><p>Keywords currently stored in this workspace.</p></article>
+            <article class="ed-signal-card"><div class="ed-signal-card-top"><span class="ed-signal-icon ed-signal-icon-green"><i class="fas fa-arrow-trend-up"></i></span><span class="ed-source-tag">Rank tracker</span></div><div class="ed-signal-value" id="topRankings">0</div><h3>Top 10 positions</h3><p>Current rankings at or above page one.</p></article>
+            <article class="ed-signal-card"><div class="ed-signal-card-top"><span class="ed-signal-icon ed-signal-icon-amber"><i class="fas fa-bell"></i></span><span class="ed-source-tag">Alert queue</span></div><div class="ed-signal-value" id="activeAlerts">0</div><h3>Open alerts</h3><p>Changes waiting for an analyst decision.</p></article>
+            <article class="ed-signal-card"><div class="ed-signal-card-top"><span class="ed-signal-icon ed-signal-icon-copper"><i class="fas fa-layer-group"></i></span><span class="ed-source-tag">Client workspace</span></div><div class="ed-signal-value" id="totalProjects">0</div><h3>Active projects</h3><p>Projects available for analysis and reporting.</p></article>
+        </div>
 
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Recent Alerts</h3>
-                            <a href="#" class="view-all" data-page="alerts">View All</a>
-                        </div>
-                        <div class="card-body">
-                            <div class="alerts-list" id="recentAlertsList"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="ed-inventory-row" aria-label="Workspace inventory"><span><strong id="totalClients">0</strong> clients</span><span><strong id="totalCompetitors">0</strong> competitor records</span><span class="ed-muted-inventory">Inventory updates when the workspace data loads.</span></div>
+    </section>
+
+    <section class="ed-work-grid" aria-label="Recent workspace activity">
+        <article class="ed-panel ed-panel-table"><div class="ed-panel-heading"><div><p class="ed-eyebrow">Evidence queue</p><h2>Recent keyword records</h2></div><a href="#" class="ed-text-button" data-page="research">Open research <i class="fas fa-arrow-up-right-from-square"></i></a></div><div class="ed-table-wrap"><table class="data-table ed-data-table" id="recentKeywordsTable"><caption class="sr-only">Recent keyword records</caption><thead><tr><th scope="col">Keyword</th><th scope="col">Volume</th><th scope="col">Competition</th><th scope="col">Difficulty</th></tr></thead><tbody></tbody></table></div></article>
+        <article class="ed-panel ed-panel-alerts"><div class="ed-panel-heading"><div><p class="ed-eyebrow">Needs review</p><h2>Recent alerts</h2></div><a href="#" class="ed-text-button" data-page="alerts">View queue <i class="fas fa-arrow-right"></i></a></div><div class="ed-alerts-list" id="recentAlertsList"></div></article>
+    </section>
+
+    <section class="ed-source-register ed-panel" aria-labelledby="sourceRegisterTitle"><div class="ed-panel-heading"><div><p class="ed-eyebrow">Trust layer</p><h2 id="sourceRegisterTitle">Source register</h2></div><button class="ed-text-button" type="button" data-evidence-trigger="sources"><i class="fas fa-database"></i> View collection rules</button></div><div class="ed-source-grid"><div class="ed-source-row" data-source-row="workspace"><span class="ed-source-mark"><i class="fas fa-check"></i></span><div><strong>Workspace records</strong><span>Stored client, project, keyword, and alert data</span></div><span class="ed-source-state" id="workspaceSourceState">Pending load</span></div><div class="ed-source-row" data-source-row="rank-tracker"><span class="ed-source-mark ed-source-mark-neutral"><i class="fas fa-chart-line"></i></span><div><strong>Rank tracker</strong><span>Latest stored ranking collection</span></div><span class="ed-source-state" id="rankTrackerSourceState">Pending check</span></div><div class="ed-source-row" data-source-row="technical"><span class="ed-source-mark ed-source-mark-neutral"><i class="fas fa-sitemap"></i></span><div><strong>Technical crawl</strong><span>Latest stored crawl and issue inventory</span></div><span class="ed-source-state" id="technicalSourceState">Pending check</span></div><div class="ed-source-row" data-source-row="pageSpeed"><span class="ed-source-mark ed-source-mark-neutral"><i class="fas fa-gauge-high"></i></span><div><strong>PageSpeed</strong><span>Stored lab checks, when collected</span></div><span class="ed-source-state" id="pageSpeedSourceState">Pending check</span></div><div class="ed-source-row" data-source-row="connected-data"><span class="ed-source-mark ed-source-mark-neutral"><i class="fas fa-plug"></i></span><div><strong>GSC / GA4</strong><span>Connection and sync freshness are client-specific</span></div><span class="ed-source-state" id="connectedDataSourceState">Pending check</span></div></div></section>
+
+    <div id="onboardingChecklist" class="ed-onboarding-panel" style="display:none;" aria-live="polite"><div class="ed-panel-heading"><div><p class="ed-eyebrow">Workspace setup</p><h2>Finish the context your reports need</h2></div><button id="dismissOnboarding" class="ed-icon-button" type="button" title="Dismiss setup checklist"><i class="fas fa-xmark"></i></button></div><div id="checklistItems" class="ed-checklist"></div></div>
+</div>

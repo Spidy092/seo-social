@@ -1,151 +1,72 @@
-<div class="page" id="page-reports">
-                <div style="max-width: 1100px; margin: 0 auto; padding: 0 4px;">
+<div class="page ed-page ed-report-page" id="page-reports">
+    <section class="ed-page-header ed-report-header">
+        <div>
+            <p class="ed-eyebrow">Delivery / report workspace</p>
+            <h2 class="ed-display" data-pretext>Build a report your client can trust.</h2>
+            <p class="ed-page-description" data-pretext>Choose the client, set the period, review every source state, then save or export the draft.</p>
+        </div>
+        <div class="ed-report-header-note"><span class="ed-status-dot ed-status-dot-green"></span><span>Drafts keep their source trail</span></div>
+    </section>
 
-                    <!-- Header -->
-                    <div style="background: linear-gradient(135deg, #070613 0%, #7c3aeda1 100%); border-radius: 16px; padding: 32px 36px; margin-bottom: 28px; color: white; position: relative; overflow: hidden;">
-                        <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,0.07);"></div>
-                        <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
-                            <div style="width:48px;height:48px;background:rgba(255,255,255,0.15);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;">📊</div>
-                            <div>
-                                <h2 style="font-size:1.4rem;font-weight:800;margin:0;padding:0 0 8px 0;">Agency-Ready SEO Reports</h2>
-                                <p style="opacity:0.85;font-size:13px;margin:0;">Generate professional PDF/HTML reports for your clients in seconds</p>
-                            </div>
-                        </div>
-                        <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:14px;font-size:12px;opacity:0.8;">
-                            <span>📄 Monthly SEO Report</span>
-                            <span>📈 Keyword Movement</span>
-                            <span>🔧 Technical Fixes</span>
-                            <span>⚡ PageSpeed & Core Web Vitals</span>
-                            <span>✍️ Content Recommendations</span>
-                            <span>⚔️ Competitor Changes</span>
-                            <span>🗓️ Next Month Plan</span>
-                        </div>
-                    </div>
+    <section class="ed-report-context" aria-label="Report workflow">
+        <div class="ed-report-step is-active"><span>01</span><strong>Context</strong><small>Client and period</small></div>
+        <div class="ed-report-step"><span>02</span><strong>Evidence</strong><small>Sources and freshness</small></div>
+        <div class="ed-report-step"><span>03</span><strong>Decision</strong><small>Wins and issues</small></div>
+        <div class="ed-report-step"><span>04</span><strong>Delivery</strong><small>Save and share</small></div>
+    </section>
 
-                    <!-- Report Builder -->
-                    <div style="display:grid;grid-template-columns:400px 1fr;gap:24px;align-items:start;">
-
-                        <!-- Left: Form -->
-                        <div class="card" style="position:sticky;top:20px;">
-                            <div class="card-header" style="border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:20px;">
-                                <h3 style="margin:0;font-size:1rem;">⚙️ Report Builder</h3>
-                            </div>
-                            <div class="card-body" style="padding:0;">
-                                <div class="form-group">
-                                    <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Report Title</label>
-                                    <input type="text" id="reportTitle" placeholder="Monthly SEO Report – June 2025" style="width:100%;">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Client</label>
-                                    <select id="reportClientSelect" style="width:100%;">
-                                        <option value="">No specific client (by domain)</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Domain to Track</label>
-                                    <input type="text" id="reportDomain" placeholder="yourdomain.com" style="width:100%;">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Report Period</label>
-                                    <select id="reportPeriod" style="width:100%;">
-                                        <option value="30">Last 30 days</option>
-                                        <option value="60">Last 60 days</option>
-                                        <option value="90">Last 90 days (Quarter)</option>
-                                        <option value="7">Last 7 days</option>
-                                    </select>
-                                </div>
-                                <label style="display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);font-size:13px;color:var(--text);margin-bottom:12px;">
-                                    <input type="checkbox" id="reportIncludePageSpeed" checked style="margin-top:2px;">
-                                    <span><strong>Include PageSpeed</strong><br><span style="font-size:12px;color:var(--text-muted);">Adds mobile PageSpeed and Core Web Vitals metrics when available.</span></span>
-                                </label>
-                                <button class="btn btn-primary" id="generateReportBtn" style="width:100%;justify-content:center;height:48px;font-size:0.95rem;font-weight:700;margin-top:8px;">
-                                    <i class="fas fa-magic"></i> Generate Report
-                                </button>
-                                <div id="reportGenerating" style="display:none;text-align:center;padding:16px;color:var(--text-muted);font-size:13px;">
-                                    <div style="display:inline-block;width:20px;height:20px;border:2px solid var(--brand);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;"></div>
-                                    Generating full client report with PageSpeed and AI analysis...
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Right: Preview & Saved Reports -->
-                        <div>
-                            <!-- Live Preview -->
-                            <div class="card" id="reportPreviewCard" style="display:none;margin-bottom:20px;">
-                                <div class="card-header" style="border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;">
-                                    <h3 style="margin:0;font-size:1rem;">📋 Report Preview</h3>
-                                    <div style="display:flex;gap:8px;">
-                                        <button class="btn btn-sm btn-outline" id="saveReportBtn"><i class="fas fa-save"></i> Save</button>
-                                        <button class="btn btn-sm btn-primary" id="openReportBtn"><i class="fas fa-external-link-alt"></i> Open Full Report</button>
-                                    </div>
-                                </div>
-                                <div id="reportPreviewContent"></div>
-                            </div>
-
-                            <!-- Saved Reports -->
-                            <div class="card">
-                                <div class="card-header" style="border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;">
-                                    <h3 style="margin:0;font-size:1rem;">🗂️ Saved Reports</h3>
-                                    <button class="btn btn-sm btn-outline" onclick="loadSavedReports()"><i class="fas fa-rotate-right"></i> Refresh</button>
-                                </div>
-                                <div id="savedReportsList">
-                                    <p style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">No saved reports yet. Generate your first report above.</p>
-                                </div>
-                            </div>
-
-                            <!-- Scheduled Email Reports -->
-                            <div class="card" style="margin-top:20px;">
-                                <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
-                                    <h3 style="margin:0;font-size:1rem;"><i class="fas fa-envelope"></i> Scheduled Email Reports</h3>
-                                    <button class="btn btn-sm btn-outline" onclick="loadScheduledReports()"><i class="fas fa-rotate-right"></i> Refresh</button>
-                                </div>
-                                <div class="card-body">
-                                    <div id="scheduledReportsSmtpStatus" style="margin-bottom:12px;"></div>
-
-                                    <!-- Create form -->
-                                    <div style="background:var(--bg);border-radius:10px;padding:24px;margin-bottom:16px;">
-                                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-                                            <div>
-                                                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Domain</label>
-                                                <input type="text" id="schedDomain" placeholder="example.com" class="form-control" style="width:100%;">
-                                            </div>
-                                            <div>
-                                                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Report Title</label>
-                                                <input type="text" id="schedTitle" placeholder="Monthly SEO Report" class="form-control" style="width:100%;">
-                                            </div>
-                                            <div>
-                                                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Recipients (comma-separated)</label>
-                                                <input type="text" id="schedRecipients" placeholder="client@example.com, manager@example.com" class="form-control" style="width:100%;">
-                                            </div>
-                                            <div>
-                                                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Frequency</label>
-                                                <select id="schedFrequency" class="form-control" style="width:100%;">
-                                                    <option value="weekly">Weekly</option>
-                                                    <option value="biweekly">Biweekly</option>
-                                                    <option value="monthly" selected>Monthly</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Send at Hour (0-23)</label>
-                                                <input type="number" id="schedHour" value="8" min="0" max="23" class="form-control" style="width:100%;">
-                                            </div>
-                                            <div>
-                                                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Day of Month (1-28)</label>
-                                                <input type="number" id="schedDayOfMonth" value="1" min="1" max="28" class="form-control" style="width:100%;">
-                                            </div>
-                                        </div>
-                                        <div style="display:flex;gap:12px;margin-top:20px;">
-                                            <button class="btn btn-primary" onclick="createScheduledReport()" style="flex:1;"><i class="fas fa-plus"></i> Create Schedule</button>
-                                            <button class="btn btn-outline" onclick="sendTestEmail()"><i class="fas fa-paper-plane"></i> Send Test</button>
-                                        </div>
-                                    </div>
-
-                                    <!-- List -->
-                                    <div id="scheduledReportsList"></div>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
+    <div class="ed-report-layout">
+        <aside class="ed-report-builder" aria-labelledby="reportBuilderTitle">
+            <div class="ed-panel-heading ed-builder-heading"><div><p class="ed-eyebrow">Context</p><h2 id="reportBuilderTitle">Report setup</h2></div><span class="ed-step-badge">01 / 04</span></div>
+            <div class="ed-form-stack">
+                <div class="ed-field"><label for="reportClientSelect">Client</label><select id="reportClientSelect"><option value="">Choose a client</option></select><small>Client context keeps data scoped to one account.</small></div>
+                <div class="ed-field"><label for="reportDomain">Website domain</label><input type="text" id="reportDomain" name="reportDomain" placeholder="example.com…" autocomplete="url" inputmode="url" spellcheck="false"><small>Used for rank, crawl, and PageSpeed matching.</small></div>
+                <div class="ed-field"><label for="reportTitle">Report title</label><input type="text" id="reportTitle" name="reportTitle" placeholder="Monthly SEO Report…" autocomplete="off" spellcheck="true"></div>
+                <div class="ed-field"><label for="reportPeriod">Reporting period</label><select id="reportPeriod"><option value="30">Last 30 days</option><option value="60">Last 60 days</option><option value="90">Last 90 days</option><option value="7">Last 7 days</option></select></div>
+                <label class="ed-checkbox-field" for="reportIncludePageSpeed"><input type="checkbox" id="reportIncludePageSpeed" checked><span><strong>Include PageSpeed</strong><small>Only show Core Web Vitals when a saved or live source is available.</small></span></label>
+                <button class="ed-button ed-button-primary ed-button-wide" id="generateReportBtn" type="button"><i class="fas fa-wand-magic-sparkles"></i> Generate evidence draft</button>
+                <div id="reportGenerating" class="ed-generating" style="display:none;" aria-live="polite"><span class="ed-spinner"></span><span>Collecting stored data and checking sources...</span></div>
             </div>
+            <div class="ed-trust-note"><i class="fas fa-shield-halved"></i><div><strong>Accuracy rule</strong><p>Missing data stays visible as missing. We never turn a proxy into a measured score.</p></div></div>
+        </aside>
+
+        <main class="ed-report-main">
+            <section class="ed-panel ed-source-overview" aria-labelledby="reportSourcesTitle">
+                <div class="ed-panel-heading"><div><p class="ed-eyebrow">Evidence</p><h2 id="reportSourcesTitle">Source coverage</h2></div><button class="ed-text-button" type="button" data-evidence-trigger="report"><i class="fas fa-circle-info"></i> What each source means</button></div>
+                <div class="ed-source-coverage" id="reportSourceCoverage">
+                    <div class="ed-coverage-item"><span class="ed-coverage-icon"><i class="fas fa-key"></i></span><div><strong>Rank tracker</strong><small id="reportRankSourceState">Awaiting report</small></div></div>
+                    <div class="ed-coverage-item"><span class="ed-coverage-icon"><i class="fas fa-spider"></i></span><div><strong>Technical crawl</strong><small id="reportTechnicalSourceState">Awaiting report</small></div></div>
+                    <div class="ed-coverage-item"><span class="ed-coverage-icon"><i class="fas fa-gauge-high"></i></span><div><strong>PageSpeed</strong><small id="reportPageSpeedSourceState">Awaiting report</small></div></div>
+                    <div class="ed-coverage-item"><span class="ed-coverage-icon"><i class="fas fa-chart-line"></i></span><div><strong>Search Console</strong><small id="reportGscSourceState">Awaiting report</small></div></div>
+                </div>
+            </section>
+
+            <section class="ed-panel ed-report-preview" id="reportPreviewCard" style="display:none;" aria-labelledby="reportPreviewTitle">
+                <div class="ed-panel-heading"><div><p class="ed-eyebrow">Decision draft</p><h2 id="reportPreviewTitle">Report preview</h2></div><div class="ed-panel-actions"><button class="ed-button ed-button-secondary ed-button-small" id="saveReportBtn" type="button"><i class="fas fa-floppy-disk"></i> Save draft</button><button class="ed-button ed-button-secondary ed-button-small" id="shareReportBtn" type="button" disabled title="Save the report before sharing"><i class="fas fa-link"></i> Share link</button><button class="ed-button ed-button-primary ed-button-small" id="openReportBtn" type="button"><i class="fas fa-arrow-up-right-from-square"></i> Open export</button></div></div>
+                <div id="reportPreviewContent"></div>
+            </section>
+
+            <section class="ed-panel ed-saved-reports" aria-labelledby="savedReportsTitle">
+                <div class="ed-panel-heading"><div><p class="ed-eyebrow">History</p><h2 id="savedReportsTitle">Saved reports</h2></div><button class="ed-text-button" type="button" onclick="loadSavedReports()"><i class="fas fa-rotate-right"></i> Refresh</button></div>
+                <div id="savedReportsList"><p class="ed-empty-copy">No saved reports yet. Generate the first evidence draft above.</p></div>
+            </section>
+
+            <details class="ed-panel ed-scheduled-reports">
+                <summary class="ed-details-summary"><span><span class="ed-eyebrow">Automation</span><strong>Scheduled delivery</strong><small>Keep email delivery separate from report truth and review.</small></span><i class="fas fa-chevron-down"></i></summary>
+                <div class="ed-scheduled-body">
+                    <div id="scheduledReportsSmtpStatus" class="ed-smtp-status"></div>
+                    <div class="ed-schedule-form">
+                        <div class="ed-field"><label for="schedDomain">Domain</label><input type="text" id="schedDomain" name="schedDomain" placeholder="example.com…" autocomplete="url" spellcheck="false" inputmode="url"></div>
+                        <div class="ed-field"><label for="schedTitle">Report title</label><input type="text" id="schedTitle" name="schedTitle" placeholder="Monthly SEO Report…" autocomplete="off" spellcheck="true"></div>
+                        <div class="ed-field"><label for="schedRecipients">Recipients</label><input type="text" id="schedRecipients" name="recipients" placeholder="client@example.com, manager@example.com…" autocomplete="email" spellcheck="false"></div>
+                        <div class="ed-field"><label for="schedFrequency">Frequency</label><select id="schedFrequency"><option value="weekly">Weekly</option><option value="biweekly">Biweekly</option><option value="monthly" selected>Monthly</option></select></div>
+                        <div class="ed-field"><label for="schedHour">Send hour</label><input type="number" id="schedHour" value="8" min="0" max="23"></div>
+                        <div class="ed-field"><label for="schedDayOfMonth">Day of month</label><input type="number" id="schedDayOfMonth" value="1" min="1" max="28"></div>
+                    </div>
+                    <div class="ed-schedule-actions"><button class="ed-button ed-button-primary" type="button" onclick="createScheduledReport()"><i class="fas fa-calendar-plus"></i> Create schedule</button><button class="ed-button ed-button-secondary" type="button" onclick="sendTestEmail()"><i class="fas fa-paper-plane"></i> Send test</button></div>
+                    <div id="scheduledReportsList"></div>
+                </div>
+            </details>
+        </main>
+    </div>
+</div>

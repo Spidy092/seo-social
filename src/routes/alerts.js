@@ -11,7 +11,7 @@ const log = createLogger('routes:alerts');
 
 function scopedConditions(alias, params, ctx, filters = {}) {
     const prefix = alias ? `${alias}.` : '';
-    const conditions = [`(${prefix}agency_id = $${params.length + 1} OR ${prefix}agency_id IS NULL OR $${params.length + 1} IS NULL)`];
+    const conditions = [`${prefix}agency_id = $${params.length + 1}`];
     params.push(ctx.agencyId);
 
     if (filters.domain) {
@@ -75,17 +75,17 @@ async function alertRoutes(fastify, options) {
         try {
             const result = await db.query(`
                 SELECT d.*, 
-                    (SELECT COUNT(*) FROM domain_rankings dr WHERE dr.domain = d.domain AND (dr.agency_id = $1 OR dr.agency_id IS NULL OR $1 IS NULL)) as keyword_count,
+                    (SELECT COUNT(*) FROM domain_rankings dr WHERE dr.domain = d.domain AND dr.agency_id = $1) as keyword_count,
                     (SELECT COUNT(*) FROM rank_history rh 
                      WHERE rh.domain = d.domain AND rh.change_direction = 'up' 
                      AND rh.checked_at > NOW() - INTERVAL '7 days'
-                     AND (rh.agency_id = $1 OR rh.agency_id IS NULL OR $1 IS NULL)) as improved_count,
+                     AND rh.agency_id = $1) as improved_count,
                     (SELECT COUNT(*) FROM rank_history rh 
                      WHERE rh.domain = d.domain AND rh.change_direction = 'down' 
                      AND rh.checked_at > NOW() - INTERVAL '7 days'
-                     AND (rh.agency_id = $1 OR rh.agency_id IS NULL OR $1 IS NULL)) as dropped_count
+                     AND rh.agency_id = $1) as dropped_count
                 FROM my_domains d
-                WHERE d.agency_id = $1 OR d.agency_id IS NULL OR $1 IS NULL
+                WHERE d.agency_id = $1
                 ORDER BY d.added_at DESC
             `, [ctx.agencyId]);
 
@@ -107,7 +107,7 @@ async function alertRoutes(fastify, options) {
             const result = await db.query(
                 `SELECT COUNT(*) as count FROM alerts a
                  WHERE a.is_read = FALSE
-                   AND (a.agency_id = $1 OR a.agency_id IS NULL OR $1 IS NULL)`,
+                   AND a.agency_id = $1`,
                 [ctx.agencyId]
             );
             return { count: parseInt(result.rows[0].count) };
@@ -124,7 +124,7 @@ async function alertRoutes(fastify, options) {
         if (!ctx) return;
 
         try {
-            let baseConditions = [`(a.agency_id = $1 OR a.agency_id IS NULL OR $1 IS NULL)`];
+            let baseConditions = ['a.agency_id = $1'];
             const params = [ctx.agencyId];
 
             if (domain) {
@@ -176,7 +176,7 @@ async function alertRoutes(fastify, options) {
 
             // Get unread count
             const unreadResult = await db.query(
-                `SELECT COUNT(*) as count FROM alerts a WHERE a.is_read = FALSE AND (a.agency_id = $1 OR a.agency_id IS NULL OR $1 IS NULL)`,
+                `SELECT COUNT(*) as count FROM alerts a WHERE a.is_read = FALSE AND a.agency_id = $1`,
                 [ctx.agencyId]
             );
 
@@ -202,13 +202,13 @@ async function alertRoutes(fastify, options) {
                 await db.query(
                     `UPDATE alerts SET is_read = TRUE
                      WHERE domain = $1
-                       AND (agency_id = $2 OR agency_id IS NULL OR $2 IS NULL)`,
+                       AND agency_id = $2`,
                     [domain, ctx.agencyId]
                 );
             } else {
                 await db.query(
                     `UPDATE alerts SET is_read = TRUE
-                     WHERE agency_id = $1 OR agency_id IS NULL OR $1 IS NULL`,
+                     WHERE agency_id = $1`,
                     [ctx.agencyId]
                 );
             }
@@ -230,7 +230,7 @@ async function alertRoutes(fastify, options) {
             const result = await db.query(
                 `UPDATE alerts SET is_read = TRUE
                  WHERE id = $1
-                   AND (agency_id = $2 OR agency_id IS NULL OR $2 IS NULL)`,
+                   AND agency_id = $2`,
                 [id, ctx.agencyId]
             );
             if (result.rowCount === 0) {
@@ -293,7 +293,7 @@ async function alertRoutes(fastify, options) {
 
         try {
             const params = [ctx.agencyId];
-            const filters = ['(dr.agency_id = $1 OR dr.agency_id IS NULL OR $1 IS NULL)'];
+            const filters = ['dr.agency_id = $1'];
             if (domain) { params.push(domain); filters.push(`dr.domain = $${params.length}`); }
             if (projectId) { params.push(projectId); filters.push(`dr.project_id = $${params.length}`); }
             if (clientId) { params.push(clientId); filters.push(`dr.client_id = $${params.length}`); }
@@ -400,7 +400,7 @@ async function alertRoutes(fastify, options) {
             const result = await db.query(
                 `DELETE FROM alerts
                  WHERE id = $1
-                   AND (agency_id = $2 OR agency_id IS NULL OR $2 IS NULL)`,
+                   AND agency_id = $2`,
                 [id, ctx.agencyId]
             );
             if (result.rowCount === 0) {
@@ -420,11 +420,11 @@ async function alertRoutes(fastify, options) {
         try {
             const result = await db.query(
                 `SELECT d.*,
-                    (SELECT COUNT(*) FROM domain_rankings dr WHERE dr.domain = d.domain AND (dr.agency_id = $1 OR dr.agency_id IS NULL OR $1 IS NULL)) as keyword_count,
-                    (SELECT COUNT(*) FROM rank_history rh WHERE rh.domain = d.domain AND rh.change_direction = 'up' AND rh.checked_at > NOW() - INTERVAL '7 days' AND (rh.agency_id = $1 OR rh.agency_id IS NULL OR $1 IS NULL)) as improved_count,
-                    (SELECT COUNT(*) FROM rank_history rh WHERE rh.domain = d.domain AND rh.change_direction = 'down' AND rh.checked_at > NOW() - INTERVAL '7 days' AND (rh.agency_id = $1 OR rh.agency_id IS NULL OR $1 IS NULL)) as dropped_count
+                    (SELECT COUNT(*) FROM domain_rankings dr WHERE dr.domain = d.domain AND dr.agency_id = $1) as keyword_count,
+                    (SELECT COUNT(*) FROM rank_history rh WHERE rh.domain = d.domain AND rh.change_direction = 'up' AND rh.checked_at > NOW() - INTERVAL '7 days' AND rh.agency_id = $1) as improved_count,
+                    (SELECT COUNT(*) FROM rank_history rh WHERE rh.domain = d.domain AND rh.change_direction = 'down' AND rh.checked_at > NOW() - INTERVAL '7 days' AND rh.agency_id = $1) as dropped_count
                  FROM my_domains d
-                 WHERE d.agency_id = $1 OR d.agency_id IS NULL OR $1 IS NULL
+                 WHERE d.agency_id = $1
                  ORDER BY d.added_at DESC`,
                 [ctx.agencyId]
             );
@@ -510,7 +510,7 @@ async function alertRoutes(fastify, options) {
                  JOIN keywords k ON dr.keyword_id = k.id
                  LEFT JOIN seo_projects p ON p.id = dr.project_id
                  LEFT JOIN seo_clients c ON c.id = dr.client_id
-                 WHERE dr.domain = $1 AND (dr.agency_id = $2 OR dr.agency_id IS NULL OR $2 IS NULL) ${projectFilter}
+                 WHERE dr.domain = $1 AND dr.agency_id = $2 ${projectFilter}
                  ORDER BY dr.rank_position`,
                 params
             );
@@ -530,10 +530,10 @@ async function alertRoutes(fastify, options) {
 
         try {
             log.info({ domain, agencyId: ctx.agencyId }, 'stopping tracking for domain');
-            await db.query('DELETE FROM my_domains WHERE domain = $1 AND (agency_id = $2 OR agency_id IS NULL OR $2 IS NULL)', [domain, ctx.agencyId]);
-            await db.query('DELETE FROM domain_rankings WHERE domain = $1 AND (agency_id = $2 OR agency_id IS NULL OR $2 IS NULL)', [domain, ctx.agencyId]);
-            await db.query('DELETE FROM rank_history WHERE domain = $1 AND (agency_id = $2 OR agency_id IS NULL OR $2 IS NULL)', [domain, ctx.agencyId]);
-            await db.query('DELETE FROM alerts WHERE domain = $1 AND (agency_id = $2 OR agency_id IS NULL OR $2 IS NULL)', [domain, ctx.agencyId]);
+            await db.query('DELETE FROM my_domains WHERE domain = $1 AND agency_id = $2', [domain, ctx.agencyId]);
+            await db.query('DELETE FROM domain_rankings WHERE domain = $1 AND agency_id = $2', [domain, ctx.agencyId]);
+            await db.query('DELETE FROM rank_history WHERE domain = $1 AND agency_id = $2', [domain, ctx.agencyId]);
+            await db.query('DELETE FROM alerts WHERE domain = $1 AND agency_id = $2', [domain, ctx.agencyId]);
             return { success: true, message: `Stopped tracking ${domain}` };
         } catch (err) {
             log.error({ err: err.message, domain }, 'failed to delete domain');

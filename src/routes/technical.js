@@ -1,7 +1,7 @@
 const { auditSite } = require('../services/technicalSeoService');
 const { runPageSpeed } = require('../services/pageSpeedService');
 const { createLogger } = require('../utils/logger');
-const { getAgencyContext, requireAgencyContext, assertClientAccess } = require('../utils/authHelper');
+const { requireAgencyContext, assertClientAccess } = require('../utils/authHelper');
 
 const log = createLogger('routes:technical');
 
@@ -14,7 +14,7 @@ async function technicalRoutes(fastify, options) {
                 type: 'object',
                 required: ['url'],
                 properties: {
-                    url: { type: 'string' },
+                    url: { type: 'string', maxLength: 2048 },
                     maxPages: { type: 'integer', minimum: 5, maximum: 50, default: 20 },
                     checkSecurityHeaders: { type: 'boolean', default: false },
                 },
@@ -67,7 +67,7 @@ async function technicalRoutes(fastify, options) {
                 type: 'object',
                 required: ['url'],
                 properties: {
-                    url: { type: 'string' },
+                    url: { type: 'string', maxLength: 2048 },
                     strategy: { type: 'string', enum: ['mobile', 'desktop'], default: 'mobile' },
                     clientId: { type: 'string' },
                 },
@@ -120,8 +120,8 @@ async function technicalRoutes(fastify, options) {
                 const agencyId = ctx?.agencyId || null;
                 const params = clientId ? [clientId, agencyId] : [agencyId];
                 const where = clientId
-                    ? 'WHERE psc.client_id = $1 AND (psc.agency_id = $2 OR psc.agency_id IS NULL OR $2 IS NULL)'
-                    : 'WHERE (psc.agency_id = $1 OR psc.agency_id IS NULL OR $1 IS NULL)';
+                    ? 'WHERE psc.client_id = $1 AND psc.agency_id = $2'
+                    : 'WHERE psc.agency_id = $1';
                 const result = await db.query(
                     `SELECT psc.id, psc.client_id, c.name AS client_name, psc.url, psc.final_url, psc.strategy,
                             psc.performance_score, psc.accessibility_score, psc.best_practices_score,
@@ -151,9 +151,9 @@ async function technicalRoutes(fastify, options) {
                 const result = await db.query(
                     `SELECT id, site_url, pages_crawled, overall_score, summary, issues, pages, robots_txt, sitemaps, created_at
                      FROM technical_audits
-                     WHERE id = $1 AND (agency_id = $2 OR agency_id IS NULL OR $2 IS NULL)
+                     WHERE id = $1 AND agency_id = $2
                      LIMIT 1`,
-                    [id, ctx?.agencyId || null]
+                    [id, ctx.agencyId]
                 );
 
                 if (!result.rows.length) {
@@ -177,6 +177,32 @@ async function technicalRoutes(fastify, options) {
                 };
             } catch (err) {
                 log.error({ err: err.message, id }, 'technical seo audit lookup failed');
+                return reply.code(500).send({ error: err.message });
+            }
+        },
+    });
+
+    fastify.get('/api/technical/audits', {
+        handler: async (request, reply) => {
+            const ctx = await requireAgencyContext(request, reply, db);
+            if (!ctx) return;
+
+            try {
+                const result = await db.query(
+                    `SELECT id, site_url, pages_crawled, overall_score, created_at
+                     FROM technical_audits
+                     WHERE agency_id = $1
+                     ORDER BY created_at DESC
+                     LIMIT 20`,
+                    [ctx.agencyId]
+                );
+
+                return {
+                    success: true,
+                    audits: result.rows,
+                };
+            } catch (err) {
+                log.error({ err: err.message }, 'technical seo audits lookup failed');
                 return reply.code(500).send({ error: err.message });
             }
         },

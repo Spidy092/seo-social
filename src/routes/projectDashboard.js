@@ -145,7 +145,7 @@ async function projectDashboardRoutes(fastify, options) {
                         c.target_locations, c.goals AS client_goals, c.gsc_site_url
                  FROM seo_projects p
                  JOIN seo_clients c ON c.id = p.client_id
-                 WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`,
+                 WHERE p.id = $1 AND c.agency_id = $2`,
                 [id, ctx.agencyId]
             );
 
@@ -472,7 +472,7 @@ async function projectDashboardRoutes(fastify, options) {
             const projectRes = await db.query(
                 `SELECT p.id, p.client_id, COALESCE(NULLIF(p.tracking_domain, ''), c.website_url) AS tracking_domain
                  FROM seo_projects p JOIN seo_clients c ON c.id = p.client_id
-                 WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`,
+                 WHERE p.id = $1 AND c.agency_id = $2`,
                 [id, ctx.agencyId]
             );
             if (!projectRes.rows.length) return reply.code(404).send({ error: 'Project not found' });
@@ -522,7 +522,7 @@ async function projectDashboardRoutes(fastify, options) {
         const filters = ['a.project_id = $1'];
         const params = [id];
         try {
-            const projectRes = await db.query(`SELECT p.id FROM seo_projects p JOIN seo_clients c ON c.id = p.client_id WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`, [id, ctx.agencyId]);
+            const projectRes = await db.query(`SELECT p.id FROM seo_projects p JOIN seo_clients c ON c.id = p.client_id WHERE p.id = $1 AND c.agency_id = $2`, [id, ctx.agencyId]);
             if (!projectRes.rows.length) return reply.code(404).send({ error: 'Project not found' });
             if (request.query.unreadOnly === 'true') filters.push('a.is_read = FALSE');
             if (request.query.type) { params.push(request.query.type); filters.push(`a.alert_type = $${params.length}`); }
@@ -555,7 +555,7 @@ async function projectDashboardRoutes(fastify, options) {
         const limit = Math.max(1, Math.min(100, Number(request.query.limit) || 25));
         const offset = Math.max(0, Number(request.query.offset) || 0);
         try {
-            const projectRes = await db.query(`SELECT p.id FROM seo_projects p JOIN seo_clients c ON c.id = p.client_id WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`, [id, ctx.agencyId]);
+            const projectRes = await db.query(`SELECT p.id FROM seo_projects p JOIN seo_clients c ON c.id = p.client_id WHERE p.id = $1 AND c.agency_id = $2`, [id, ctx.agencyId]);
             if (!projectRes.rows.length) return reply.code(404).send({ error: 'Project not found' });
             const count = await db.query(`SELECT COUNT(DISTINCT c.domain) AS total FROM competitors c JOIN seo_project_keywords spk ON spk.keyword_id = c.keyword_id WHERE spk.project_id = $1`, [id]);
             const result = await db.query(
@@ -585,7 +585,7 @@ async function projectDashboardRoutes(fastify, options) {
             const projectRes = await db.query(
                 `SELECT p.id, p.name, p.client_id, p.tracking_domain, c.website_url, c.gsc_site_url, c.ga4_property_id
                  FROM seo_projects p JOIN seo_clients c ON c.id = p.client_id
-                 WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`,
+                 WHERE p.id = $1 AND c.agency_id = $2`,
                 [id, ctx.agencyId]
             );
             if (!projectRes.rows.length) return reply.code(404).send({ error: 'Project not found' });
@@ -633,7 +633,7 @@ async function projectDashboardRoutes(fastify, options) {
                 `SELECT p.id, p.client_id, c.website_url, c.gsc_site_url
                  FROM seo_projects p
                  JOIN seo_clients c ON c.id = p.client_id
-                 WHERE p.id = $1 AND (c.agency_id = $2 OR c.agency_id IS NULL OR $2 IS NULL)`,
+                 WHERE p.id = $1 AND c.agency_id = $2`,
                 [id, ctx.agencyId]
             );
             if (!projectRes.rows.length) return reply.code(404).send({ error: 'Project not found' });

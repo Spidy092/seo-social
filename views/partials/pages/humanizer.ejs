@@ -1,25 +1,48 @@
-<div class="page" id="page-humanizer">
+<div class="page ed-page ed-humanizer-page" id="page-humanizer">
+                <div class="ed-page-header">
+                    <div>
+                        <div class="ed-eyebrow">Content system</div>
+                        <h1>Make copy publishable, not merely different.</h1>
+                        <p>Refine a draft, preserve its facts and search intent, then review the evidence before it reaches a client or CMS.</p>
+                    </div>
+                    <div class="ed-page-actions">
+                        <button class="ed-button ed-button-secondary" id="refreshHumanizerHistoryBtnTop" type="button"><i class="fas fa-clock-rotate-left"></i> Rewrite history</button>
+                    </div>
+                </div>
+                <div class="ed-context-strip ed-humanizer-context">
+                    <div><span>Workflow</span><strong>Draft → refine → review</strong></div>
+                    <div><span>Quality contract</span><strong>Facts and keywords stay visible</strong></div>
+                    <div><span>Important</span><strong>Pattern scores are heuristic signals</strong></div>
+                </div>
                 <div class="research-container">
-                    <div class="card">
+                    <div class="card" data-pretext="card">
                         <div class="card-header">
-                            <h3>✍️ Content Humanizer</h3>
-                            <span class="header-hint">Refine stiff draft copy into clearer, more natural writing while preserving facts and SEO keywords</span>
+                            <div>
+                                <div class="ed-eyebrow">Step 1 · Source</div>
+                                <h3>Rewrite workspace</h3>
+                                <span class="header-hint">Keep the original meaning, entities, numbers, links, and search terms in view while improving the prose.</span>
+                            </div>
+                        </div>
+                        <div class="ed-humanizer-contract" role="note" aria-label="Humanizer quality contract">
+                            <div><span class="ed-status-dot ed-status-dot-green"></span><strong>Meaning</strong><small>Numbers and named entities are checked.</small></div>
+                            <div><span class="ed-status-dot ed-status-dot-green"></span><strong>Search intent</strong><small>SEO Blog mode checks keyword coverage.</small></div>
+                            <div><span class="ed-status-dot ed-status-dot-amber"></span><strong>Review</strong><small>Heuristics guide review; they do not prove authorship.</small></div>
                         </div>
                         <div class="card-body">
                             <div class="form-group">
-                                <label>Paste your content</label>
-                                <textarea id="humanizerInput" placeholder="Paste the draft you want to refine..." style="min-height:220px;width:100%;padding:16px;border:1px solid #e5e7eb;border-radius:12px;resize:vertical;font-family:inherit;"></textarea>
+                                <label for="humanizerInput">Source draft</label>
+                                <textarea id="humanizerInput" placeholder="Paste the draft you want to refine…" style="min-height:220px;width:100%;padding:16px;border:1px solid #e5e7eb;border-radius:12px;resize:vertical;font-family:inherit;"></textarea>
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Mode</label>
+                                    <label for="humanizerMode">Mode</label>
                                     <select id="humanizerMode">
                                         <option value="standard" selected>Standard</option>
                                         <option value="seo-blog">SEO Blog</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label>Tone</label>
+                                    <label for="humanizerTone">Tone</label>
                                     <select id="humanizerTone">
                                         <option value="natural">Natural</option>
                                         <option value="conversational">Conversational</option>
@@ -28,27 +51,31 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label>Audience</label>
-                                    <input type="text" id="humanizerAudience" placeholder="e.g. startup founders, local SEO clients">
+                                    <label for="humanizerAudience">Audience</label>
+                                    <input type="text" id="humanizerAudience" placeholder="e.g. startup founders, local SEO clients…">
                                 </div>
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Brand voice</label>
-                                    <input type="text" id="humanizerVoice" placeholder="e.g. practical, trustworthy, expert but friendly">
+                                    <label for="humanizerVoice">Brand voice</label>
+                                    <input type="text" id="humanizerVoice" placeholder="e.g. practical, trustworthy, expert but friendly…">
                                 </div>
                                 <div class="form-group">
-                                    <label>Change level</label>
+                                    <label for="humanizerMaxChange">Change level</label>
                                     <select id="humanizerMaxChange">
                                         <option value="light">Light</option>
                                         <option value="balanced" selected>Balanced</option>
                                         <option value="strong">Strong</option>
                                     </select>
                                 </div>
+                                <div class="form-group">
+                                    <label for="humanizerTargetLength">Target length (words, optional)</label>
+                                    <input type="number" id="humanizerTargetLength" min="20" max="4000" placeholder="e.g. 600…">
+                                </div>
                             </div>
                             <div class="form-row" style="margin-top: 10px; margin-bottom: 15px;">
                                 <div class="form-group">
-                                    <label>Saved Voice Profiles</label>
+                                    <label for="voiceProfileSelect">Saved voice profiles</label>
                                     <div style="display:flex; gap:10px;">
                                         <select id="voiceProfileSelect" style="flex-grow:1;">
                                             <option value="">-- Select Saved Profile --</option>
@@ -63,40 +90,41 @@
                                 </div>
                             </div>
                             <div class="form-group" style="margin-bottom: 15px;">
-                                <label>Writing Sample (Optional for Voice Calibration)</label>
-                                <textarea id="humanizerSample" placeholder="Paste a sample of your own writing (100-500 words). The humanizer will analyze its sentence structure, vocabulary complexity, paragraph openers, and punctuation habits to calibrate the output to your voice." style="min-height: 80px; width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; font-family: inherit; font-size: 13px; resize: vertical; background: transparent; color: inherit;"></textarea>
+                                <label for="humanizerSample">Writing sample <span class="header-hint">Optional voice calibration</span></label>
+                                <textarea id="humanizerSample" placeholder="Paste a sample of your own writing (100-500 words). The humanizer will analyze sentence structure, vocabulary, and punctuation to calibrate your voice…" style="min-height: 80px; width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; font-family: inherit; font-size: 13px; resize: vertical; background: transparent; color: inherit;"></textarea>
                             </div>
                             <div class="form-group">
-                                <label>Preserve keywords / phrases</label>
-                                <input type="text" id="humanizerKeywords" placeholder="Comma-separated phrases to keep, e.g. web design company, Bangalore, 24/7 support">
+                                <label for="humanizerKeywords">Preserve keywords / phrases</label>
+                                <input type="text" id="humanizerKeywords" placeholder="Comma-separated phrases to keep, e.g. web design company, Bangalore…">
                             </div>
                             <div id="seoBlogFields" style="display:none;">
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label>Primary keyword</label>
-                                        <input type="text" id="humanizerPrimaryKeyword" placeholder="e.g. Node.js backend development">
+                                        <label for="humanizerPrimaryKeyword">Primary keyword</label>
+                                        <input type="text" id="humanizerPrimaryKeyword" placeholder="e.g. Node.js backend development, Node backend services…">
+                                        <span class="header-hint" style="font-size:11px;">Add comma-separated variants (synonyms/LSI phrasing) to rotate naturally instead of repeating one exact phrase.</span>
                                     </div>
                                     <div class="form-group">
-                                        <label>Related keywords</label>
-                                        <input type="text" id="humanizerRelatedKeywords" placeholder="Comma-separated related terms for SEO Blog mode">
+                                        <label for="humanizerRelatedKeywords">Related keywords</label>
+                                        <input type="text" id="humanizerRelatedKeywords" placeholder="Comma-separated related terms for SEO Blog mode…">
                                     </div>
                                 </div>
                             </div>
                             <div class="form-group" style="margin-top:-4px;">
                                 <label class="checkbox-label" style="display:flex;align-items:flex-start;gap:10px;">
                                     <input type="checkbox" id="humanizerPreserveHtml">
-                                    <span>Preserve HTML formatting and links if the input contains markup</span>
+                                    <span>Preserve HTML formatting and links if the source contains markup</span>
                                 </label>
                             </div>
                             <button class="btn btn-primary" id="humanizeBtn" style="width: 220px; justify-content: center; height: 50px; font-weight: 600;">
-                                <i class="fas fa-wand-magic-sparkles"></i> Humanize Content
+                                <i class="fas fa-wand-magic-sparkles"></i> Refine draft
                             </button>
                         </div>
                     </div>
 
                     <div class="card" style="margin-top:20px;">
                         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-                            <h3>Recent Rewrite History</h3>
+                            <h3>Rewrite history</h3>
                             <button class="btn btn-sm btn-outline" id="refreshHumanizerHistoryBtn">
                                 <i class="fas fa-rotate-right"></i> Refresh
                             </button>
@@ -110,28 +138,28 @@
                         <div class="metrics-grid" style="margin-bottom:20px;">
                             <div class="metric-card">
                                 <div class="metric-header">
-                                    <span class="metric-label">Original AI Estimate</span>
+                                    <span class="metric-label">Source pattern signal</span>
                                     <span class="metric-icon"><i class="fas fa-file-alt"></i></span>
                                 </div>
                                 <div class="metric-value" id="humanizerOriginalScore">-</div>
                             </div>
                             <div class="metric-card">
                                 <div class="metric-header">
-                                    <span class="metric-label">Refined AI Estimate</span>
+                                    <span class="metric-label">Rewrite pattern signal</span>
                                     <span class="metric-icon"><i class="fas fa-feather"></i></span>
                                 </div>
                                 <div class="metric-value" id="humanizerRefinedScore">-</div>
                             </div>
                             <div class="metric-card">
                                 <div class="metric-header">
-                                    <span class="metric-label">Readability</span>
+                                    <span class="metric-label">Readability signal</span>
                                     <span class="metric-icon"><i class="fas fa-book-open"></i></span>
                                 </div>
                                 <div class="metric-value" id="humanizerReadability">-</div>
                             </div>
                             <div class="metric-card">
                                 <div class="metric-header">
-                                    <span class="metric-label">Warnings</span>
+                                    <span class="metric-label">Review flags</span>
                                     <span class="metric-icon"><i class="fas fa-shield-alt"></i></span>
                                 </div>
                                 <div class="metric-value" id="humanizerWarningsCount">0</div>
@@ -140,7 +168,7 @@
 
                         <div class="card" style="margin-bottom:20px;">
                             <div class="card-header">
-                                <h3>Rewrite Summary</h3>
+                                <h3>Editorial change log</h3>
                             </div>
                             <div class="card-body">
                                 <p id="humanizerSummary" style="margin-bottom:14px;color:#4b5563;"></p>
@@ -152,7 +180,7 @@
                         <div class="card" style="margin-bottom:20px;">
                             <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
                                 <div style="display:flex; align-items:center; gap:15px;">
-                                    <h3 style="margin:0;">Refined Copy</h3>
+                                    <h3 style="margin:0;">Working draft</h3>
                                     <div class="btn-group" style="display:flex; background:#f3f4f6; padding:2px; border-radius:8px;">
                                         <button class="btn btn-sm" id="btnModeEdit" style="background:#fff; border-radius:6px; font-weight:600; padding:4px 10px; border:none; box-shadow:0 1px 2px rgba(0,0,0,0.05); color:#111827;">Edit Text</button>
                                         <button class="btn btn-sm" id="btnModeDiff" style="background:transparent; border-radius:6px; font-weight:500; padding:4px 10px; border:none; color:#4b5563;">View Diff</button>
@@ -184,7 +212,7 @@
 
                         <div class="card">
                             <div class="card-header">
-                                <h3>Alternative Angles</h3>
+                                <h3>Alternative rewrites</h3>
                             </div>
                             <div class="card-body" id="humanizerAlternatives"></div>
                         </div>

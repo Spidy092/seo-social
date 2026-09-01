@@ -8,40 +8,40 @@
                         <div class="card-body">
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Target keyword</label>
-                                    <input type="text" id="briefKeyword" placeholder="e.g. web design company in Bangalore">
+                                    <label for="briefKeyword">Target keyword</label>
+                                    <input type="text" id="briefKeyword" name="keyword" autocomplete="off" spellcheck="false" inputmode="search" placeholder="e.g. web design company in Bangalore…">
                                 </div>
                                 <div class="form-group">
-                                    <label>Location</label>
-                                    <input type="text" id="briefLocation" value="India" placeholder="India, Bangalore, Whitefield">
-                                </div>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label>Your domain</label>
-                                    <input type="text" id="briefDomain" placeholder="example.com">
-                                </div>
-                                <div class="form-group">
-                                    <label>Audience</label>
-                                    <input type="text" id="briefAudience" placeholder="startup founders, local customers, SaaS buyers">
+                                    <label for="briefLocation">Location</label>
+                                    <input type="text" id="briefLocation" name="location" value="India" autocomplete="address-level2" spellcheck="false" placeholder="India, Bangalore, Whitefield…">
                                 </div>
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Brand voice</label>
-                                    <input type="text" id="briefBrandVoice" placeholder="clear, expert, practical">
+                                    <label for="briefDomain">Your domain</label>
+                                    <input type="text" id="briefDomain" name="domain" autocomplete="off" inputmode="url" spellcheck="false" placeholder="example.com…">
                                 </div>
                                 <div class="form-group">
-                                    <label>Attach to project</label>
-                                    <select id="briefProjectSelect">
+                                    <label for="briefAudience">Audience</label>
+                                    <input type="text" id="briefAudience" name="audience" autocomplete="off" spellcheck="false" placeholder="startup founders, local customers…">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="briefBrandVoice">Brand voice</label>
+                                    <input type="text" id="briefBrandVoice" name="voice" autocomplete="off" spellcheck="false" placeholder="clear, expert, practical…">
+                                </div>
+                                <div class="form-group">
+                                    <label for="briefProjectSelect">Attach to project</label>
+                                    <select id="briefProjectSelect" name="project">
                                         <option value="">Do not attach to project</option>
                                     </select>
                                 </div>
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Competitor depth</label>
-                                    <select id="briefNumResults">
+                                    <label for="briefNumResults">Competitor depth</label>
+                                    <select id="briefNumResults" name="numResults">
                                         <option value="5">Top 5</option>
                                         <option value="10" selected>Top 10</option>
                                         <option value="20">Top 20</option>
@@ -52,8 +52,8 @@
                                 <input type="checkbox" id="briefUseAi" checked>
                                 <span>Use AI to polish title, meta, and outline when configured</span>
                             </label>
-                            <button class="btn btn-primary" id="generateBriefBtn" style="width:220px;justify-content:center;height:50px;font-weight:600;">
-                                <i class="fas fa-file-lines"></i> Generate Brief
+                            <button type="button" class="btn btn-primary" id="generateBriefBtn" style="min-height:44px;width:220px;justify-content:center;font-weight:600;">
+                                <i class="fas fa-file-lines" aria-hidden="true"></i> Generate brief
                             </button>
                         </div>
                     </div>

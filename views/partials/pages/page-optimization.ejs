@@ -33,17 +33,17 @@
                             </div>
                             <div class="card-body">
                                 <div class="form-group">
-                                    <label>Your page URL</label>
-                                    <input type="text" id="poUrl" placeholder="https://yoursite.com/your-page">
+                                    <label for="poUrl">Your page URL</label>
+                                    <input type="url" id="poUrl" name="url" autocomplete="url" inputmode="url" spellcheck="false" placeholder="https://yoursite.com/your-page…">
                                 </div>
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label>Target keyword</label>
-                                        <input type="text" id="poKeyword" placeholder="e.g. web design company bangalore">
+                                        <label for="poKeyword">Target keyword</label>
+                                        <input type="text" id="poKeyword" name="keyword" autocomplete="off" spellcheck="false" inputmode="search" placeholder="e.g. web design company bangalore…">
                                     </div>
                                     <div class="form-group">
-                                        <label>Search location</label>
-                                        <select id="poLocation">
+                                        <label for="poLocation">Search location</label>
+                                        <select id="poLocation" name="location">
                                             <option value="India">India</option>
                                             <option value="United States">United States</option>
                                             <option value="United Kingdom">United Kingdom</option>
@@ -55,8 +55,8 @@
                                         </select>
                                     </div>
                                 </div>
-                                <button class="btn btn-primary" id="poAnalyzeBtn">
-                                    <i class="fas fa-bullseye"></i> Run Optimization Analysis
+                                <button type="button" class="btn btn-primary" id="poAnalyzeBtn" style="min-height:44px;">
+                                    <i class="fas fa-bullseye" aria-hidden="true"></i> Run optimization analysis
                                 </button>
                             </div>
                         </div>

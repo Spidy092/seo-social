@@ -13,8 +13,8 @@
 }
 
 .task-column-container.drag-over {
-    background-color: rgba(79, 70, 229, 0.05);
-    border: 2px dashed rgba(79, 70, 229, 0.3);
+    background-color: rgba(183,85,44,0.06);
+    border: 2px dashed rgba(183,85,44,0.20);
 }
 
 /* Task Card Style */
@@ -33,7 +33,7 @@
 .task-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
-    border-color: rgba(79, 70, 229, 0.25);
+    border-color: rgba(183,85,44,0.20);
 }
 
 .task-card:active {
@@ -106,8 +106,8 @@
 
 /* Badge Categories */
 .task-badge-cat {
-    background-color: rgba(79, 70, 229, 0.08);
-    color: #4f46e5;
+    background-color: rgba(183,85,44,0.08);
+    color: var(--ed-copper, #B7552C);
 }
 
 /* Badge Priority */
@@ -205,13 +205,13 @@
 }
 
 .task-action-btn.btn-status-move {
-    background: rgba(79, 70, 229, 0.05);
-    color: #4f46e5;
+    background: rgba(183,85,44,0.06);
+    color: var(--ed-copper, #B7552C);
 }
 
 .task-action-btn.btn-status-move:hover {
-    background: rgba(79, 70, 229, 0.15);
-    color: #4f46e5;
+    background: rgba(183,85,44,0.15);
+    color: var(--ed-copper, #B7552C);
 }
 
 /* Dragging visual */
@@ -222,19 +222,19 @@
 
 /* Task AI Assistant */
 .task-action-btn.btn-ai-assist {
-    background: rgba(79, 70, 229, 0.08);
-    color: #4f46e5;
+    background: rgba(183,85,44,0.08);
+    color: var(--ed-copper, #B7552C);
 }
 
 .task-action-btn.btn-ai-assist:hover {
-    background: rgba(79, 70, 229, 0.16);
-    color: #4338ca;
+    background: rgba(183,85,44,0.16);
+    color: var(--ed-copper-dark, #8F3D20);
 }
 
 .task-ai-panel {
     margin-top: 14px;
     padding: 14px;
-    border: 1px solid rgba(79, 70, 229, 0.16);
+    border: 1px solid rgba(183,85,44,0.16);
     border-radius: 10px;
     background: #f8fafc;
     cursor: default;
@@ -246,7 +246,7 @@
     justify-content: space-between;
     gap: 10px;
     margin-bottom: 10px;
-    color: #4338ca;
+    color: var(--ed-copper-dark, #8F3D20);
     font-size: 0.82rem;
     font-weight: 700;
 }
@@ -307,7 +307,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #4f46e5;
+    color: var(--ed-copper, #B7552C);
     font-size: 0.8rem;
     font-weight: 600;
 }

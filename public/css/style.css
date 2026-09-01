@@ -1,11 +1,12 @@
+/* LEGACY SHELL — Evidence Desk overrides in evidence-desk.css are canonical. :root indigo #4f46e5 kept only as fallback before evidence-desk.css loads; do not add new rules here. New work belongs in evidence-desk.css or page CSS using var(--ed-*) tokens. */
 /* 🎨 Keyword Analyzer - Premium Styles */
 
 :root {
     /* Vibrant, Modern Colors */
-    --primary: #4f46e5;
-    /* Indigo 600 */
-    --primary-dark: #4338ca;
-    /* Indigo 700 */
+    --primary: var(--ed-copper, #B7552C);
+    /* Legacy Indigo 600 → mapped to Evidence copper fallback */
+    --primary-dark: var(--ed-copper-dark, #8F3D20);
+    /* Legacy Indigo 700 → mapped to copper dark */
     --primary-light: #818cf8;
     /* Indigo 400 */
     --primary-glow: rgba(79, 70, 229, 0.4);
@@ -253,7 +254,7 @@ body {
     cursor: pointer;
     padding: 6px;
     border-radius: 6px;
-    transition: all 0.2s;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
     font-size: 0.9rem;
 }
 
@@ -318,7 +319,7 @@ body {
     gap: 12px;
     padding: 10px 20px 10px 24px;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     color: var(--sidebar-text-muted);
     position: relative;
     font-size: 14px;
@@ -512,7 +513,7 @@ body {
 .command-palette-input-wrap input {
     flex: 1;
     border: none;
-    outline: none;
+    outline: 0;
     font-size: 1rem;
     background: none;
     color: #1e293b;
@@ -570,7 +571,7 @@ body {
     align-items: center;
     justify-content: center;
     background: #f1f5f9;
-    color: #6366f1;
+    color: var(--ed-copper, #B7552C);
     font-size: 0.9rem;
     flex-shrink: 0;
 }
@@ -764,7 +765,7 @@ body {
     width: 100%;
     max-width: 480px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
     box-shadow: var(--shadow-sm);
 }
 
@@ -814,7 +815,7 @@ body {
     background: var(--bg-card);
     color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
     font-size: 1rem;
     box-shadow: var(--shadow-sm);
 }
@@ -856,7 +857,7 @@ body {
 .search-box input {
     border: none;
     background: none;
-    outline: none;
+    outline: 0;
     font-size: 0.9rem;
     width: 250px;
 }
@@ -912,7 +913,7 @@ body {
 	border: 1px solid var(--border-color);
 	border-radius: var(--border-radius);
 	cursor: pointer;
-	transition: all var(--transition-bounce);
+	transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease, border-color 0.2s ease;
 	font-size: 0.9rem;
 	font-weight: 400;
 	color: #000;
@@ -1045,7 +1046,7 @@ body {
     opacity: 0;
     visibility: hidden;
     transform: translateY(10px);
-    transition: all 0.25s;
+    transition: transform 0.25s ease, opacity 0.25s ease;
     z-index: 900;
 }
 
@@ -1139,7 +1140,7 @@ body {
     width: 100%;
     min-height: 200px;
     border: none;
-    outline: none;
+    outline: 0;
     resize: vertical;
     font-family: inherit;
     font-size: 0.9rem;
@@ -1264,7 +1265,7 @@ body {
     font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
 }
 
 .error-state .btn-retry:hover {
@@ -1324,7 +1325,7 @@ body {
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     white-space: nowrap;
 }
 
@@ -1558,7 +1559,7 @@ body {
     justify-content: center;
     font-size: 0.85rem;
     font-weight: 700;
-    transition: all 0.3s;
+    transition: transform 0.3s ease, background-color 0.2s ease;
 }
 
 .wizard-step.active .wizard-step-num {
@@ -1651,7 +1652,7 @@ body {
     border: 1px solid var(--border-color);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
-    transition: all var(--transition-bounce);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease, border-color 0.2s ease;
     width: 100%;
     max-width: 300px;
 }
@@ -1709,7 +1710,7 @@ body {
     border: 1px solid var(--border-color);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
-    transition: all var(--transition-normal);
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
     padding: 30px;
 }
 
@@ -1873,7 +1874,7 @@ body {
 
 .table-filter-input input {
     border: none;
-    outline: none;
+    outline: 0;
     background: none;
     font-size: 0.85rem;
     width: 100%;
@@ -1890,7 +1891,7 @@ body {
 	font-size: 0.95rem;
 	font-weight: 500;
 	cursor: pointer;
-	transition: all 0.2s;
+	transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
 }
 
 .btn-primary {
@@ -1942,8 +1943,7 @@ body {
 
 .form-group input:focus,
 .form-group select:focus {
-    outline: none;
-    border-color: var(--primary);
+    outline: 0; border-color: var(--ed-copper, var(--primary)); box-shadow: 0 0 0 3px rgba(183,85,44,0.12);
 }
 
 .form-row {
@@ -2090,6 +2090,7 @@ body {
 }
 
 .metric-value {
+    font-variant-numeric: tabular-nums;
     font-size: 1.75rem;
     font-weight: 800;
     color: var(--darker);
@@ -2161,7 +2162,7 @@ body {
     font-weight: 500;
     color: var(--primary-light);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
 }
 .tag:hover {
     background: rgba(79, 70, 229, 0.3);
@@ -2218,7 +2219,7 @@ body {
     left: 0;
     width: 4px;
     height: 100%;
-    background: linear-gradient(to bottom, #6366f1, #a855f7);
+    background: var(--ed-copper, #B7552C);
 }
 
 .ai-header {
@@ -2240,7 +2241,7 @@ body {
 }
 
 .ai-title i {
-    color: #6366f1;
+    color: var(--ed-copper, #B7552C);
     font-size: 1.5rem;
 }
 
@@ -2254,7 +2255,7 @@ body {
 }
 
 .ai-score-badge span {
-    color: #6366f1;
+    color: var(--ed-copper, #B7552C);
     font-size: 1.1rem;
 }
 
@@ -2271,13 +2272,13 @@ body {
 
 .ai-verdict.behind {
     background: rgba(239, 68, 68, 0.2);
-    color: #ef4444;
+    color: var(--ed-red, #A43D35);
     border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 .ai-verdict.competitive {
     background: rgba(245, 158, 11, 0.2);
-    color: #f59e0b;
+    color: var(--ed-amber, #966617);
     border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
@@ -2295,7 +2296,7 @@ body {
 }
 
 .ai-summary strong {
-    color: #6366f1;
+    color: var(--ed-copper, #B7552C);
     display: block;
     margin-bottom: 5px;
 }
@@ -2634,7 +2635,7 @@ body {
     background: white;
     cursor: pointer;
     font-size: 0.85rem;
-    transition: all 0.2s;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -2670,7 +2671,7 @@ body {
     display: flex;
     align-items: center;
     gap: 16px;
-    transition: all 0.2s;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
 }
 
 .alert-item.unread {
@@ -2870,15 +2871,15 @@ body {
 }
 
 .toast-success {
-    background: linear-gradient(135deg, #10b981, #059669);
+    background: var(--ed-green, #28704D);
 }
 
 .toast-error {
-    background: linear-gradient(135deg, #ef4444, #dc2626);
+    background: var(--ed-red, #A43D35);
 }
 
 .toast-info {
-    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    background: var(--ed-copper, #B7552C);
 }
 
 .toast i {
@@ -4018,7 +4019,7 @@ body {
     cursor: pointer;
     font-size: 0.85rem;
     color: var(--dark);
-    transition: all 0.2s;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
 }
 
 .pg-btn:hover:not(:disabled) {
@@ -4107,8 +4108,7 @@ body {
 }
 
 .form-group textarea:focus {
-    outline: none;
-    border-color: var(--primary);
+    outline: 0; border-color: var(--ed-copper, var(--primary)); box-shadow: 0 0 0 3px rgba(183,85,44,0.12);
 }
 
 .client-card {
@@ -4289,19 +4289,19 @@ body {
 
 .overall-score-pill.tone-good {
     background: rgba(16, 185, 129, 0.12);
-    color: var(--success, #10b981);
+    color: var(--ed-green, #28704D);
     border-color: rgba(16, 185, 129, 0.25);
 }
 
 .overall-score-pill.tone-mid {
     background: rgba(245, 158, 11, 0.12);
-    color: var(--warning, #f59e0b);
+    color: var(--ed-amber, #966617);
     border-color: rgba(245, 158, 11, 0.25);
 }
 
 .overall-score-pill.tone-bad {
     background: rgba(239, 68, 68, 0.12);
-    color: var(--danger, #ef4444);
+    color: var(--ed-red, #A43D35);
     border-color: rgba(239, 68, 68, 0.25);
 }
 
@@ -4350,12 +4350,12 @@ body {
 
 .metric-row.winner-mine {
     background: rgba(16, 185, 129, 0.04);
-    border-left: 3px solid var(--success, #10b981);
+    border-left: 3px solid var(--ed-green, #28704D);
 }
 
 .metric-row.winner-competitor {
     background: rgba(245, 158, 11, 0.04);
-    border-left: 3px solid var(--warning, #f59e0b);
+    border-left: 3px solid var(--ed-amber, #966617);
 }
 
 .metric-row.winner-tie {
@@ -4410,7 +4410,7 @@ body {
 }
 
 .winner-check {
-    color: var(--success, #10b981);
+    color: var(--ed-green, #28704D);
     font-size: 0.85rem;
 }
 
@@ -4430,7 +4430,7 @@ body {
 }
 
 .metric-bar .bar-mine {
-    background: linear-gradient(90deg, var(--primary), #6366f1);
+    background: var(--ed-copper, var(--primary, #B7552C));
 }
 
 .metric-bar .bar-comp {
@@ -4487,15 +4487,15 @@ body {
 }
 
 .serp-pos.pos-top {
-    color: var(--success, #10b981);
+    color: var(--ed-green, #28704D);
 }
 
 .serp-pos.pos-mid {
-    color: var(--warning, #f59e0b);
+    color: var(--ed-amber, #966617);
 }
 
 .serp-pos.pos-low {
-    color: var(--danger, #ef4444);
+    color: var(--ed-red, #A43D35);
 }
 
 .serp-pos.pos-none {
@@ -4558,7 +4558,7 @@ body {
 }
 
 .ai-winning-factor.is-competitor i {
-    color: #f59e0b;
+    color: var(--ed-amber, #966617);
 }
 
 .ai-factor-label {
@@ -4608,12 +4608,12 @@ body {
 
 .impact-pill.impact-high {
     background: rgba(239, 68, 68, 0.12);
-    color: var(--danger, #ef4444);
+    color: var(--ed-red, #A43D35);
 }
 
 .impact-pill.impact-medium {
     background: rgba(245, 158, 11, 0.12);
-    color: var(--warning, #f59e0b);
+    color: var(--ed-amber, #966617);
 }
 
 .impact-pill.impact-low {
@@ -4683,7 +4683,7 @@ body {
 }
 
 .suggestion-group .group-count strong {
-    color: var(--danger, #ef4444);
+    color: var(--ed-red, #A43D35);
 }
 
 .suggestion-group .group-items {
@@ -4703,7 +4703,7 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    transition: all 0.15s;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .copy-btn:hover {
@@ -4721,7 +4721,7 @@ body {
 }
 
 .suggestion-item.priority-medium {
-    border-left: 3px solid var(--warning, #f59e0b);
+    border-left: 3px solid var(--ed-amber, #966617);
 }
 
 .suggestion-item.priority-low {

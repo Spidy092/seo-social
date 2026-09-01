@@ -31,6 +31,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 // ─── Breadcrumb Map ───
 const breadcrumbMap = {
     dashboard: [{ icon: 'fa-home', label: 'Home' }, { label: 'Dashboard' }],
+    autopilot: [{ icon: 'fa-home', label: 'Home' }, { label: 'Autopilot' }],
     clients: [{ icon: 'fa-home', label: 'Home' }, { label: 'Clients' }],
     'project-dashboard': [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-briefcase', label: 'Clients' }, { label: 'Project Dashboard' }],
     research: [{ icon: 'fa-home', label: 'Home' }, { icon: 'fa-search', label: 'Research' }, { label: 'Keyword Research' }],
@@ -60,6 +61,7 @@ const breadcrumbMap = {
 // ─── Command Palette Pages ───
 const commandPages = [
     { page: 'dashboard', title: 'Dashboard', desc: 'Overview stats and recent activity', icon: 'fa-chart-line' },
+    { page: 'autopilot', title: 'Autopilot', desc: 'AI-driven autonomous research, comparison, and action plan', icon: 'fa-robot' },
     { page: 'clients', title: 'Clients', desc: 'Manage SEO clients and projects', icon: 'fa-briefcase' },
     { page: 'project-dashboard', title: 'Project Dashboard', desc: 'Per-project SEO health overview', icon: 'fa-tachometer-alt' },
     { page: 'research', title: 'Keyword Research', desc: 'Research keywords with SERP data', icon: 'fa-search' },
@@ -136,20 +138,45 @@ function initSidebarGroups() {
     $$('.nav-group-header').forEach(header => {
         const group = header.closest('.nav-group');
         const items = group.querySelector('.nav-group-items');
+        const isCollapsedInit = group.classList.contains('collapsed');
         if (items) {
-            items.style.maxHeight = items.scrollHeight + 'px';
+            items.style.maxHeight = isCollapsedInit ? '0px' : items.scrollHeight + 'px';
         }
+        header.setAttribute('aria-expanded', String(!isCollapsedInit));
         header.addEventListener('click', () => {
+            const willCollapse = !group.classList.contains('collapsed');
             group.classList.toggle('collapsed');
-            const items = group.querySelector('.nav-group-items');
-            if (items) {
+            header.setAttribute('aria-expanded', String(!willCollapse));
+            const list = group.querySelector('.nav-group-items');
+            if (list) {
                 if (group.classList.contains('collapsed')) {
-                    items.style.maxHeight = '0px';
+                    list.style.maxHeight = '0px';
                 } else {
-                    items.style.maxHeight = items.scrollHeight + 'px';
+                    list.style.maxHeight = list.scrollHeight + 'px';
                 }
             }
+            // persist open groups
+            try {
+                const key = 'ed-nav-open-' + header.dataset.group;
+                localStorage.setItem(key, String(!willCollapse));
+            } catch {}
         });
+        header.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                header.click();
+            }
+        });
+        // restore persisted state (overview defaults open)
+        try {
+            const key = 'ed-nav-open-' + header.dataset.group;
+            const saved = localStorage.getItem(key);
+            if (saved !== null) {
+                const shouldOpen = saved === 'true';
+                const isCollapsedNow = group.classList.contains('collapsed');
+                if (shouldOpen === isCollapsedNow) header.click();
+            }
+        } catch {}
     });
 }
 
@@ -170,13 +197,21 @@ function initSidebarGroups() {
 function initSidebarCollapse() {
     const btn = $('#sidebarCollapseBtn');
     const sidebar = $('.sidebar');
-
+    if (!btn || !sidebar) return;
     const collapsed = localStorage.getItem('sidebar-collapsed') === 'true';
-    if (collapsed) sidebar.classList.add('collapsed');
-
+    if (collapsed) {
+        sidebar.classList.add('collapsed');
+        btn.setAttribute('aria-expanded', 'false');
+        btn.setAttribute('aria-label', 'Expand sidebar');
+    } else {
+        btn.setAttribute('aria-expanded', 'true');
+    }
     btn.addEventListener('click', () => {
+        const willCollapse = !sidebar.classList.contains('collapsed');
         sidebar.classList.toggle('collapsed');
         localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+        btn.setAttribute('aria-expanded', String(!willCollapse));
+        btn.setAttribute('aria-label', willCollapse ? 'Expand sidebar' : 'Collapse sidebar');
     });
 }
 
@@ -185,11 +220,27 @@ function initMobileSidebar() {
     const toggle = $('#menuToggle');
     const overlay = $('#sidebarOverlay');
     const sidebar = $('.sidebar');
+    const main = document.getElementById('main-content');
+
+    function syncInert(isOpen) {
+        if (!main) return;
+        if (isOpen) {
+            main.setAttribute('inert', '');
+            overlay?.setAttribute('aria-hidden', 'false');
+        } else {
+            main.removeAttribute('inert');
+            overlay?.setAttribute('aria-hidden', 'true');
+        }
+        toggle?.setAttribute('aria-expanded', String(isOpen));
+        // overscroll containment handled in CSS
+    }
 
     if (toggle) {
         toggle.addEventListener('click', () => {
+            const willOpen = !sidebar.classList.contains('active');
             sidebar.classList.toggle('active');
             overlay.classList.toggle('active');
+            syncInert(willOpen);
         });
     }
 
@@ -197,8 +248,17 @@ function initMobileSidebar() {
         overlay.addEventListener('click', () => {
             sidebar.classList.remove('active');
             overlay.classList.remove('active');
+            syncInert(false);
         });
     }
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && sidebar.classList.contains('active')) {
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+            syncInert(false);
+            toggle?.focus();
+        }
+    });
 }
 
 // ─── Command Palette ───
@@ -333,17 +393,26 @@ function initDarkMode() {
         if (toggle) toggle.innerHTML = '<i class="fas fa-sun"></i>';
     }
 
+    function syncToggle(isDark) {
+        if (!toggle) return;
+        toggle.innerHTML = isDark ? '<i class="fas fa-sun" aria-hidden="true"></i>' : '<i class="fas fa-moon" aria-hidden="true"></i>';
+        toggle.setAttribute('aria-pressed', String(isDark));
+        toggle.setAttribute('aria-label', isDark ? 'Toggle light mode' : 'Toggle dark mode');
+        toggle.title = isDark ? 'Toggle light mode' : 'Toggle dark mode';
+    }
+    if (saved === 'dark') syncToggle(true);
+    else syncToggle(false);
     if (toggle) {
         toggle.addEventListener('click', () => {
             const isDark = html.getAttribute('data-theme') === 'dark';
             if (isDark) {
                 html.removeAttribute('data-theme');
-                toggle.innerHTML = '<i class="fas fa-moon"></i>';
                 localStorage.setItem('theme', 'light');
+                syncToggle(false);
             } else {
                 html.setAttribute('data-theme', 'dark');
-                toggle.innerHTML = '<i class="fas fa-sun"></i>';
                 localStorage.setItem('theme', 'dark');
+                syncToggle(true);
             }
         });
     }
@@ -357,11 +426,35 @@ function updateBreadcrumbs(page) {
     const crumbs = breadcrumbMap[page] || [{ icon: 'fa-home', label: 'Home' }];
     container.innerHTML = crumbs.map((crumb, i) => {
         const isLast = i === crumbs.length - 1;
-        const iconHtml = crumb.icon ? `<i class="fas ${crumb.icon}"></i>` : '';
-        const sep = !isLast ? '<span class="breadcrumb-sep"><i class="fas fa-chevron-right"></i></span>' : '';
+        const iconHtml = crumb.icon ? `<i class="fas ${crumb.icon}" aria-hidden="true"></i>` : '';
+        const sep = !isLast ? '<span class="breadcrumb-sep"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>' : '';
         return `<span class="breadcrumb-item">${iconHtml} ${crumb.label}</span>${sep}`;
     }).join('');
 }
+// Decorate icons + ensure header mobile search button opens palette
+(function initHeaderMobileSearch() {
+    const btn = document.getElementById('headerSearchBtn');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+        const trigger = document.getElementById('commandPaletteTrigger');
+        if (trigger) trigger.click();
+        else {
+            const overlay = document.getElementById('commandPalette');
+            if (overlay) overlay.classList.add('active');
+            document.getElementById('commandPaletteInput')?.focus();
+        }
+    });
+    // reveal on <768 handled by CSS; also show if header center hidden
+    function syncHeaderSearchVisibility() {
+        const center = document.querySelector('.header-center');
+        if (!center || !btn) return;
+        const hidden = window.getComputedStyle(center).display === 'none';
+        btn.style.display = hidden ? 'inline-flex' : 'none';
+    }
+    window.addEventListener('resize', syncHeaderSearchVisibility);
+    document.addEventListener('DOMContentLoaded', syncHeaderSearchVisibility);
+    syncHeaderSearchVisibility();
+})();
 
 // ─── Alert Badge Polling via new /api/alerts/unread-count ───
 async function refreshAlertBadge() {
@@ -385,6 +478,13 @@ function initNavigation() {
         item.addEventListener('click', () => {
             const page = item.dataset.page;
             if (page) navigateTo(page);
+        });
+        // keyboard parity for items that are buttons already handled natively
+        item.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                item.click();
+            }
         });
     });
 
@@ -437,10 +537,18 @@ function navigateTo(page, isPopState = false) {
         }
     }
 
-    // Update page
+    // Update page + live region
+    const contentRoot = document.getElementById('pageContentLive') || document.querySelector('.content');
+    if (contentRoot) contentRoot.setAttribute('aria-busy', 'true');
     $$('.page').forEach(p => {
         p.classList.toggle('active', p.id === `page-${page}`);
     });
+    // announce for SR
+    const live = document.getElementById('pageContentLive');
+    if (live) {
+        // briefly clear then set to ensure announcement
+        setTimeout(() => live.setAttribute('aria-busy', 'false'), 120);
+    }
 
     // Update title
     const titles = {
@@ -485,6 +593,7 @@ function navigateTo(page, isPopState = false) {
     // Load page data
     switch (page) {
         case 'dashboard': loadDashboard(); break;
+        case 'autopilot': if (typeof initAutopilotPage === 'function') initAutopilotPage(); break;
         case 'clients': loadClientWorkspace(); break;
         case 'project-dashboard': initProjectDashboard(); break;
         case 'research': loadResearchProjects(); break;
@@ -579,6 +688,13 @@ function initTableSorting(table) {
 
     const headers = table.querySelectorAll('th');
     headers.forEach((th, colIndex) => {
+        if (!th.hasAttribute('tabindex')) th.setAttribute('tabindex', '0');
+        if (!th.hasAttribute('role')) th.setAttribute('role', 'columnheader');
+        th.setAttribute('aria-sort', 'none');
+        const activate = () => th.click();
+        th.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+        });
         th.addEventListener('click', () => {
             const tbody = table.querySelector('tbody');
             if (!tbody) return;
@@ -588,7 +704,10 @@ function initTableSorting(table) {
             const isDesc = th.classList.contains('sort-desc');
 
             // Clear other sort indicators
-            headers.forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+            headers.forEach(h => {
+                h.classList.remove('sort-asc', 'sort-desc');
+                h.setAttribute('aria-sort', 'none');
+            });
 
             // Determine sort direction
             let direction = 'asc';
@@ -604,6 +723,7 @@ function initTableSorting(table) {
                 });
             } else {
                 th.classList.add(direction === 'asc' ? 'sort-asc' : 'sort-desc');
+                th.setAttribute('aria-sort', direction === 'asc' ? 'ascending' : 'descending');
 
                 // Store original indices
                 rows.forEach((row, i) => {
@@ -742,10 +862,24 @@ function initCollapsible(header) {
     if (!header) return;
     const body = header.nextElementSibling;
     if (!body || !body.classList.contains('collapsible-body')) return;
-
-    header.addEventListener('click', () => {
+    // ensure button semantics
+    if (header.tagName !== 'BUTTON') {
+        header.setAttribute('role', 'button');
+        header.setAttribute('tabindex', '0');
+        header.setAttribute('aria-expanded', header.classList.contains('open') ? 'true' : 'false');
+    } else {
+        header.setAttribute('aria-expanded', header.classList.contains('open') ? 'true' : 'false');
+    }
+    const toggle = () => {
+        const willOpen = !header.classList.contains('open');
         header.classList.toggle('open');
         body.classList.toggle('open');
+        header.setAttribute('aria-expanded', String(willOpen));
+        if (body.id) header.setAttribute('aria-controls', body.id);
+    };
+    header.addEventListener('click', toggle);
+    header.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
     });
 }
 
@@ -931,6 +1065,7 @@ $('#humanizeBtn')?.addEventListener('click', async () => {
     const preserveHtml = $('#humanizerPreserveHtml')?.checked || false;
     const maxChange = $('#humanizerMaxChange')?.value || 'balanced';
     const sample = $('#humanizerSample')?.value.trim() || '';
+    const targetLength = parseInt($('#humanizerTargetLength')?.value, 10) || 0;
 
     if (!text || text.length < 30) {
         showError('Please paste at least a short paragraph to humanize.');
@@ -952,6 +1087,7 @@ $('#humanizeBtn')?.addEventListener('click', async () => {
                 preserveHtml,
                 maxChange,
                 sample,
+                targetLength,
             }),
         });
 
@@ -962,7 +1098,7 @@ $('#humanizeBtn')?.addEventListener('click', async () => {
 
         renderHumanizerResult(data.result);
         loadHumanizerHistory();
-        showSuccess('Content refined successfully.');
+        showSuccess('Draft refined. Review the flags before publishing.');
     } catch (err) {
         console.error('Humanizer failed:', err);
         showError('Could not humanize content right now.');
@@ -971,6 +1107,11 @@ $('#humanizeBtn')?.addEventListener('click', async () => {
 
 $('#refreshHumanizerHistoryBtn')?.addEventListener('click', () => {
     loadHumanizerHistory();
+});
+
+$('#refreshHumanizerHistoryBtnTop')?.addEventListener('click', () => {
+    loadHumanizerHistory();
+    $('#humanizerHistoryList')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
 $('#humanizerMode')?.addEventListener('change', () => {
@@ -1011,7 +1152,7 @@ function renderHumanizerResult(result) {
     const warnings = result.verification?.warnings || [];
     $('#humanizerWarnings').innerHTML = warnings.length
         ? warnings.map(message => `<div class="recommendation-item warning" style="margin-bottom:10px;"><i class="fas fa-shield-alt"></i><span>${escapeHtml(message)}</span></div>`).join('')
-        : '<div class="recommendation-item" style="background:#ecfdf5;color:#065f46;"><i class="fas fa-check-circle"></i><span>No preservation warnings detected.</span></div>';
+        : '<div class="recommendation-item" style="background:#ecfdf5;color:#065f46;"><i class="fas fa-check-circle"></i><span>No deterministic preservation warnings detected. Review the draft before publishing.</span></div>';
 
     const alternatives = humanizerAlternativesCache;
     $('#humanizerAlternatives').innerHTML = alternatives.length
@@ -1116,6 +1257,7 @@ function loadHumanizerHistoryItem(index) {
         : '';
     $('#humanizerPreserveHtml').checked = Boolean(item.preserve_html);
     $('#humanizerMaxChange').value = item.max_change || 'balanced';
+    if ($('#humanizerTargetLength')) $('#humanizerTargetLength').value = item.target_length || '';
     $('#humanizerSummary').textContent = item.summary || 'Loaded from history';
     $('#humanizerChanges').innerHTML = '<span class="text-muted">Loaded from saved history.</span>';
     $('#humanizerWarnings').innerHTML = '<div class="recommendation-item" style="background:#eff6ff;color:#1d4ed8;"><i class="fas fa-clock-rotate-left"></i><span>Loaded a previous rewrite result.</span></div>';
@@ -1168,9 +1310,12 @@ async function loadDashboard() {
 
         // Load onboarding checklist
         loadOnboardingChecklist();
+        window.evidenceDesk?.markWorkspaceLoaded('Measured now');
+        loadSourceHealth();
 
     } catch (err) {
         console.error('Dashboard load failed:', err);
+        window.evidenceDesk?.markWorkspaceFailed('Could not verify');
         // Show error states
         const statIds = ['totalKeywords', 'activeAlerts', 'totalCompetitors', 'topRankings', 'totalClients', 'totalProjects'];
         statIds.forEach(id => {
@@ -1197,6 +1342,18 @@ async function loadDashboard() {
                 retryFn: () => loadDashboard(),
             });
         }
+    }
+}
+
+async function loadSourceHealth() {
+    try {
+        const response = await fetch('/api/source-health');
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Source health unavailable');
+        window.evidenceDesk?.markSourceHealth(data.health);
+    } catch (err) {
+        console.warn('Source health check failed:', err.message);
+        window.evidenceDesk?.markSourceHealth({ overallStatus: 'unavailable', sources: [] });
     }
 }
 
@@ -3675,20 +3832,32 @@ function getChangeIcon(direction) {
 }
 
 function showLoading() {
-    $('#loadingOverlay')?.classList.add('active');
+    const ov = $('#loadingOverlay');
+    if (!ov) return;
+    // Use overlay only for blocking operations; skeleton containers use aria-busy instead
+    ov.classList.add('active');
+    document.getElementById('pageContentLive')?.setAttribute('aria-busy', 'true');
 }
 
 function hideLoading() {
     $('#loadingOverlay')?.classList.remove('active');
+    document.getElementById('pageContentLive')?.setAttribute('aria-busy', 'false');
 }
 
 function showError(message) {
     showToast(message, 'error');
 }
-
 function showSuccess(message) {
     showToast(message, 'success');
 }
+// Research CTA: keep label specific per Web Guideline
+function syncResearchButtonLabel() {
+    const btn = document.getElementById('researchBtn');
+    if (!btn) return;
+    const kw = document.getElementById('keywordInput')?.value.trim();
+    btn.querySelector('span')?.replaceChildren(document.createTextNode(kw ? `Research “${kw.slice(0,22)}…”` : 'Research keyword'));
+}
+document.getElementById('keywordInput')?.addEventListener('input', syncResearchButtonLabel);
 
 function showToast(message, type = 'info') {
     const container = $('#toastContainer');

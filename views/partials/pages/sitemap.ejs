@@ -45,13 +45,13 @@
                                 </div>
                                 <div class="card-body">
                                     <div class="form-group">
-                                        <label>Website URL <span class="required">*</span></label>
-                                        <input type="url" id="smQuickUrl" placeholder="https://example.com" autocomplete="url">
+                                        <label for="smQuickUrl">Website URL <span class="required" aria-hidden="true">*</span></label>
+                                        <input type="url" id="smQuickUrl" placeholder="https://example.com…" autocomplete="url">
                                     </div>
                                     <div class="form-row">
                                         <div class="form-group">
-                                            <label>Max Pages</label>
-                                            <select id="smQuickMaxPages">
+                                            <label for="smQuickMaxPages">Max pages</label>
+                                            <select id="smQuickMaxPages" name="maxPages">
                                                 <option value="100">100 pages</option>
                                                 <option value="500">500 pages</option>
                                                 <option value="1000">1 000 pages</option>
@@ -60,8 +60,8 @@
                                             </select>
                                         </div>
                                         <div class="form-group">
-                                            <label>Max Depth</label>
-                                            <select id="smQuickDepth">
+                                            <label for="smQuickDepth">Max depth</label>
+                                            <select id="smQuickDepth" name="maxDepth">
                                                 <option value="2">2 levels</option>
                                                 <option value="3">3 levels</option>
                                                 <option value="5">5 levels</option>
@@ -72,12 +72,12 @@
                                     </div>
                                     <div class="form-row">
                                         <div class="form-group">
-                                            <label>Crawl Delay (ms)</label>
-                                            <input type="number" id="smQuickDelay" value="300" min="100" max="2000" step="50">
+                                            <label for="smQuickDelay">Crawl delay (ms)</label>
+                                            <input type="number" id="smQuickDelay" name="delay" value="300" min="100" max="2000" step="50">
                                         </div>
                                         <div class="form-group">
-                                            <label>Default Priority</label>
-                                            <select id="smQuickPriority">
+                                            <label for="smQuickPriority">Default priority</label>
+                                            <select id="smQuickPriority" name="priority">
                                                 <option value="0.8">0.8 – High</option>
                                                 <option value="0.6" selected>0.6 – Normal</option>
                                                 <option value="0.4">0.4 – Low</option>
@@ -204,7 +204,7 @@
                                                     <input type="search" id="smQuickUrlSearch" placeholder="Filter URLs…" class="sitemap-search-input">
                                                 </div>
                                                 <table class="data-table sitemap-url-table" id="smQuickUrlTable">
-                                                    <thead><tr><th>#</th><th>URL</th><th>Priority</th><th>Change freq.</th><th>Last mod</th></tr></thead>
+                                                    <caption class="sr-only">Generated sitemap entries</caption><thead><tr><th scope="col">#</th><th scope="col">URL</th><th scope="col">Priority</th><th scope="col">Change freq.</th><th scope="col">Last mod</th></tr></thead>
                                                     <tbody></tbody>
                                                 </table>
                                             </div>
@@ -262,17 +262,17 @@
                                 </div>
                                 <div class="card-body">
                                     <div class="form-group">
-                                        <label>Client <span class="required">*</span></label>
-                                        <select id="smClientSelect"><option value="">– select a client –</option></select>
+                                        <label for="smClientSelect">Client <span class="required" aria-hidden="true">*</span></label>
+                                        <select id="smClientSelect" name="client"><option value="">– select a client –</option></select>
                                     </div>
                                     <div class="form-group" id="smClientUrlGroup" style="display:none">
-                                        <label>Crawl URL <span class="required">*</span></label>
-                                        <input type="url" id="smClientUrl" placeholder="https://example.com">
+                                        <label for="smCrawlUrl">Crawl URL <span class="required" aria-hidden="true">*</span></label>
+                                        <input type="url" id="smClientUrl" placeholder="https://example.com…">
                                         <small style="color:var(--text-muted);font-size:12px;">Pre-filled from client website. Override if needed.</small>
                                     </div>
                                     <div class="form-row">
                                         <div class="form-group">
-                                            <label>Max Pages</label>
+                                            <label for="smQuickMaxPages">Max pages</label>
                                             <select id="smClientMaxPages">
                                                 <option value="500">500</option>
                                                 <option value="1000">1 000</option>
@@ -282,7 +282,7 @@
                                             </select>
                                         </div>
                                         <div class="form-group">
-                                            <label>Max Depth</label>
+                                            <label for="smQuickDepth">Max depth</label>
                                             <select id="smClientDepth">
                                                 <option value="3">3</option>
                                                 <option value="5">5</option>
@@ -294,11 +294,11 @@
                                     </div>
                                     <div class="form-row">
                                         <div class="form-group">
-                                            <label>Crawl Delay (ms)</label>
+                                            <label for="smQuickDelay">Crawl delay (ms)</label>
                                             <input type="number" id="smClientDelay" value="300" min="100" max="3000" step="50">
                                         </div>
                                         <div class="form-group">
-                                            <label>Default Priority</label>
+                                            <label for="smQuickPriority">Default priority</label>
                                             <select id="smClientPriority">
                                                 <option value="0.8">0.8 – High</option>
                                                 <option value="0.6" selected>0.6 – Normal</option>

@@ -6,8 +6,8 @@
                         </div>
                         <div class="card-body">
                             <div class="form-group">
-                                <label>Agency Name</label>
-                                <input type="text" id="agencyNameInput" placeholder="Your Agency Name" style="width: 100%;">
+                                <label for="agencyNameInput">Agency name</label>
+                                <input type="text" id="agencyNameInput" placeholder="Your Agency Name…" style="width: 100%;">
                             </div>
                             <div style="display: flex; gap: 12px; align-items: center; margin-top: 16px;">
                                 <button class="btn btn-primary" id="saveAgencyNameBtn">
@@ -25,11 +25,11 @@
                         <div class="card-body">
                             <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
                                 <div class="form-group" style="flex: 1; min-width: 250px; margin: 0;">
-                                    <label>Email Address</label>
-                                    <input type="email" id="inviteEmailInput" placeholder="colleague@example.com" style="width: 100%;">
+                                    <label for="inviteEmailInput">Email address</label>
+                                    <input type="email" id="inviteEmailInput" name="inviteEmail" type="email" autocomplete="email" spellcheck="false" placeholder="colleague@example.com…" style="width: 100%;">
                                 </div>
                                 <div class="form-group" style="min-width: 150px; margin: 0;">
-                                    <label>Role</label>
+                                    <label for="inviteRoleInput">Role</label>
                                     <select id="inviteRoleSelect" style="width: 100%;">
                                         <option value="agent">Agent</option>
                                         <option value="manager">Manager</option>

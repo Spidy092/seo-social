@@ -1,15 +1,17 @@
 <div class="page" id="page-research">
                 <div class="research-container">
                     <div class="research-form card">
-                        <h3>🔍 Advanced Keyword Research</h3>
+                        <h3>Keyword Research</h3>
+                        <p class="header-hint" style="margin:-4px 0 16px;">Enter a keyword, choose location, then research. Numbers use tabular mono for comparison.</p>
                         <div class="form-group">
-                            <label>Enter Keyword</label>
-                            <input type="text" id="keywordInput" placeholder="e.g., web design company in bangalore">
+                            <label for="keywordInput">Enter keyword</label>
+                            <input type="text" id="keywordInput" name="keyword" autocomplete="off" spellcheck="false" inputmode="search" placeholder="e.g. web design company in bangalore…">
+                            <div class="field-hint">Example: “best seo company in bangalore” — we keep what you type visible for provenance.</div>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label>Country</label>
-                                <select id="countryInput">
+                                <label for="countryInput">Country</label>
+                                <select id="countryInput" name="country" autocomplete="country-name">
                                     <option value="India">India</option>
                                     <option value="United States">United States</option>
                                     <option value="United Kingdom">United Kingdom</option>
@@ -21,8 +23,8 @@
                                 </select>
                             </div>
                             <div class="form-group" id="cityGroup">
-                                <label>City / Location</label>
-                                <select id="cityInput">
+                                <label for="cityInput">City / Location</label>
+                                <select id="cityInput" name="city" autocomplete="address-level2">
                                     <option value="">All India</option>
                                     <option value="Bangalore">Bangalore</option>
                                     <option value="Mumbai">Mumbai</option>
@@ -39,22 +41,22 @@
                         </div>
                         
                         <div class="form-group" id="areaGroup" style="display: none;">
-                            <label>Specific Area / Locality</label>
-                            <select id="areaInput">
+                            <label for="areaInput">Specific area / locality</label>
+                            <select id="areaInput" name="area">
                                     <option value="">All Bangalore</option>
                             </select>
                         </div>
 
                         <!-- Collapsible Advanced Options -->
                         <div class="collapsible-section">
-                            <div class="collapsible-header" id="researchAdvancedToggle">
-                                <h4><i class="fas fa-sliders"></i> Advanced Options</h4>
-                                <i class="fas fa-chevron-down chevron"></i>
-                            </div>
+                            <button type="button" class="collapsible-header" id="researchAdvancedToggle" aria-expanded="false" aria-controls="researchAdvancedBody">
+                                <span><i class="fas fa-sliders" aria-hidden="true"></i> Advanced options</span>
+                                <i class="fas fa-chevron-down chevron" aria-hidden="true"></i>
+                            </button>
                             <div class="collapsible-body" id="researchAdvancedBody">
                                 <div class="form-group">
-                                    <label>Save research to project</label>
-                                    <select id="researchProjectSelect">
+                                    <label for="researchProjectSelect">Save research to project</label>
+                                    <select id="researchProjectSelect" name="project">
                                         <option value="">Do not attach to project</option>
                                     </select>
                                 </div>
@@ -75,109 +77,89 @@
                             </div>
                         </div>
                         
-                        <button class="btn btn-primary" id="researchBtn" style="width: 200px; justify-content: center; height: 50px; font-weight: 600;">
-                            <i class="fas fa-search"></i> Research Now
+                        <button class="btn btn-primary" id="researchBtn" type="button" style="min-height:44px; width: 200px; justify-content: center; font-weight: 600;" aria-label="Research keyword now">
+                            <i class="fas fa-search" aria-hidden="true"></i> Research keyword
                         </button>
                     </div>
 
-                    <div class="research-results" id="researchResults" style="display: none;">
-                        <!-- Advanced Metrics -->
-                        <div class="keyword-metrics card">
-                            <h3>📊 Keyword Overview</h3>
-                            <div class="metrics-grid">
-                                <div class="metric-card">
-                                    <div class="metric-header">
-                                        <span class="metric-label">Search Volume</span>
-                                        <span class="metric-icon"><i class="fas fa-search"></i></span>
+                    <div class="research-results" id="researchResults" style="display: none;" aria-live="polite">
+                        <!-- Signal strip: numbers first, list-first not mosaic -->
+                        <div class="ed-report-layout" style="grid-template-columns: 1fr; margin-top: 16px;">
+                            <section class="ed-panel ed-panel-table" aria-labelledby="keywordOverviewTitle">
+                                <div class="ed-panel-heading">
+                                    <div>
+                                        <p class="ed-eyebrow">Measured signal</p>
+                                        <h2 id="keywordOverviewTitle">Keyword overview</h2>
                                     </div>
-                                    <div class="metric-value" id="searchVolume">-</div>
+                                    <span class="ed-source-tag">Serper + Keyword Planner</span>
                                 </div>
-                                <div class="metric-card">
-                                    <div class="metric-header">
-                                        <span class="metric-label">Opportunity Score</span>
-                                        <span class="metric-icon"><i class="fas fa-star"></i></span>
-                                    </div>
-                                    <div class="metric-value" id="opportunityScore">-</div>
+                                <div class="ed-signal-grid" style="grid-template-columns: repeat(4,1fr); gap:0; border-bottom:1px solid var(--ed-line);">
+                                    <div class="ed-signal-card" style="border:0; border-right:1px solid var(--ed-line); border-radius:0; min-height:118px; box-shadow:none;"><div class="ed-source-tag">Volume</div><div class="ed-signal-value" id="searchVolume" style="font-size:26px; margin-top:18px;">-</div><div class="ed-label" style="margin-top:6px;">Monthly searches</div></div>
+                                    <div class="ed-signal-card" style="border:0; border-right:1px solid var(--ed-line); border-radius:0; min-height:118px; box-shadow:none;"><div class="ed-source-tag">Opportunity</div><div class="ed-signal-value" id="opportunityScore" style="font-size:26px; margin-top:18px;">-</div><div class="ed-label" style="margin-top:6px;">0–100 score</div></div>
+                                    <div class="ed-signal-card" style="border:0; border-right:1px solid var(--ed-line); border-radius:0; min-height:118px; box-shadow:none;"><div class="ed-source-tag">Competition</div><div class="ed-signal-value" id="competition" style="font-size:26px; margin-top:18px;">-</div><div class="ed-label" style="margin-top:6px;">Low / Med / High</div></div>
+                                    <div class="ed-signal-card" style="border:0; border-radius:0; min-height:118px; box-shadow:none;"><div class="ed-source-tag">Difficulty</div><div class="ed-signal-value" id="difficulty" style="font-size:26px; margin-top:18px;">-</div><div class="ed-label" style="margin-top:6px;">0–100</div></div>
                                 </div>
-                                <div class="metric-card">
-                                    <div class="metric-header">
-                                        <span class="metric-label">Competition</span>
-                                        <span class="metric-icon"><i class="fas fa-chart-bar"></i></span>
-                                    </div>
-                                    <div class="metric-value" id="competition">-</div>
+                                <div style="padding:10px 20px; display:flex; gap:14px; flex-wrap:wrap; color:var(--ed-muted); font:10px 'IBM Plex Mono',monospace;">
+                                    <span>CPC: <strong id="cpcRange" style="color:var(--ed-ink); font-variant-numeric:tabular-nums;">-</strong></span>
+                                    <span>Location: <strong id="locationDisplay" style="color:var(--ed-ink);">-</strong></span>
                                 </div>
-                                <div class="metric-card">
-                                    <div class="metric-header">
-                                        <span class="metric-label">Difficulty</span>
-                                        <span class="metric-icon"><i class="fas fa-tachometer-alt"></i></span>
-                                    </div>
-                                    <div class="metric-value" id="difficulty">-</div>
-                                </div>
-                            </div>
+                            </section>
                         </div>
 
-                        <!-- Intent Analysis -->
-                        <div class="intent-analysis card" id="intentSection" style="display: none;">
-                            <h3>🎯 Keyword Intent</h3>
-                            <div class="intent-content">
-                                <div class="intent-primary">
-                                    <span class="intent-badge" id="intentPrimary">-</span>
+                        <!-- Intent + SERP as editorial sections, not equal cards -->
+                        <div class="ed-panel" id="intentSection" style="display:none; margin-top:12px; overflow:hidden;">
+                            <div class="ed-panel-heading"><div><p class="ed-eyebrow">Search intent</p><h2>Keyword intent</h2></div><span class="ed-source-tag" id="intentPrimary">-</span></div>
+                            <div class="ed-panel-body" style="padding:16px 20px;">
+                                <div class="intent-primary" style="margin-bottom:8px;">
                                     <span class="intent-stage" id="intentStage">-</span>
                                 </div>
-                                <div class="intent-description" id="intentDescription">-</div>
+                                <div class="intent-description" id="intentDescription" style="color:var(--ed-muted); font-size:12px; line-height:1.6;">-</div>
                                 <div class="intent-breakdown" id="intentBreakdown"></div>
                             </div>
                         </div>
 
-                        <!-- SERP Features -->
-                        <div class="serp-features card" id="serpFeaturesSection" style="display: none;">
-                            <h3>🔎 SERP Features</h3>
-                            <div class="features-grid" id="serpFeaturesGrid"></div>
-                            <div class="rich-opportunity" id="richOpportunity"></div>
+                        <div class="ed-panel" id="serpFeaturesSection" style="display:none; margin-top:12px; overflow:hidden;">
+                            <div class="ed-panel-heading"><div><p class="ed-eyebrow">SERP surface</p><h2>SERP features</h2></div></div>
+                            <div class="ed-panel-body" style="padding:16px 20px;">
+                                <div class="features-grid" id="serpFeaturesGrid"></div>
+                                <div class="rich-opportunity" id="richOpportunity" style="margin-top:10px;"></div>
+                            </div>
                         </div>
 
-                        <!-- CPC Range -->
-                        <div class="cpc-analysis card">
-                            <h3>💰 CPC Estimation</h3>
-                            <div class="cpc-range" id="cpcRange">-</div>
-                        </div>
+                        <!-- Content gaps as ruled list, not card -->
+                        <section class="ed-panel" id="contentGapSection" style="display:none; margin-top:12px; overflow:hidden; border-left:3px solid var(--ed-copper);">
+                            <div class="ed-panel-heading"><div><p class="ed-eyebrow">Gap</p><h2>Content gap analysis</h2></div></div>
+                            <div class="ed-panel-body" style="padding:16px 20px; display:grid; gap:10px;">
+                                <div class="gap-section" id="gapQuestions"></div>
+                                <div class="gap-section" id="gapTopics"></div>
+                                <div class="gap-section" id="gapLength"></div>
+                                <div class="gap-section" id="gapElements"></div>
+                            </div>
+                        </section>
 
-                        <!-- Content Gaps -->
-                        <div class="content-gap card" id="contentGapSection" style="display: none;">
-                            <h3>📝 Content Gap Analysis</h3>
-                            <div class="gap-section" id="gapQuestions"></div>
-                            <div class="gap-section" id="gapTopics"></div>
-                            <div class="gap-section" id="gapLength"></div>
-                            <div class="gap-section" id="gapElements"></div>
-                        </div>
-
-                        <!-- Top Pages Analysis -->
-                        <div class="top-pages card" id="topPagesSection" style="display: none;">
-                            <h3>📈 Top Pages Analysis</h3>
-                            <div class="pages-stats" id="pagesStats"></div>
-                            <div class="pages-recommendations" id="pagesRecommendations"></div>
-                        </div>
-
-                        <!-- Location Display -->
-                        <div class="location-info card">
-                            <h3>📍 Location</h3>
-                            <div class="location-display" id="locationDisplay">-</div>
-                        </div>
+                        <section class="ed-panel" id="topPagesSection" style="display:none; margin-top:12px; overflow:hidden;">
+                            <div class="ed-panel-heading"><div><p class="ed-eyebrow">Evidence</p><h2>Top pages analysis</h2></div></div>
+                            <div class="ed-panel-body" style="padding:16px 20px;">
+                                <div class="pages-stats" id="pagesStats"></div>
+                                <div class="pages-recommendations" id="pagesRecommendations"></div>
+                            </div>
+                        </section>
 
                         <!-- Competitors -->
                         <div class="competitors-table card">
                             <div class="card-header">
-                                <h3>🏆 Ranking Pages</h3>
+                                <h3>Ranking pages</h3>
                                 <span class="badge" id="competitorCount">0</span>
                             </div>
                             <div class="card-body">
                                 <table class="data-table premium" id="competitorsTable">
+                                    <caption class="sr-only">Ranking pages returned for the researched keyword</caption>
                                     <thead>
                                         <tr>
-                                            <th>#</th>
-                                            <th>Domain</th>
-                                            <th>Title</th>
-                                            <th>Actions</th>
+                                            <th scope="col">#</th>
+                                            <th scope="col">Domain</th>
+                                            <th scope="col">Title</th>
+                                            <th scope="col">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody></tbody>
@@ -211,15 +193,16 @@
                                     </div>
                                 </div>
                                 <table class="data-table premium" id="relatedSearchesTable">
+                                    <caption class="sr-only">Related keywords with volume, CPC, difficulty and intent</caption>
                                     <thead>
                                         <tr>
-                                            <th style="width:42px;"></th>
-                                            <th>Keyword</th>
-                                            <th>Search Volume</th>
-                                            <th>CPC (USD)</th>
-                                            <th>Difficulty</th>
-                                            <th>Intent</th>
-                                            <th>Actions</th>
+                                            <th scope="col" style="width:42px;"><span class="sr-only">Select</span></th>
+                                            <th scope="col">Keyword</th>
+                                            <th scope="col">Search volume</th>
+                                            <th scope="col">CPC (USD)</th>
+                                            <th scope="col">Difficulty</th>
+                                            <th scope="col">Intent</th>
+                                            <th scope="col">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody></tbody>

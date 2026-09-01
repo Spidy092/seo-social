@@ -1,0 +1,332 @@
+/* ─── Autopilot ─── */
+
+.ap-container {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.ap-header {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(16, 185, 129, 0.08));
+    border: 1px solid var(--gray-light);
+}
+
+.ap-header-top h2 {
+    color: var(--dark);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ap-header-top h2 i {
+    color: var(--primary);
+}
+
+.ap-header-sub {
+    color: var(--gray);
+    font-size: 0.9rem;
+    max-width: 700px;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.ap-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 18px;
+}
+
+@media (max-width: 900px) {
+    .ap-grid { grid-template-columns: 1fr; }
+}
+
+.ap-toggle-row {
+    margin-bottom: 4px;
+}
+
+.ap-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--dark);
+    cursor: pointer;
+}
+
+.ap-toggle input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary);
+}
+
+.ap-history-card .card-body {
+    max-height: 340px;
+    overflow-y: auto;
+}
+
+.ap-history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--gray-light);
+    cursor: pointer;
+}
+
+.ap-history-item:last-child {
+    border-bottom: none;
+}
+
+.ap-history-item:hover {
+    background: rgba(79, 70, 229, 0.04);
+}
+
+.ap-history-meta {
+    min-width: 0;
+    flex: 1;
+}
+
+.ap-history-keyword {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ap-history-sub {
+    font-size: 0.75rem;
+    color: var(--gray);
+}
+
+/* ─── Flow progress ─── */
+
+.ap-flow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ap-flow-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: var(--light);
+    border: 1px solid var(--gray-light);
+    color: var(--gray);
+    font-size: 0.82rem;
+    font-weight: 600;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.ap-flow-step i {
+    font-size: 0.85rem;
+}
+
+.ap-flow-step.active {
+    background: rgba(79, 70, 229, 0.12);
+    border-color: var(--primary-light);
+    color: var(--primary);
+}
+
+.ap-flow-step.done {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: var(--secondary);
+    color: var(--secondary-dark);
+}
+
+.ap-flow-arrow {
+    color: var(--gray-light);
+    font-size: 0.75rem;
+}
+
+.ap-progress-detail {
+    margin-top: 14px;
+    font-size: 0.85rem;
+    color: var(--gray);
+    text-align: center;
+}
+
+.ap-error .card-body {
+    color: var(--danger);
+    font-weight: 500;
+}
+
+/* ─── Verdict card ─── */
+
+.ap-verdict-card {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.06), rgba(16, 185, 129, 0.05));
+    border: 1px solid var(--gray-light);
+}
+
+.ap-verdict-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.ap-report-eyebrow {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--primary);
+    margin-bottom: 4px;
+}
+
+.ap-verdict-summary {
+    color: var(--gray);
+    max-width: 620px;
+    line-height: 1.55;
+    margin: 6px 0 0;
+}
+
+.ap-score-ring {
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #fff;
+    background: conic-gradient(var(--primary) 0deg, var(--gray-light) 0deg);
+    flex-shrink: 0;
+}
+
+.ap-score-ring span {
+    background: var(--light);
+    color: var(--dark);
+    width: 66px;
+    height: 66px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ap-verdict-observation {
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.6);
+    border-left: 3px solid var(--primary);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: var(--dark);
+}
+
+.ap-verdict-meta {
+    margin-top: 12px;
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    font-size: 0.78rem;
+    color: var(--gray);
+}
+
+/* ─── Action plan ─── */
+
+.ap-plan-item {
+    display: flex;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--gray-light);
+}
+
+.ap-plan-item:last-child {
+    border-bottom: none;
+}
+
+.ap-plan-rank {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--light);
+    border: 1px solid var(--gray-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: var(--gray);
+    flex-shrink: 0;
+}
+
+.ap-plan-body {
+    min-width: 0;
+    flex: 1;
+}
+
+.ap-plan-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.ap-plan-title {
+    font-weight: 600;
+    color: var(--dark);
+    font-size: 0.92rem;
+}
+
+.ap-plan-priority {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 999px;
+}
+
+.ap-plan-priority.high   { background: rgba(239, 68, 68, 0.15);  color: var(--danger); }
+.ap-plan-priority.medium { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+.ap-plan-priority.low    { background: rgba(16, 185, 129, 0.12); color: var(--secondary); }
+
+.ap-plan-details {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    color: var(--gray);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.ap-plan-footer {
+    margin-top: 6px;
+    display: flex;
+    gap: 14px;
+    font-size: 0.76rem;
+    color: var(--gray);
+}
+
+.ap-task-badge {
+    margin-top: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--secondary-dark);
+    font-weight: 600;
+}
+
+/* ─── Related keywords ─── */
+
+.ap-keyword-chip {
+    display: inline-block;
+    padding: 6px 12px;
+    margin: 4px 6px 0 0;
+    background: var(--light);
+    border: 1px solid var(--gray-light);
+    border-radius: 999px;
+    font-size: 0.8rem;
+    color: var(--dark);
+}
